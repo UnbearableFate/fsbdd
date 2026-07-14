@@ -2,7 +2,7 @@ schema_version: 2
 loop_id: S1-01
 title: Hugging Face model logical-layer registry
 stage: stage1
-status: check_pending
+status: pass
 source_hashes:
   research_plan: 2c0db3148110da10ea62f445c189d2d53b405527d8da264b9af9817f5ca9d835
   stage0_4_spec: 1ea71fb6e34fef0d7b5558d8e7999dfdedeb82957f4331afcf6f80279d1f5a7d
@@ -10,7 +10,7 @@ git:
   integration_branch: master
   branch: codex/S1-01-hf-layer-registry
   base_commit: e6c0eadf62b4d0452eabf39dad7d741e82c9ac6f
-  result_commit: null
+  result_commit: 25d12c9896bc20843af241cdaf68503f2ce16d3d
   dirty_at_start: true
 dependencies: [S1-00]
 requirements: [MODEL-01, MODEL-02, MODEL-03, MODEL-04, MODEL-05, MODEL-06]
@@ -57,7 +57,7 @@ checker:
   context_id: /root/s1_01_checker
   maker_chat_inherited: false
   phase_a_verdict: not_required
-  verdict: BLOCKED
+  verdict: PASS
   report_path: reports/checkers/S1-01.md
   cycles:
   - cycle: 1
@@ -65,21 +65,25 @@ checker:
     verdict: BLOCKED
     gaps: [explicit mapping bypassed decoder-only scope, registered buffers were not classified]
     corrective_red: runtime_runs/S1-01/red-checker-901d81a/stdout/pytest.log
+  - cycle: 2
+    checked_candidate: 25d12c9896bc20843af241cdaf68503f2ce16d3d
+    verdict: PASS
+    report_sha256: f1c831f62241ff8366414f0b5aa7281ea47e302b70e34cd092127855b48f0b4c
 persist:
   evidence_index: evidence/indexes/S1-01.md
   raw_evidence_root: runtime_runs/S1-01
-  acceptance_traceability_updated: false
-  next_gap: null
+  acceptance_traceability_updated: true
+  next_gap: S1-02 must assign every registry parameter identity to exactly one contiguous balanced fragment.
   handoff:
     proven_facts: [decoder-only scope is enforced before adapter selection, all registered buffers require exact reconstructable classification, selected real Pythia registry covers 148 parameters and 2 buffers]
     checked_commit: 1130df4f8836458c293aedecdc40a1ff01a27239
     selected_evidence: [runtime_runs/S1-01/harden3-1130df4-2384543]
-    next_command: Recheck corrected candidate in the existing independent Checker context.
+    next_command: Create codex/S1-02-balanced-fragment-map from the S1-01 closure and begin S1-02 ORIENT.
   cost:
     attempts_by_level: {L0: 2, L1: 4}
     queue_seconds: null
     active_seconds: 95
-    checker_cycles: 1
+    checker_cycles: 2
     goal_tokens_end: null
     agent_tokens_used: null
     phase_token_deltas: {}
