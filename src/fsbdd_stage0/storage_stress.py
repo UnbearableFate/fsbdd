@@ -129,10 +129,11 @@ def replace_visibility_bytes(path: Path, content: bytes) -> None:
     """Close a complete same-directory temporary, then atomically replace.
 
     BENCH-02 measures the POSIX rename visibility primitive, not persistence
-    after power loss.  Per-replacement file and directory fsync would measure
-    durability barriers instead and would dominate the 200000-operation
-    matrix.  Durable payload/publication and kill probes continue to use
-    ``atomic_write_bytes``.
+    after power loss.  The temporary is fsynced before rename so a remote
+    reader cannot observe a namespace entry whose data is still only dirty on
+    the writer.  The directory is not fsynced per replacement because crash
+    durability of the directory entry is outside this atomic-visibility test.
+    Kill probes continue to use the stronger ``atomic_write_bytes`` helper.
     """
 
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -143,6 +144,7 @@ def replace_visibility_bytes(path: Path, content: bytes) -> None:
         with temporary.open("xb") as handle:
             handle.write(content)
             handle.flush()
+            os.fsync(handle.fileno())
         os.replace(temporary, path)
     finally:
         temporary.unlink(missing_ok=True)
@@ -632,6 +634,27 @@ def _run_atomic_reader(
         for record_size_value in atomicity["record_sizes_bytes"]:
             record_size = int(record_size_value)
             record_path = test_root / "atomic" / f"record-{record_size}.json"
+            # The writer publishes a stable sequence -1 record and cannot start
+            # replacement traffic until the reader-ready marker.  Admit reader
+            # observations only after that initial record is visible and valid;
+            # pre-handshake ENOENT is startup ordering, not an atomicity failure.
+            _wait_for_expected_record(
+                record_path,
+                run_id=run_id,
+                sequence=-1,
+                timeout_seconds=timeout,
+                poll_interval_seconds=poll,
+                required_fields=(
+                    "run_id",
+                    "sequence",
+                    "record_size",
+                    "complete",
+                    "sha256",
+                ),
+            )
+            validate_atomic_record(
+                record_path.read_bytes(), run_id=run_id, record_size=record_size
+            )
             states = [
                 {
                     "reader_id": reader_id,
