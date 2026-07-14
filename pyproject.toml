@@ -1,0 +1,37 @@
+[project]
+name = "fsbdd"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.13"
+
+dependencies = [
+    "accelerate>=1.14.0",
+    "datasets>=5.0.0",
+    "evaluate>=0.4.6",
+    "fire>=0.7.1",
+    "numpy>=2.5.0",
+    "pandas>=3.0.3",
+    "scikit-learn>=1.9.0",
+    "scipy>=1.18.0",
+    "timm>=1.0.27",
+    "tokenizers>=0.23.0rc0",
+    "torch",
+    "torchvision",
+    "tqdm>=4.68.3",
+    "transformers>=5.12.1",
+    "trl>=1.7.0",
+    "wandb>=0.28.0",
+]
+
+[tool.uv]
+prerelease = "allow"
+
+[tool.uv.sources]
+torch = { index = "pytorch-cu132" }
+torchvision = { index = "pytorch-cu132" }
+
+[[tool.uv.index]]
+name = "pytorch-cu132"
+url = "https://download.pytorch.org/whl/cu132"
+explicit = true
