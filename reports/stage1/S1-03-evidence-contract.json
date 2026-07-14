@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "resource_level": "L2",
+  "selected_evidence_root": "/work/xg24i002/x10041/fsbdd/runtime_runs/S1-03/formal-l2",
+  "target_shared_root": "/work/xg24i002/x10041/fsbdd/runtime_runs",
+  "topology": {
+    "pbs_queue": "debug-g",
+    "pbs_group": "xg24i002",
+    "nodes": 2,
+    "ranks": 2,
+    "ranks_per_node": 1,
+    "application_coordination": "filesystem_only",
+    "mpi_usage": "launcher_only"
+  },
+  "authoritative_observation": {
+    "reader_entrypoint": "PosixStorageBackend.read on one fixed visibility slot",
+    "invalid_read": "any returned bytes whose visibility record is partial or whose schema identity size checksum dtype shape version sequence or base identity is invalid",
+    "partial_read": "any returned payload shorter or longer than the record byte count or with a different SHA-256",
+    "aggregation": "sum invalid observations over every reader poll in the common writer-start through final-sequence interval",
+    "pass_condition": "invalid_reads == 0 and final complete sequence observed"
+  },
+  "crash_points": [
+    "before_payload_write",
+    "after_payload_write",
+    "before_record_replace",
+    "after_record_replace"
+  ],
+  "unsafe_control": {
+    "fixture": "tests/red_cases/s0b02_unsafe_visibility_surrogate.py",
+    "selected_stage0_evidence": "evidence/raw/S0B-02/20260714T162735Z-unsafefix-unsafefix-n2e5c-006abf2a3b43",
+    "detector_reused": true
+  },
+  "formal_package": "S1-00 builder/finalizer/validator with clean code/config/source/skill/scheduler/role/path identity and fail-if-exists root",
+  "failure_ladder": "preserve the first L2 package; reproduce at L1 with the same commit and local temporary filesystem before any resubmission"
+}

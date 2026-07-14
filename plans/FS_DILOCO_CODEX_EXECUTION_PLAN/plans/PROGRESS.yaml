@@ -180,13 +180,13 @@ loops:
   depends_on:
   - S1-00
   - S0B-03
-  status: not_started
+  status: in_progress
   nine_node_gate_required: false
   acceptance_ids:
   - A-PROP-01
   - A-GLOBAL-01
-  branch: null
-  base_commit: null
+  branch: codex/S1-03-storage-primitive
+  base_commit: 754f12d415878bcebba660db967afcfceb852ccf
   result_commit: null
   evidence_index: null
   checker_verdict: null
