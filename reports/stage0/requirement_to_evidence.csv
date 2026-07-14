@@ -1,9 +1,9 @@
 requirement_id,primary_loop,evidence,status
 SIM-01,S0A-01,tests/simulation/test_a_sim_01__event_semantics.py,passed
 SIM-02,S0A-01,tests/fixtures/stage0_decision_vectors.json,passed
-SIM-03,S0A-02,reports/stage0/simulation_sweep_manifest.json,planned
-SIM-04,S0A-02,reports/stage0/simulation_summary.json,planned
-SIM-05,S0A-02,reports/stage0/simulation_recommendation.md,planned
+SIM-03,S0A-02,reports/stage0/simulation_sweep_manifest.json,passed
+SIM-04,S0A-02,reports/stage0/simulation_summary.json,passed
+SIM-05,S0A-02,reports/stage0/simulation_recommendation.md,passed
 STALE-01,S0A-01,tests/simulation/test_a_sim_01__event_semantics.py,passed
 STALE-07,S0A-01,tests/fixtures/stage0_decision_vectors.json,passed
 STALE-08,S0A-01,tests/fixtures/stage0_decision_vectors.json,passed
@@ -25,8 +25,8 @@ OPT-02,S0C-02,tests/oracle/test_a_alg_00__consumption_outer_transitions.py,passe
 OPT-04,S0C-02,tests/fixtures/stage0_decision_vectors.json,passed
 OPT-05,S0C-02,tests/oracle/test_a_alg_00__consumption_outer_transitions.py,passed
 A-SIM-01,S0A-01,evidence/indexes/S0A-01.md,passed
-A-SIM-02,S0A-02,evidence/indexes/S0A-02.md,planned
-A-SIM-03,S0A-02,evidence/indexes/S0A-02.md,planned
+A-SIM-02,S0A-02,evidence/indexes/S0A-02.md,passed
+A-SIM-03,S0A-02,evidence/indexes/S0A-02.md,passed
 A-BENCH-01,S0B-02,evidence/indexes/S0B-02.md,planned
 A-BENCH-02,S0B-02,evidence/indexes/S0B-02.md,planned
 A-BENCH-03,S0B-03,evidence/indexes/S0B-03.md,planned

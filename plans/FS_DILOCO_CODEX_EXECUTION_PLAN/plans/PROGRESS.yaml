@@ -12,7 +12,7 @@ capabilities:
     status: inactive
     established_by: S1-13
     baseline_9n_run_id: null
-current_loop: S0A-02
+current_loop: S0B-01
 loops:
 - id: S0C-01
   stage: stage0
@@ -63,16 +63,16 @@ loops:
   title: 参数扫描、默认 Profile 与 stale 挽回预测
   depends_on:
   - S0A-01
-  status: not_started
+  status: pass
   nine_node_gate_required: false
   acceptance_ids:
   - A-SIM-02
   - A-SIM-03
-  branch: null
-  base_commit: null
-  result_commit: null
-  evidence_index: null
-  checker_verdict: null
+  branch: codex/S0A-02-simulation-sweep
+  base_commit: dd21542401ef1ea66392ea18e2eb702fe6a1244c
+  result_commit: 311c81aa2eaa264adc7ce256060627ea321443ba
+  evidence_index: evidence/indexes/S0A-02.md
+  checker_verdict: PASS
   blocker: null
 - id: S0B-01
   stage: stage0

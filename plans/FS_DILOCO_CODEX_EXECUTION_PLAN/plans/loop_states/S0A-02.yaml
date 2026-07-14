@@ -2,7 +2,7 @@ schema_version: 1
 loop_id: S0A-02
 title: 参数扫描、默认 Profile 与 stale 挽回预测
 stage: stage0
-status: oriented
+status: pass
 source_hashes:
   research_plan: 2c0db3148110da10ea62f445c189d2d53b405527d8da264b9af9817f5ca9d835
   stage0_4_spec: fad26a8add51e70ddf50d0130b61d80fe06e1c3945221c29508412a5bcab2feb
@@ -10,7 +10,7 @@ git:
   integration_branch: master
   branch: codex/S0A-02-simulation-sweep
   base_commit: dd21542401ef1ea66392ea18e2eb702fe6a1244c
-  result_commit: null
+  result_commit: 311c81aa2eaa264adc7ce256060627ea321443ba
   dirty_at_start: false
 dependencies:
   - S0A-01
@@ -44,15 +44,19 @@ orient:
   initial_hostname: miyabi-g1
   workflow: Miyabi login is control plane only; all simulation execution and output validation run inside PBS compute allocations.
 red:
-  command: null
-  exit_code: null
-  evidence_path: null
+  command: qsub debug-g matrix/report surrogate plus corrected resume-identity/corruption surrogate
+  exit_code: 1
+  evidence_path: evidence/raw/S0A-02/20260714T145200Z-red2-n2f6d-29ab6a13979a
+  additional_evidence_paths:
+    - evidence/raw/S0A-02/20260714T142600Z-red-n6c4e-2bf344f3d830
 green:
-  command: null
-  evidence_path: null
+  command: qsub debug-g planned partial 25 rows per shard then RESUME_MODE=1 with the same run ID
+  evidence_path: evidence/raw/S0A-02/20260714T145700Z-green3-resume-n7b4a-14126dde2f00
 harden:
-  commands: []
-  evidence_paths: []
+  commands:
+    - qsub debug-g full S0C and S0A regression with resume corruption, units, bounds, and seed-sensitivity checks
+  evidence_paths:
+    - evidence/raw/S0A-02/20260714T150300Z-harden2-n4c8f-028bdf299842
 nine_node_gate:
   required: false
   run_id: null
@@ -60,11 +64,11 @@ nine_node_gate:
   loss_gate: not_applicable
   runtime_gate: not_applicable
 checker:
-  verdict: null
-  report_path: null
+  verdict: PASS
+  report_path: reports/checkers/S0A-02.md
 persist:
-  evidence_index: null
+  evidence_index: evidence/indexes/S0A-02.md
   raw_evidence_root: /work/xg24i002/x10041/fsbdd/evidence/raw/S0A-02
-  acceptance_traceability_updated: false
+  acceptance_traceability_updated: true
   next_gap: S0B-01 Miyabi target shared-FS discovery and benchmark harness
 blocker: null
