@@ -2,7 +2,7 @@ schema_version: 1
 loop_id: S0B-03
 title: Metadata/Bandwidth 压测与 Stage 1 FS 决策
 stage: stage0
-status: red
+status: checking
 source_hashes:
   research_plan: 2c0db3148110da10ea62f445c189d2d53b405527d8da264b9af9817f5ca9d835
   stage0_4_spec: fad26a8add51e70ddf50d0130b61d80fe06e1c3945221c29508412a5bcab2feb
@@ -61,11 +61,25 @@ red:
   pbs_job_id: 2383721.opbs
   failure_summary: Five deterministic failures reject history scanning, an incomplete stat-only profile matrix, a threshold report without steady-demand math, an incomplete payload/concurrency matrix, and bandwidth reporting without the 10%-of-H concurrent-round comparison.
 green:
-  command: null
-  evidence_path: null
+  command: RUN_LABEL=green qsub pbs/stage0_storage_capacity.pbs
+  evidence_path: evidence/raw/S0B-03/20260714T171502Z-green-n2d6c-cdd8a3e5e65a
+  checksum_manifest_sha256: 0aaae840eb301cf3ef6902fe79beb238b93535fe729827aaf6300f8b6033112e
+  pbs_job_id: 2383755.opbs
+  result_summary: Two distinct compute hosts and 16 ranks completed the full metadata and sequential-I/O matrix; the minimum M=16/F=32 warm rate was 45137.772292205256 references/s and the maximum 16-stream write round was 0.320653538s, so both frozen gates passed.
 harden:
-  commands: []
-  evidence_paths: []
+  commands:
+    - TEST_TARGETS=tests.storage.test_stage0_storage_capacity qsub pbs/stage0_cpu_tests.pbs
+    - TEST_TARGETS=all_stage0 qsub pbs/stage0_cpu_tests.pbs
+    - RUN_LABEL=repeat qsub pbs/stage0_storage_capacity.pbs
+  evidence_paths:
+    - evidence/raw/S0B-03/20260714T171444Z-unit2-n8b3d-6ccb57f1fbc3
+    - evidence/raw/S0B-03/20260714T171520Z-harden-n5f9b-a8d36b961469
+    - evidence/raw/S0B-03/20260714T171837Z-repeat-n7a4e-cdd8a3e5e65a
+  checksum_manifest_sha256:
+    focused_tests: 2d1e7e1c22897ac9a96cfab4eca519b06c0d05ab48cd1afdd5ec58931737fb27
+    full_stage0_tests: ec0b20d49643ac21c3eaf805465b458f13b04ab5e6cd5f1ac1a7701eed9c0905
+    independent_repeat: c53cb77728b38f80df4218fd51a0e5186fc3075210b72ad80dba51be60625a40
+  result_summary: Focused 7/7 and full Stage 0 56/56 tests passed. The repeat on mg0014/mg0016 measured 45339.33066917932 references/s and a 0.325864872s maximum write round; bounded counts and cleanup passed in both full runs.
 nine_node_gate:
   required: false
   run_id: null
@@ -79,5 +93,5 @@ persist:
   evidence_index: null
   raw_evidence_root: /work/xg24i002/x10041/fsbdd/evidence/raw/S0B-03
   acceptance_traceability_updated: false
-  next_gap: Stage 0 checkpoint and current-skill provenance audit
+  next_gap: Fresh independent S0B-03 Checker, then Stage 0 checkpoint and independent stage Checker
 blocker: null
