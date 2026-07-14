@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "profile_id": "stage0-miyabi-lustre-resolved",
+  "miyabi": {
+    "required_skill_repository": "https://github.com/UnbearableFate/miyabi-development",
+    "required_skill_commit": "ad1fd34a9de976b4fb26ba47d9a1770430884765",
+    "target_shared_run_root": "/work/xg24i002/x10041/fsbdd/runtime_runs",
+    "expected_filesystem_type": "lustre",
+    "pbs_group": "xg24i002",
+    "queue": "debug-g",
+    "compute_nodes": 2,
+    "launcher": "mpirun",
+    "ranks_per_node": 1
+  },
+  "smoke": {
+    "payload_bytes": 4096,
+    "poll_interval_seconds": 0.001,
+    "timeout_seconds": 20.0,
+    "required_distinct_hosts": 2
+  },
+  "visibility": {
+    "profiles": ["empty", "loaded"],
+    "samples_per_profile": 1000,
+    "poll_interval_seconds": 0.0005,
+    "report_percentiles": [50, 95, 99, 100],
+    "clock_calibration_rounds": 32
+  },
+  "atomicity": {
+    "replacements": 100000,
+    "concurrent_readers": 4,
+    "record_sizes_bytes": [256, 4096],
+    "permitted_violations": 0
+  },
+  "metadata": {
+    "learner_counts": [4, 8, 16],
+    "fragment_counts": [8, 16, 32],
+    "polling_interval_seconds": 1.0,
+    "history_sizes_for_negative_control": [0, 1000, 10000]
+  },
+  "bandwidth": {
+    "payload_sizes_mb": [50, 100, 250, 500],
+    "streams": [1, 16],
+    "chunk_bytes": 8388608,
+    "repeats": 2
+  },
+  "thresholds": {
+    "planned_sync_period_seconds": 50.0,
+    "visibility_p99_seconds": 2.5,
+    "metadata_steady_demand_ops_per_second": 512.0,
+    "metadata_required_ops_per_second": 5120.0,
+    "concurrent_fragment_round_seconds": 5.0
+  },
+  "claims_boundary": "Results apply to the frozen Miyabi Lustre RUN_ROOT and do not substitute for runtime protocol correctness."
+}
