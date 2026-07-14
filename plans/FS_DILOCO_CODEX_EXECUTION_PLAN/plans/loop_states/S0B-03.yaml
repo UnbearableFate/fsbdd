@@ -9,13 +9,13 @@ source_hashes:
 git:
   integration_branch: master
   branch: codex/S0B-03-storage-capacity
-  base_commit: 92432035bf8c73696a11fd2c372e55a51e2244e7
+  base_commit: 7cd3e6ffcf36343d782b241c9815c57d62f87a69
   result_commit: null
   dirty_at_start: false
 dependencies:
   - S0B-02
 dependency_evidence:
-  S0B-02: evidence/indexes/S0B-02.md and reports/checkers/S0B-02.md close A-BENCH-01/02 with PASS on the same frozen target Lustre root.
+  S0B-02: evidence/indexes/S0B-02.md and reports/checkers/S0B-02.md close A-BENCH-01/02 with corrected RED provenance and PASS on the same frozen target Lustre root at persistence commit 7cd3e6ffcf36343d782b241c9815c57d62f87a69.
 requirements:
   - BENCH-03
   - BENCH-04

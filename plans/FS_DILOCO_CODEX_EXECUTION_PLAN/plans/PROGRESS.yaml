@@ -12,7 +12,7 @@ capabilities:
     status: inactive
     established_by: S1-13
     baseline_9n_run_id: null
-current_loop: S0B-02
+current_loop: S0B-03
 loops:
 - id: S0C-01
   stage: stage0
@@ -108,13 +108,13 @@ loops:
   title: Metadata/Bandwidth 压测与 Stage 1 FS 决策
   depends_on:
   - S0B-02
-  status: not_started
+  status: oriented
   nine_node_gate_required: false
   acceptance_ids:
   - A-BENCH-03
   - A-BENCH-04
-  branch: null
-  base_commit: null
+  branch: codex/S0B-03-storage-capacity
+  base_commit: 7cd3e6ffcf36343d782b241c9815c57d62f87a69
   result_commit: null
   evidence_index: null
   checker_verdict: null
