@@ -20,7 +20,7 @@ export PAGER=cat MODULES_PAGER=cat LMOD_PAGER=cat
 : "${MIYABI_SKILL_COMMIT:?MIYABI_SKILL_COMMIT is required}"
 : "${STORAGE_CONFIG:=configs/stage0/storage_benchmark.json}"
 : "${TARGET_RUN_ROOT:=/work/xg24i002/x10041/fsbdd/runtime_runs}"
-: "${BENCHMARK_MODE:=full}"
+: "${FSBDD_STRESS_MODE:=full}"
 : "${MODULE_NAME:=nv-hpcx/25.9}"
 : "${INITIAL_HOSTNAME:=miyabi-g1}"
 : "${EVIDENCE_ROOT:=$PROJECT_ROOT/evidence/raw}"
@@ -30,10 +30,10 @@ if [[ "$RUN_ID" != *"$SUBMISSION_NONCE"* ]] || [[ "$RUN_ID" != *"$CONFIG_DIGEST_
   echo "RUN_ID must contain the submission nonce and short config digest" >&2
   exit 64
 fi
-case "$BENCHMARK_MODE" in
+case "$FSBDD_STRESS_MODE" in
   full|unsafe) ;;
   *)
-    echo "BENCHMARK_MODE must be full or unsafe" >&2
+    echo "FSBDD_STRESS_MODE must be full or unsafe" >&2
     exit 64
     ;;
 esac
@@ -172,7 +172,7 @@ printf '%q ' mpirun -np 2 --map-by ppr:1:node --hostfile "$PBS_NODEFILE" \
   "PBS_NODEFILE=$PBS_NODEFILE" "$PYTHON" \
   -m fsbdd_stage0.storage_stress role \
   --config "$STORAGE_CONFIG" --test-root "$TEST_ROOT" \
-  --result-root "$RESULT_ROOT" --run-id "$RUN_ID" --mode "$BENCHMARK_MODE" \
+  --result-root "$RESULT_ROOT" --run-id "$RUN_ID" --mode "$FSBDD_STRESS_MODE" \
   > "$RUN_DIR/commands.log"
 printf '\n' >> "$RUN_DIR/commands.log"
 
@@ -183,7 +183,7 @@ if mpirun -np 2 --map-by ppr:1:node --hostfile "$PBS_NODEFILE" \
     --test-root "$TEST_ROOT" \
     --result-root "$RESULT_ROOT" \
     --run-id "$RUN_ID" \
-    --mode "$BENCHMARK_MODE" \
+    --mode "$FSBDD_STRESS_MODE" \
     > "$RUN_DIR/results/mpirun.stdout" \
     2> "$RUN_DIR/results/mpirun.stderr"; then
   MPI_EXIT=0
@@ -200,7 +200,7 @@ fi
   --config "$STORAGE_CONFIG" \
   --result-root "$RESULT_ROOT" \
   --run-id "$RUN_ID" \
-  --mode "$BENCHMARK_MODE" \
+  --mode "$FSBDD_STRESS_MODE" \
   > "$RUN_DIR/results/summarize.stdout"
 
 "$PYTHON" -m fsbdd_stage0.storage_stress finalize-manifest \
@@ -212,7 +212,7 @@ fi
   echo "schema_version: 1"
   echo "status: complete"
   echo "run_id: $RUN_ID"
-  echo "benchmark_mode: $BENCHMARK_MODE"
+  echo "benchmark_mode: $FSBDD_STRESS_MODE"
   echo "mpirun_exit_code: $MPI_EXIT"
   echo "test_root: $TEST_ROOT"
   echo "application_coordination: filesystem_only"

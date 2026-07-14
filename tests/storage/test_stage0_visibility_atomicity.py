@@ -159,6 +159,8 @@ class TestVisibilityAtomicityContracts(unittest.TestCase):
         self.assertIn("--map-by ppr:1:node", script)
         self.assertIn("application_coordination: filesystem_only", script)
         self.assertIn("MIYABI_SKILL_COMMIT", script)
+        self.assertIn("FSBDD_STRESS_MODE", script)
+        self.assertNotIn("BENCHMARK_MODE", script)
         self.assertNotIn("mpirun -x", script)
 
 
