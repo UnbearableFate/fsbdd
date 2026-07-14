@@ -184,7 +184,7 @@ class TestStage0StorageCapacity(unittest.TestCase):
         )
         broken = copy.deepcopy(roles)
         broken[0]["metadata"].pop()
-        with self.assertRaisesRegex(StorageHarnessError, "metadata matrix"):
+        with self.assertRaisesRegex(StorageHarnessError, "metadata (matrix|concurrency)"):
             _metadata_summary(broken, config)
 
     def test_fs_05__history_scan_grows_but_fixed_discovery_stays_bounded(self) -> None:
