@@ -23,7 +23,9 @@ def summarize(model_repository: str, revision: str, output: Path) -> dict[str, A
         model = AutoModelForCausalLM.from_config(config)
     model.tie_weights()
     registry = build_logical_layer_registry(model)
-    config_body = config.to_dict()
+    # Hugging Face config dicts may contain integer label-map keys. Its JSON
+    # representation is the portable identity surface and normalizes them.
+    config_body = json.loads(config.to_json_string(use_diff=False))
     summary = {
         "schema_version": 1,
         "model": {
