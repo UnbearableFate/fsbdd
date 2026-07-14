@@ -63,8 +63,10 @@ class SimulationConfig:
             raise OracleInputError("learners and fragments must be positive")
         if not 0 <= self.q_fresh <= self.q <= self.learners:
             raise OracleInputError("require 0 <= q_fresh <= q <= learners")
-        if self.q == 0 or self.s_max < 0 or self.h_steps <= 0:
-            raise OracleInputError("q and h_steps must be positive; s_max must be non-negative")
+        if self.q == 0 or self.h_steps <= 0:
+            raise OracleInputError("q and h_steps must be positive")
+        if self.s_max not in {0, 1, 2}:
+            raise OracleInputError("Stage 0 simulation supports s_max in {0, 1, 2}")
         if self.fragments > self.h_steps:
             raise OracleInputError("fragments must not exceed H for unique staggered offsets")
         if self.tokens_per_step <= 0 or self.max_trace_events < 0:

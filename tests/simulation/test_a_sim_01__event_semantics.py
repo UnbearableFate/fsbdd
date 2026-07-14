@@ -55,6 +55,18 @@ class TestASim01EventSemantics(unittest.TestCase):
         self.assertEqual(result.discarded_tokens, 0)
         self.assertGreater(result.accepted_token_efficiency, 0.8)
         self.assertAlmostEqual(result.update_intervals["mean"], 10.0, delta=1e-9)
+        print(
+            "SIMULATOR_EVENT_TRACE_SAMPLE="
+            + json.dumps(
+                {
+                    "config_digest": result.config_digest,
+                    "global_cycle": result.global_cycle,
+                    "trace": list(result.trace[:12]),
+                },
+                sort_keys=True,
+                separators=(",", ":"),
+            )
+        )
 
     def test_stale_01__visibility_and_heterogeneity_create_real_stale_events(self) -> None:
         common = dict(
@@ -134,6 +146,38 @@ class TestASim01EventSemantics(unittest.TestCase):
         self.assertLessEqual(len(result.trace), config.max_trace_events)
         self.assertLessEqual(result.max_event_queue, config.learners * config.fragments * 4)
         json.dumps(result.as_dict(), sort_keys=True, allow_nan=False)
+
+    def test_sim_01__rejects_profiles_outside_stage0_bounds(self) -> None:
+        valid = dict(
+            learners=4,
+            fragments=4,
+            q=2,
+            q_fresh=1,
+            s_max=1,
+            lambda_s=1.0,
+            h_steps=8,
+            grace_fraction_of_h=0.1,
+            upload_delay_seconds=0.1,
+            visibility_delay_seconds=1.0,
+            duration_seconds=20.0,
+            heterogeneity_ratio=1.0,
+            speed_model="constant_ratio",
+            tokens_per_step=8,
+            seed=1,
+            max_trace_events=0,
+        )
+        invalid_profiles = (
+            {"s_max": 3},
+            {"q": 5},
+            {"q_fresh": 3},
+            {"fragments": 9},
+            {"speed_model": "unspecified"},
+            {"duration_seconds": float("inf")},
+        )
+        for replacement in invalid_profiles:
+            with self.subTest(replacement=replacement):
+                with self.assertRaises(ValueError):
+                    SimulationConfig(**{**valid, **replacement})
 
 
 if __name__ == "__main__":
