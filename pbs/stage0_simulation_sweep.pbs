@@ -1,0 +1,167 @@
+#!/bin/bash
+#PBS -q debug-g
+#PBS -l select=1
+#PBS -l walltime=00:30:00
+#PBS -W group_list=xg24i002
+#PBS -N fsbdd-s0-sim
+
+set -eEuo pipefail
+trap 'echo "[ERROR] line=$LINENO command=$BASH_COMMAND" >&2' ERR
+
+export PAGER=cat MODULES_PAGER=cat LMOD_PAGER=cat
+
+: "${PROJECT_ROOT:=/work/xg24i002/x10041/fsbdd}"
+: "${LOOP_ID:=S0A-02}"
+: "${RUN_ID:?RUN_ID is required}"
+: "${SUBMISSION_NONCE:?SUBMISSION_NONCE is required}"
+: "${CONFIG_DIGEST:?CONFIG_DIGEST is required}"
+: "${CONFIG_PATHS:?CONFIG_PATHS is required}"
+: "${SWEEP_CONFIG:=configs/stage0/simulation_sweep.json}"
+: "${SHARD_COUNT:=4}"
+: "${EVIDENCE_ROOT:=$PROJECT_ROOT/evidence/raw}"
+
+CONFIG_DIGEST_SHORT="${CONFIG_DIGEST:0:12}"
+if [[ "$RUN_ID" != *"$SUBMISSION_NONCE"* ]] || [[ "$RUN_ID" != *"$CONFIG_DIGEST_SHORT"* ]]; then
+  echo "RUN_ID must contain the submission nonce and short config digest" >&2
+  exit 64
+fi
+
+HOST="$(hostname)"
+if [[ ! "$HOST" =~ ^mg[0-9]+$ ]] || [[ -z "${PBS_JOBID:-}" ]] || [[ -z "${PBS_NODEFILE:-}" ]]; then
+  echo "Refusing simulation execution outside a confirmed Miyabi PBS compute allocation" >&2
+  exit 70
+fi
+
+RUN_DIR="$EVIDENCE_ROOT/$LOOP_ID/$RUN_ID"
+if [[ -e "$RUN_DIR" ]]; then
+  echo "Evidence directory already exists: $RUN_DIR" >&2
+  exit 73
+fi
+mkdir -p "$RUN_DIR"/{stdout,stderr,env,configs,shards,results,tests}
+exec > "$RUN_DIR/stdout/job.log" 2> "$RUN_DIR/stderr/job.log"
+
+cd "$PROJECT_ROOT"
+PYTHON="$PROJECT_ROOT/.venv/bin/python"
+if [[ ! -x "$PYTHON" ]]; then
+  echo "Missing project Python: $PYTHON" >&2
+  exit 69
+fi
+export PYTHONPATH="$PROJECT_ROOT/src${PYTHONPATH:+:$PYTHONPATH}"
+
+CODE_COMMIT="$(git rev-parse HEAD)"
+module list 2>&1 | cat > "$RUN_DIR/env/modules.txt"
+hostname > "$RUN_DIR/env/hostname.txt"
+cp "$PBS_NODEFILE" "$RUN_DIR/env/pbs_nodefile.txt"
+git status --short --branch > "$RUN_DIR/env/git_status.txt"
+printf '%s\n' "$CODE_COMMIT" > "$RUN_DIR/env/git_commit.txt"
+"$PYTHON" --version > "$RUN_DIR/env/python_version.txt" 2>&1
+sha256sum \
+  plans/FS_DILOCO_CODEX_EXECUTION_PLAN/source/RESEARCH_PLAN.md \
+  plans/FS_DILOCO_CODEX_EXECUTION_PLAN/source/STAGE0-4_SPEC.md \
+  > "$RUN_DIR/env/source_hashes.txt"
+
+read -r -a CONFIG_ARRAY <<< "$CONFIG_PATHS"
+sha256sum "${CONFIG_ARRAY[@]}" > "$RUN_DIR/configs/config_digest_inputs.sha256"
+ACTUAL_CONFIG_DIGEST="$(sha256sum "$RUN_DIR/configs/config_digest_inputs.sha256" | awk '{print $1}')"
+if [[ "$ACTUAL_CONFIG_DIGEST" != "$CONFIG_DIGEST" ]]; then
+  echo "CONFIG_DIGEST mismatch: expected=$CONFIG_DIGEST actual=$ACTUAL_CONFIG_DIGEST" >&2
+  exit 65
+fi
+printf '%s\n' "${CONFIG_ARRAY[@]}" > "$RUN_DIR/configs/config_paths.txt"
+for index in "${!CONFIG_ARRAY[@]}"; do
+  source_path="${CONFIG_ARRAY[$index]}"
+  printf -v snapshot_name 'input-%03d-%s' "$index" "$(basename "$source_path")"
+  cp -- "$source_path" "$RUN_DIR/configs/$snapshot_name"
+done
+
+{
+  echo "schema_version: 1"
+  echo "loop_id: $LOOP_ID"
+  echo "run_id: $RUN_ID"
+  echo "initial_hostname: miyabi-g1"
+  echo "compute_hostname: $HOST"
+  echo "pbs_job_id: $PBS_JOBID"
+  echo "queue: ${PBS_QUEUE:-debug-g}"
+  echo "group: xg24i002"
+  echo "node_count: $(sort -u "$PBS_NODEFILE" | wc -l)"
+  echo "code_commit: $CODE_COMMIT"
+  echo "sweep_config: $SWEEP_CONFIG"
+  echo "shard_count: $SHARD_COUNT"
+  echo "submission_nonce: $SUBMISSION_NONCE"
+  echo "config_digest: $CONFIG_DIGEST"
+  echo "config_paths: $CONFIG_PATHS"
+  echo "miyabi_skill_repository: https://github.com/UnbearableFate/miyabi-development"
+  echo "miyabi_skill_commit: ad1fd34a9de976b4fb26ba47d9a1770430884765"
+  echo "raw_evidence_root: $RUN_DIR"
+} > "$RUN_DIR/manifest.yaml"
+
+: > "$RUN_DIR/commands.log"
+pids=()
+for ((shard=0; shard<SHARD_COUNT; shard++)); do
+  output="$RUN_DIR/shards/shard-${shard}.csv"
+  printf '%q -m fsbdd_stage0.sweep run-shard --config %q --output %q --shard-index %q --shard-count %q\n' \
+    "$PYTHON" "$SWEEP_CONFIG" "$output" "$shard" "$SHARD_COUNT" >> "$RUN_DIR/commands.log"
+  "$PYTHON" -m fsbdd_stage0.sweep run-shard \
+    --config "$SWEEP_CONFIG" \
+    --output "$output" \
+    --shard-index "$shard" \
+    --shard-count "$SHARD_COUNT" \
+    > "$RUN_DIR/shards/shard-${shard}.stdout" \
+    2> "$RUN_DIR/shards/shard-${shard}.stderr" &
+  pids+=("$!")
+done
+
+SHARD_EXIT=0
+for pid in "${pids[@]}"; do
+  if ! wait "$pid"; then
+    SHARD_EXIT=1
+  fi
+done
+printf '%s\n' "$SHARD_EXIT" > "$RUN_DIR/tests/shard_exit_code.txt"
+if [[ "$SHARD_EXIT" -ne 0 ]]; then
+  for stderr_file in "$RUN_DIR"/shards/*.stderr; do
+    cat "$stderr_file" >&2
+  done
+  exit 1
+fi
+
+SHARD_ARGS=()
+for ((shard=0; shard<SHARD_COUNT; shard++)); do
+  SHARD_ARGS+=(--shard "$RUN_DIR/shards/shard-${shard}.csv")
+done
+printf '%q -m fsbdd_stage0.sweep aggregate --config %q --output-dir %q --publish-root %q --run-id %q --code-commit %q --evidence-config-digest %q --pbs-job-id %q --hostname %q' \
+  "$PYTHON" "$SWEEP_CONFIG" "$RUN_DIR/results" "$PROJECT_ROOT" "$RUN_ID" "$CODE_COMMIT" "$CONFIG_DIGEST" "$PBS_JOBID" "$HOST" >> "$RUN_DIR/commands.log"
+printf ' --shard %q' "$RUN_DIR"/shards/shard-*.csv >> "$RUN_DIR/commands.log"
+printf '\n' >> "$RUN_DIR/commands.log"
+"$PYTHON" -m fsbdd_stage0.sweep aggregate \
+  --config "$SWEEP_CONFIG" \
+  --output-dir "$RUN_DIR/results" \
+  --publish-root "$PROJECT_ROOT" \
+  --run-id "$RUN_ID" \
+  --code-commit "$CODE_COMMIT" \
+  --evidence-config-digest "$CONFIG_DIGEST" \
+  --pbs-job-id "$PBS_JOBID" \
+  --hostname "$HOST" \
+  "${SHARD_ARGS[@]}" \
+  > "$RUN_DIR/results/aggregate.stdout" \
+  2> "$RUN_DIR/results/aggregate.stderr"
+
+printf 'FSBDD_SWEEP_RUN_DIR=%q %q -m unittest -v tests.simulation.test_a_sim_02__sweep_outputs\n' \
+  "$RUN_DIR" "$PYTHON" >> "$RUN_DIR/commands.log"
+set +e
+FSBDD_SWEEP_RUN_DIR="$RUN_DIR" PYTHONHASHSEED=0 \
+  "$PYTHON" -m unittest -v tests.simulation.test_a_sim_02__sweep_outputs \
+  > "$RUN_DIR/tests/unittest.stdout" \
+  2> "$RUN_DIR/tests/unittest.stderr"
+TEST_EXIT=$?
+set -e
+printf '%s\n' "$TEST_EXIT" > "$RUN_DIR/tests/exit_code.txt"
+cat "$RUN_DIR/tests/unittest.stdout"
+cat "$RUN_DIR/tests/unittest.stderr" >&2
+[[ "$TEST_EXIT" -eq 0 ]] || exit "$TEST_EXIT"
+
+echo "Stage 0-A full simulation sweep complete: $RUN_DIR"
+find "$RUN_DIR" -type f ! -name checksums.sha256 -print0 \
+  | sort -z \
+  | xargs -0 sha256sum \
+  > "$RUN_DIR/checksums.sha256"
