@@ -1,0 +1,205 @@
+#!/bin/bash
+#PBS -q debug-g
+#PBS -l select=2
+#PBS -l walltime=00:10:00
+#PBS -W group_list=xg24i002
+#PBS -N fsbdd-s0-storage
+
+set -eEuo pipefail
+trap 'echo "[ERROR] line=$LINENO command=$BASH_COMMAND" >&2' ERR
+
+export PAGER=cat MODULES_PAGER=cat LMOD_PAGER=cat
+
+: "${PROJECT_ROOT:=/work/xg24i002/x10041/fsbdd}"
+: "${LOOP_ID:=S0B-01}"
+: "${RUN_ID:?RUN_ID is required}"
+: "${SUBMISSION_NONCE:?SUBMISSION_NONCE is required}"
+: "${CONFIG_DIGEST:?CONFIG_DIGEST is required}"
+: "${CONFIG_PATHS:?CONFIG_PATHS is required}"
+: "${STORAGE_CONFIG:=configs/stage0/storage_benchmark.json}"
+: "${TARGET_RUN_ROOT:=/work/xg24i002/x10041/fsbdd/runtime_runs}"
+: "${PATH_MODE:=shared}"
+: "${EXPECTED_SMOKE_RESULT:=pass}"
+: "${MODULE_NAME:=nv-hpcx/25.9}"
+: "${INITIAL_HOSTNAME:=miyabi-g1}"
+: "${EVIDENCE_ROOT:=$PROJECT_ROOT/evidence/raw}"
+
+CONFIG_DIGEST_SHORT="${CONFIG_DIGEST:0:12}"
+if [[ "$RUN_ID" != *"$SUBMISSION_NONCE"* ]] || [[ "$RUN_ID" != *"$CONFIG_DIGEST_SHORT"* ]]; then
+  echo "RUN_ID must contain the submission nonce and short config digest" >&2
+  exit 64
+fi
+case "$PATH_MODE:$EXPECTED_SMOKE_RESULT" in
+  shared:pass|local-negative:failure) ;;
+  *) echo "unsupported PATH_MODE/EXPECTED_SMOKE_RESULT pair" >&2; exit 64 ;;
+esac
+
+HOST="$(hostname)"
+if [[ ! "$HOST" =~ ^mg[0-9]+$ ]] || [[ -z "${PBS_JOBID:-}" ]] || [[ -z "${PBS_NODEFILE:-}" ]]; then
+  echo "Refusing storage execution outside a confirmed Miyabi PBS compute allocation" >&2
+  exit 70
+fi
+
+cd "$PROJECT_ROOT"
+PYTHON="$PROJECT_ROOT/.venv/bin/python"
+if [[ ! -x "$PYTHON" ]]; then
+  echo "Missing project Python: $PYTHON" >&2
+  exit 69
+fi
+export PYTHONPATH="$PROJECT_ROOT/src${PYTHONPATH:+:$PYTHONPATH}"
+
+read -r -a CONFIG_ARRAY <<< "$CONFIG_PATHS"
+if [[ "${#CONFIG_ARRAY[@]}" -eq 0 ]]; then
+  echo "CONFIG_PATHS must name at least one tracked input" >&2
+  exit 64
+fi
+ACTUAL_CONFIG_DIGEST="$(sha256sum "${CONFIG_ARRAY[@]}" | sha256sum | awk '{print $1}')"
+if [[ "$ACTUAL_CONFIG_DIGEST" != "$CONFIG_DIGEST" ]]; then
+  echo "CONFIG_DIGEST mismatch: expected=$CONFIG_DIGEST actual=$ACTUAL_CONFIG_DIGEST" >&2
+  exit 65
+fi
+
+RUN_DIR="$EVIDENCE_ROOT/$LOOP_ID/$RUN_ID"
+if [[ -e "$RUN_DIR" ]]; then
+  echo "Evidence directory already exists: $RUN_DIR" >&2
+  exit 73
+fi
+mkdir -p "$RUN_DIR"/{stdout,stderr,env,configs,results,tests,fs_probe}
+exec > "$RUN_DIR/stdout/job.log" 2> "$RUN_DIR/stderr/job.log"
+
+module load "$MODULE_NAME"
+module list 2>&1 | cat > "$RUN_DIR/env/modules.txt"
+hostname > "$RUN_DIR/env/hostname.txt"
+cp "$PBS_NODEFILE" "$RUN_DIR/env/pbs_nodefile.txt"
+sort -u "$PBS_NODEFILE" > "$RUN_DIR/env/distinct_hosts.txt"
+if [[ "$(wc -l < "$RUN_DIR/env/distinct_hosts.txt")" -lt 2 ]]; then
+  echo "The storage smoke requires two distinct compute hosts" >&2
+  exit 66
+fi
+git status --short --branch > "$RUN_DIR/env/git_status.txt"
+git rev-parse HEAD > "$RUN_DIR/env/git_commit.txt"
+"$PYTHON" --version > "$RUN_DIR/env/python_version.txt" 2>&1
+mpirun --version > "$RUN_DIR/env/mpirun_version.txt" 2>&1
+sha256sum \
+  plans/FS_DILOCO_CODEX_EXECUTION_PLAN/source/RESEARCH_PLAN.md \
+  plans/FS_DILOCO_CODEX_EXECUTION_PLAN/source/STAGE0-4_SPEC.md \
+  > "$RUN_DIR/env/source_hashes.txt"
+
+sha256sum "${CONFIG_ARRAY[@]}" > "$RUN_DIR/configs/config_digest_inputs.sha256"
+printf '%s\n' "${CONFIG_ARRAY[@]}" > "$RUN_DIR/configs/config_paths.txt"
+for index in "${!CONFIG_ARRAY[@]}"; do
+  source_path="${CONFIG_ARRAY[$index]}"
+  printf -v snapshot_name 'input-%03d-%s' "$index" "$(basename "$source_path")"
+  cp -- "$source_path" "$RUN_DIR/configs/$snapshot_name"
+done
+
+mkdir -p "$TARGET_RUN_ROOT"
+findmnt -T "$TARGET_RUN_ROOT" -o SOURCE,FSTYPE,TARGET > "$RUN_DIR/fs_probe/findmnt.txt"
+df -T "$TARGET_RUN_ROOT" > "$RUN_DIR/fs_probe/df.txt"
+stat -f "$TARGET_RUN_ROOT" > "$RUN_DIR/fs_probe/statfs.txt"
+stat "$TARGET_RUN_ROOT" > "$RUN_DIR/fs_probe/stat.txt"
+if command -v lfs >/dev/null 2>&1; then
+  lfs getstripe "$TARGET_RUN_ROOT" > "$RUN_DIR/fs_probe/lfs_getstripe.txt" 2>&1 || true
+  lfs quota -g xg24i002 "$TARGET_RUN_ROOT" > "$RUN_DIR/fs_probe/lfs_quota.txt" 2>&1 || true
+else
+  echo "lfs command unavailable" > "$RUN_DIR/fs_probe/lfs_getstripe.txt"
+  echo "lfs command unavailable" > "$RUN_DIR/fs_probe/lfs_quota.txt"
+fi
+PROBE_PATH="$TARGET_RUN_ROOT/.fsbdd-permission-probe-$RUN_ID"
+printf '%s\n' "$RUN_ID" > "$PROBE_PATH"
+PROBE_DIGEST="$(sha256sum "$PROBE_PATH" | awk '{print $1}')"
+rm -f "$PROBE_PATH"
+printf '{"create":true,"read":true,"delete":true,"probe_sha256":"%s"}\n' \
+  "$PROBE_DIGEST" > "$RUN_DIR/fs_probe/permission_probe.json"
+
+read -r FILESYSTEM_SOURCE FILESYSTEM_TYPE _ < <(findmnt -T "$TARGET_RUN_ROOT" -n -o SOURCE,FSTYPE,TARGET)
+if [[ "$FILESYSTEM_TYPE" != "lustre" ]]; then
+  echo "Target RUN_ROOT is not Lustre: $FILESYSTEM_TYPE" >&2
+  exit 67
+fi
+
+printf '%q -m fsbdd_stage0.storage_bench manifest --config %q --run-id %q --initial-hostname %q --compute-hostname %q --pbs-job-id %q --pbs-nodefile %q --filesystem-type %q --filesystem-source %q --module-list %q --permission-probe %q --output %q\n' \
+  "$PYTHON" "$STORAGE_CONFIG" "$RUN_ID" "$INITIAL_HOSTNAME" "$HOST" "$PBS_JOBID" \
+  "$RUN_DIR/env/pbs_nodefile.txt" "$FILESYSTEM_TYPE" "$FILESYSTEM_SOURCE" \
+  "$RUN_DIR/env/modules.txt" "$RUN_DIR/fs_probe/permission_probe.json" "$RUN_DIR/manifest.json" \
+  > "$RUN_DIR/commands.log"
+"$PYTHON" -m fsbdd_stage0.storage_bench manifest \
+  --config "$STORAGE_CONFIG" \
+  --run-id "$RUN_ID" \
+  --initial-hostname "$INITIAL_HOSTNAME" \
+  --compute-hostname "$HOST" \
+  --pbs-job-id "$PBS_JOBID" \
+  --pbs-nodefile "$RUN_DIR/env/pbs_nodefile.txt" \
+  --filesystem-type "$FILESYSTEM_TYPE" \
+  --filesystem-source "$FILESYSTEM_SOURCE" \
+  --module-list "$RUN_DIR/env/modules.txt" \
+  --permission-probe "$RUN_DIR/fs_probe/permission_probe.json" \
+  --output "$RUN_DIR/manifest.json"
+
+if [[ "$PATH_MODE" == "shared" ]]; then
+  TEST_ROOT="$TARGET_RUN_ROOT/stage0-benchmarks/$RUN_ID"
+else
+  TEST_ROOT="/tmp/fsbdd-stage0-storage/$RUN_ID"
+fi
+ROLE_COMMAND=(
+  "$PYTHON" -m fsbdd_stage0.storage_bench smoke-role
+  --config "$STORAGE_CONFIG"
+  --run-id "$RUN_ID"
+  --test-root "$TEST_ROOT"
+  --result-root "$RUN_DIR/results"
+  --path-mode "$PATH_MODE"
+)
+printf 'mpirun -np 2 --hostfile %q --map-by ppr:1:node' "$RUN_DIR/env/distinct_hosts.txt" >> "$RUN_DIR/commands.log"
+printf ' %q' "${ROLE_COMMAND[@]}" >> "$RUN_DIR/commands.log"
+printf '\n' >> "$RUN_DIR/commands.log"
+
+set +e
+mpirun -np 2 \
+  --hostfile "$RUN_DIR/env/distinct_hosts.txt" \
+  --map-by ppr:1:node \
+  "${ROLE_COMMAND[@]}" \
+  > "$RUN_DIR/results/mpirun.stdout" \
+  2> "$RUN_DIR/results/mpirun.stderr"
+MPI_EXIT=$?
+set -e
+printf '%s\n' "$MPI_EXIT" > "$RUN_DIR/results/mpirun_exit_code.txt"
+
+if [[ "$EXPECTED_SMOKE_RESULT" == "pass" && "$MPI_EXIT" -ne 0 ]]; then
+  cat "$RUN_DIR/results/mpirun.stderr" >&2
+  exit "$MPI_EXIT"
+fi
+if [[ "$EXPECTED_SMOKE_RESULT" == "failure" && "$MPI_EXIT" -eq 0 ]]; then
+  echo "Node-local negative control unexpectedly passed" >&2
+  exit 65
+fi
+
+printf '%q -m fsbdd_stage0.storage_bench summarize-smoke --config %q --run-id %q --result-root %q --path-mode %q --expected %q\n' \
+  "$PYTHON" "$STORAGE_CONFIG" "$RUN_ID" "$RUN_DIR/results" "$PATH_MODE" "$EXPECTED_SMOKE_RESULT" \
+  >> "$RUN_DIR/commands.log"
+"$PYTHON" -m fsbdd_stage0.storage_bench summarize-smoke \
+  --config "$STORAGE_CONFIG" \
+  --run-id "$RUN_ID" \
+  --result-root "$RUN_DIR/results" \
+  --path-mode "$PATH_MODE" \
+  --expected "$EXPECTED_SMOKE_RESULT" \
+  > "$RUN_DIR/results/summarize.stdout"
+
+{
+  echo "schema_version: 1"
+  echo "loop_id: $LOOP_ID"
+  echo "run_id: $RUN_ID"
+  echo "path_mode: $PATH_MODE"
+  echo "expected_smoke_result: $EXPECTED_SMOKE_RESULT"
+  echo "smoke_path: $TEST_ROOT"
+  echo "target_run_root: $TARGET_RUN_ROOT"
+  echo "config_digest: $CONFIG_DIGEST"
+  echo "submission_nonce: $SUBMISSION_NONCE"
+  echo "code_commit: $(cat "$RUN_DIR/env/git_commit.txt")"
+  echo "raw_evidence_root: $RUN_DIR"
+} > "$RUN_DIR/run_identity.yaml"
+
+find "$RUN_DIR" -type f ! -name checksums.sha256 -print0 \
+  | sort -z \
+  | xargs -0 sha256sum \
+  > "$RUN_DIR/checksums.sha256"
+echo "Stage 0 storage smoke evidence complete: $RUN_DIR"
