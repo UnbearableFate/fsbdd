@@ -62,6 +62,7 @@ run 从包含本包与 source 的 committed tracked baseline 创建 clean worktr
 - fragment map、bootstrap、learner、proposal、syncer、merge、outer optimizer、global publication、adoption 已形成闭环；
 - Profile A 数值正确；
 - 首次 Miyabi 8+1/50×10 run 通过并形成 runtime baseline；
+- 该 9N run 固定使用 pretrained GPT-2 small + WikiText-2 raw packed-512；
 - 9 个不同 compute host 被证实；
 - loss 门禁与运行时间基线已建立。
 

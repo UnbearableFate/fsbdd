@@ -28,16 +28,18 @@
 
 ## 4.3 模型
 
-默认开发/门禁 profile：
+固定 9 节点回归 profile：
 
-- dense decoder-only causal LM；
-- Pythia/LLaMA 风格、约 160M 参数；
-- 从冻结 HF config 构建或从已缓存 checkpoint 初始化；
+- `openai-community/gpt2` revision `607a30d783dfa663caf39e06633721c8d4cfcd7e`；
+- GPT-2 small dense decoder-only causal LM，预期 124,439,808 参数；
+- 从同一离线 cached pretrained checkpoint 初始化；
 - input embedding、完整 Transformer blocks、lm_head 构成逻辑层；
 - final norm 等零散参数按规格确定性归属；
 - tied embedding/lm_head 只同步一次。
 
-门禁优先使用同一个稳定 160M config，避免每个 loop 因模型变化重建 runtime baseline。0.5–1B 只在原阶段指标需要时启用。
+该 profile 的完整冻结字段见 `configs/miyabi_8l1s_50x10.yaml` 和
+`docs/06_8L1S_50X10_GATE.md`。source spec 的约 160M/0.5–1B research profiles 保持为独立
+正式验收 workload；它们不能复用 GPT-2 门禁的 runtime baseline。
 
 ## 4.4 自定义训练循环
 
@@ -65,13 +67,21 @@ for each local optimizer step:
 
 ## 4.5 数据
 
-- FineWeb-Edu 或 C4 类真实文本数据；
-- 预先 tokenized 为不可变 shards，写 dataset manifest 和 hashes；
+9 节点回归固定使用 `Salesforce/wikitext` revision
+`b08601e04326c79dfdd32d625aee71d232d685c3`、config
+`wikitext-2-raw-v1`：非空行原样 tokenize 后追加 EOS，拼接为不重叠的 512-token blocks，
+最后 remainder 丢弃，train blocks 按 `block_index mod 8` 分给 learners。validation 只做
+initial/final frozen snapshot NLL，test 禁止用于门禁调参与阈值选择。
+
+- 数据必须预先 tokenized 为 8 个不可变 train shards 与一个 validation artifact，写 dataset manifest 和 hashes；
 - learner `i` 使用独立 deterministic shard/stream；
 - sequence length、packing、EOS/padding、tokenizer revision 固定；
-- processed tokens 只计入实际 loss 的非 padding tokens；
+- proposal/throughput 的 processed-input tokens 与 loss aggregate 的 loss-bearing target tokens 分开记录；后者排除 padding、`-100` label 和每个 packed sequence 在 causal shift 后没有 target 的首 token；
 - 多节点门禁前预置 cache，门禁运行设置 offline 模式，避免网络下载与抖动；
 - 可从共享 cache 复制到 node-local scratch 以隔离训练数据 I/O，但 protocol state 必须保留在目标共享 FS，并记录复制时间是否计入 active runtime。
+
+FineWeb-Edu/C4 仍用于原研究计划中的长跑与质量主张，不得与 WikiText-2 gate 数据混成同一
+compatibility key。
 
 ## 4.6 优化器与调度
 
@@ -89,6 +99,7 @@ for each local optimizer step:
 9 节点前必须：
 
 - 确认 tokenizer/model/data 均可从指定 shared cache 读取；
+- 拒绝 mutable `main`、未解析 revision 或与配置不符的 cache snapshot；
 - 保存 model config/tokenizer/dataset manifest digests；
 - 做 1-node 真实 10-step smoke；
 - 推荐设置：
@@ -103,7 +114,7 @@ for each local optimizer step:
 每个 learner 记录：
 
 - raw training loss；
-- non-padding tokens；
+- processed-input tokens 与 loss-bearing target tokens；
 - local optimizer step；
 - fragment version vector digest；
 - throughput；

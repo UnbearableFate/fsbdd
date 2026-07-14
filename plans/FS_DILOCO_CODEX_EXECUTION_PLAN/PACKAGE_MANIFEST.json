@@ -1,17 +1,26 @@
 {
   "package": "FS_DILOCO_CODEX_EXECUTION_PLAN",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "generated_date": "2026-07-14",
   "language": "zh-CN",
   "purpose": "Codex-executable Loop Engineering plan for Stage 0-4 on University of Tsukuba Miyabi",
   "executor": "Codex",
-  "runtime_baseline": "PyTorch + Hugging Face ecosystem",
+  "runtime_baseline": "PyTorch + Hugging Face; fixed 9N gate uses pretrained GPT-2 small + WikiText-2 raw packed-512",
   "miyabi_operations_dependency": "https://github.com/UnbearableFate/miyabi-development",
   "mandatory_post_baseline_gate": {
     "starts_at_loop": "S1-13",
+    "baseline_id": "BASELINE-9N-GPT2-WT2-v1",
     "learners": 8,
     "syncers": 1,
     "distinct_compute_hosts": 9,
+    "model_repository": "openai-community/gpt2",
+    "model_revision": "607a30d783dfa663caf39e06633721c8d4cfcd7e",
+    "dataset_repository": "Salesforce/wikitext",
+    "dataset_revision": "b08601e04326c79dfdd32d625aee71d232d685c3",
+    "dataset_config": "wikitext-2-raw-v1",
+    "sequence_length": 512,
+    "per_device_train_batch_size": 4,
+    "gradient_accumulation_steps": 1,
     "local_optimizer_step_interval_H": 50,
     "target_global_cycles": 10,
     "requires_loss_descent": true,
@@ -40,8 +49,8 @@
     },
     {
       "path": "CHANGELOG.md",
-      "bytes": 1174,
-      "sha256": "7e57b4513a1f538ac8f190f8b2fb663a59250419c724eec10d9a4874ad7779fb"
+      "bytes": 1836,
+      "sha256": "22a4ecf68ff074aaabb66f1594276eb09c783ebdb19389736e02e46d2c087714"
     },
     {
       "path": "CODEX_START_HERE.md",
@@ -50,18 +59,18 @@
     },
     {
       "path": "README.md",
-      "bytes": 2928,
-      "sha256": "d2738d8e16bf46f4710469fa5606499cf5532ce4ba65511d30cb3aeb8cb15803"
+      "bytes": 2981,
+      "sha256": "452ceeecde5a5bc9ba660cded441456cc5ae2689742960a3ee61daec388b7d64"
     },
     {
       "path": "configs/README.md",
-      "bytes": 683,
-      "sha256": "3472ef89db5a01a098e43dd090b56fc017e21baab21f5c118203146541edafdb"
+      "bytes": 783,
+      "sha256": "efbebe22729b32ac00f0ad3c927b83849a31dba1985277a7f4022c28b1856ae7"
     },
     {
       "path": "configs/miyabi_8l1s_50x10.yaml",
-      "bytes": 2048,
-      "sha256": "9ea000e287013add0650ca64603c5f042ea093335f39bf90dab547ad0176b40b"
+      "bytes": 6679,
+      "sha256": "5d0664c8962fffbb8050b58225c82a3156e7e871a95e68620211fdddb15b2c15"
     },
     {
       "path": "configs/profile_a_fresh.yaml",
@@ -85,8 +94,8 @@
     },
     {
       "path": "docs/00_AUTHORITY_AND_SCOPE.md",
-      "bytes": 4364,
-      "sha256": "8cee8bb7c7bba76866e6ea721bfb29dbd8e33c75be0ba530a947d778d54cccbc"
+      "bytes": 4444,
+      "sha256": "3c0326dce83e9dd28f31029f9a7244d8a20603a1f19eb784fe522c42f417888d"
     },
     {
       "path": "docs/01_SYSTEM_ARCHITECTURE.md",
@@ -105,8 +114,8 @@
     },
     {
       "path": "docs/04_TORCH_HF_TRAINING_BASELINE.md",
-      "bytes": 4529,
-      "sha256": "398b72a70231716a30b415fe5996a87fc580d09e8ada8099ffd3767b842aa990"
+      "bytes": 5520,
+      "sha256": "c57baca9f673880687a10bb3b3dbbe00dbdc63d9f400eca57f9eca1a9d816b1b"
     },
     {
       "path": "docs/05_MIYABI_OPERATIONS.md",
@@ -115,8 +124,8 @@
     },
     {
       "path": "docs/06_8L1S_50X10_GATE.md",
-      "bytes": 5297,
-      "sha256": "f2d8a669ad104e76c239c0d08ee7d1ac3ddb43724a9b491fdff7d6d2c6918ad9"
+      "bytes": 11162,
+      "sha256": "80082043f1016ad8bb852a13dfe1264ad4dcc98b036ff8f19a82878e7c32c3be"
     },
     {
       "path": "docs/07_TEST_EVIDENCE_CHECKER.md",
@@ -125,8 +134,8 @@
     },
     {
       "path": "docs/08_CONFIG_REPRODUCIBILITY.md",
-      "bytes": 2776,
-      "sha256": "84bf6d21c24d3d60d26cf578a6e9d9cbd529dff1775147a5550ecd888d534407"
+      "bytes": 2986,
+      "sha256": "a8acc1dac9de2b0507921bab51a572bd9e3d4112b26c81e7e1d02766deffe781"
     },
     {
       "path": "docs/09_GIT_CHANGE_CONTROL.md",
@@ -145,8 +154,8 @@
     },
     {
       "path": "docs/12_EXTERNAL_DEPENDENCIES.md",
-      "bytes": 1490,
-      "sha256": "6d7f4e43b2ed46cfd22f7a240ad199cc4025d27fb787a8bb6f0de54267cad747"
+      "bytes": 1885,
+      "sha256": "4ccab52ccf9b99aa3e1ef610d338d41cbe185bf3969316b5e62d1d4160242588"
     },
     {
       "path": "evidence/README.md",
@@ -225,8 +234,8 @@
     },
     {
       "path": "loops/stage1/S1-06.md",
-      "bytes": 3214,
-      "sha256": "cb24c3ae189e36d71520ab5905adde9b8ec25e669f3ab2ca333da1f0086f524d"
+      "bytes": 3437,
+      "sha256": "dfd80ec9e9eb9f50768ce9450bdda1be7f305751f893d55495b1d0ee792ae019"
     },
     {
       "path": "loops/stage1/S1-07.md",
@@ -260,8 +269,8 @@
     },
     {
       "path": "loops/stage1/S1-13.md",
-      "bytes": 4015,
-      "sha256": "c6f7ff0c7db133d941ba1b1a0b9a5ce11817a41d0fb39cef055ea0536b44bcc0"
+      "bytes": 4254,
+      "sha256": "cf873c2b6a90874f2cc5034e1713af0fdea9f2f9c3100e6865b5500def70ede5"
     },
     {
       "path": "loops/stage2/S2-01.md",
@@ -385,13 +394,13 @@
     },
     {
       "path": "plans/MILESTONES.md",
-      "bytes": 777,
-      "sha256": "1a033397e726ed545d0634e230d5f7e405f756eba791819f270e7725dba26d89"
+      "bytes": 786,
+      "sha256": "68f5bc9d427919c153f460b6aa8fcb552cfca0b183e7d12268aa6a249ced243c"
     },
     {
       "path": "plans/PROGRESS.yaml",
       "bytes": 12428,
-      "sha256": "e46771071cb8306cf24540b865e004aad830fed1dcfa58d063856d43f902d02b"
+      "sha256": "8557992a8a173ddebd60f1cd3b7692467f522fa59a019489659c9755006a2689"
     },
     {
       "path": "plans/REQUIREMENT_COVERAGE.md",
@@ -425,8 +434,8 @@
     },
     {
       "path": "stages/STAGE_1.md",
-      "bytes": 2898,
-      "sha256": "791e27b297593dd715e6741587bce82090e22eaaa77997468ec9b8f02f3a4ea6"
+      "bytes": 3047,
+      "sha256": "a7a6f51a5bfe6c51dc611254df7d339806d1efce23a4282700420fd442788d40"
     },
     {
       "path": "stages/STAGE_2.md",
@@ -475,13 +484,13 @@
     },
     {
       "path": "templates/LOSS_RUNTIME_GATE_REPORT.md",
-      "bytes": 900,
-      "sha256": "c6db47f7b232dfa54f3327616c3767f82fbaf07763302e7a818792c29c9dff50"
+      "bytes": 1457,
+      "sha256": "ce0d64655b24052a4a62f14806fdaeb35c78a74dbd6a3d10bfb0bcfb39e005e2"
     },
     {
       "path": "templates/RUN_MANIFEST.yaml",
-      "bytes": 2255,
-      "sha256": "b22593bfc24dc76bdf6821dcef942474a71a00cc39886b96e9d2b874ef21589e"
+      "bytes": 3574,
+      "sha256": "4d604069cba85cc5360859a69c7de2d70fd11a1967e7f422da96355eaa97061a"
     },
     {
       "path": "templates/STAGE_CHECKPOINT.md",

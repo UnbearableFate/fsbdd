@@ -1,5 +1,13 @@
 # 执行包变更记录
 
+## v1.0.2 — 2026-07-14
+
+- 将 9 节点 8 learners + 1 syncer、H=50、global-cycle=10 的固定回归 workload 明确为 pretrained GPT-2 small + WikiText-2 raw。
+- 冻结 Hugging Face model/tokenizer/dataset immutable revisions、GPT-2 架构身份、WikiText-2 packed-512 预处理和 8-way shard 规则。
+- 冻结 batch、AdamW、bf16/fp32、RNG、loss warmup/min-points 与 validation 证据口径，并扩展 run manifest/checker report。
+- 明确该 9N workload 不替代 source spec 的 160M/M=4/≥1B-token long run、性能与 matched-token 质量验收。
+- 保留现有 Python/Torch 环境不变；仍未处理 Stage 0 前的环境 bootstrap。
+
 ## v1.0.1 — 2026-07-14
 
 - 固定 `REPO_ROOT`/`PLAN_ROOT` 路径契约，并为当前 `master` integration branch 建立显式保护。

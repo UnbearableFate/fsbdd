@@ -1,4 +1,4 @@
-schema_version: 1
+schema_version: 2
 profile_id: miyabi-8l1s-50x10
 purpose: per-loop final real-node gate
 executor:
@@ -22,13 +22,143 @@ topology:
   learner_gpus_per_node: 1
   syncer_uses_gpu: false
   network_data_plane: forbidden
+protocol:
+  s1_13_base_profile: profile-a-fresh-reference
+  later_loop_overlay: resolved_current_loop_profile
+  fragment_count: null
+  fragment_offsets: null
+  quorum_Q: null
+  fresh_quorum_Q_fresh: null
+  S_max: null
+  lambda_s: null
+  grace_seconds: null
+  outer_optimizer: null
+  required_before_submit:
+    - fragment_count
+    - fragment_offsets
+    - quorum_Q
+    - fresh_quorum_Q_fresh
+    - S_max
+    - lambda_s
+    - grace_seconds
+    - outer_optimizer
+  offset_validation:
+    interval_H: 50
+    integer_range_inclusive: [0, 49]
+    length_must_equal_fragment_count: true
+    byte_weighted_burst_check_required: true
 training:
   framework: torch
   model_ecosystem: huggingface
-  model_profile: hf-decoder-160m-gate
-  dataset_profile: real-tokenized-gate-shards
+  model_profile: gpt2-small-pretrained
+  model:
+    repository: openai-community/gpt2
+    revision: 607a30d783dfa663caf39e06633721c8d4cfcd7e
+    class: AutoModelForCausalLM
+    initialization: from_pretrained
+    expected_model_type: gpt2
+    expected_parameter_count: 124439808
+    expected_transformer_blocks: 12
+    expected_hidden_size: 768
+    expected_attention_heads: 12
+    expected_vocab_size: 50257
+    expected_context_length: 1024
+    tied_input_output_embeddings: true
+    use_cache: false
+    attention_implementation: eager
+    train_mode: true
+  tokenizer:
+    repository: openai-community/gpt2
+    revision: 607a30d783dfa663caf39e06633721c8d4cfcd7e
+    class: AutoTokenizer
+    add_special_tokens: false
+    eos_token_id: 50256
+    pad_policy: packed_batches_have_no_padding
+  dataset_profile: wikitext2-raw-packed-512-8way
+  dataset:
+    repository: Salesforce/wikitext
+    revision: b08601e04326c79dfdd32d625aee71d232d685c3
+    config_name: wikitext-2-raw-v1
+    train_split: train
+    validation_split: validation
+    test_split_policy: forbidden_for_gate_tuning
+    text_field: text
+    source_files:
+      train:
+        path: wikitext-2-raw-v1/train-00000-of-00001.parquet
+        bytes: 6357543
+        sha256: e83889baabc497075506f91975be5fac0d45c5290b6b20582c8cd1e853d0c9f7
+      validation:
+        path: wikitext-2-raw-v1/validation-00000-of-00001.parquet
+        bytes: 657209
+        sha256: 204929b7ff9d6184953f867dedb860e40aa69c078fc1e54b3baaa8fb28511c4c
+    preprocessing:
+      preserve_nonempty_row_text_exactly: true
+      skip_exact_empty_rows: true
+      append_eos_after_each_nonempty_row: true
+      concatenate_then_chunk: true
+      sequence_length: 512
+      stride: 512
+      drop_final_remainder_per_split: true
+      labels: copy_of_input_ids
+      expected_counts:
+        train:
+          source_rows: 36718
+          nonempty_rows: 23767
+          tokens_before_drop: 2415651
+          packed_blocks: 4718
+          kept_tokens: 2415616
+          dropped_remainder_tokens: 35
+          token_stream_uint32le_sha256: b5b77d97b3e69dd4d681a3c1946e9d94f9f2458a9952f236c20549d12b58dc13
+        validation:
+          source_rows: 3760
+          nonempty_rows: 2461
+          tokens_before_drop: 249750
+          packed_blocks: 487
+          kept_tokens: 249344
+          dropped_remainder_tokens: 406
+          token_stream_uint32le_sha256: a6bdf099be32e252ceecee0b8708550cd67f01a93dedf375ffabb4968ea4f638
+    train_sharding:
+      method: packed_block_index_modulo
+      shard_count: 8
+      learner_shard: block_index_mod_8_equals_learner_id
+      shuffle_each_epoch: true
+      seed_base: 20260714
+      repeat_after_exhaustion: deterministic_epoch_permutation
+      expected_blocks_per_learner: [590, 590, 590, 590, 590, 590, 589, 589]
+    validation:
+      method: all_packed_validation_blocks
+      shuffle: false
+      evaluator: learner-0
+      snapshots: [initial, final_frozen_version_vector]
   offline_assets_required: true
+  reject_mutable_or_unresolved_revisions: true
+  require_model_tokenizer_dataset_file_hashes: true
   local_optimizer_step_definition: completed_optimizer_step
+  sequence_length: 512
+  per_device_train_batch_size: 4
+  gradient_accumulation_steps: 1
+  nominal_input_tokens_per_optimizer_step: 2048
+  nominal_loss_target_tokens_per_optimizer_step: 2044
+  precision:
+    compute: bf16
+    optimizer_state: fp32
+    outer_merge_accumulation: fp32
+    alternative_precision_requires_new_compatibility_key: true
+  inner_optimizer:
+    name: AdamW
+    implementation: torch.optim.AdamW
+    learning_rate: 5.0e-5
+    betas: [0.9, 0.999]
+    epsilon: 1.0e-8
+    weight_decay: 0.01
+    max_grad_norm: 1.0
+    scheduler: constant
+    warmup_steps: 0
+  rng:
+    initial_parameter_identity_must_match_across_learners: true
+    learner_runtime_seed: 20260714+learner_id
+    dataloader_seed: 20261714+learner_id
   fragment_sync_interval_H: 50
   target_global_cycles: 10
   stop_when_all_fragments_reach_target: true
@@ -42,14 +172,23 @@ gate:
     require_syncer_cuda_disabled: true
   loss:
     require_finite: true
+    minimum_points_per_learner: 200
     aggregate: token_weighted
+    weight_by: loss_target_tokens_after_causal_shift
     smoothing: rolling_median
     window_points: 20
+    warmup_points: 20
     initial_fraction_after_warmup: 0.20
     final_fraction: 0.20
     max_final_over_initial: 0.99
     require_negative_robust_slope: true
     max_per_learner_final_over_initial: 1.10
+  validation:
+    require_initial_and_final_loss: true
+    require_finite: true
+    aggregate: token_weighted_mean_nll
+    blocking_regression_threshold: null
+    test_split_must_be_unused: true
   runtime:
     queue_wait_included: false
     runtime_budget_seconds: null

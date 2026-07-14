@@ -102,9 +102,10 @@ runtime 对比只在以下关键字段一致时有效：
 ```text
 Miyabi node/GPU class
 queue/resource shape
-model config + sequence length
-batch/accumulation/precision
-dataset/cache/local staging policy
+model repository + immutable revision + initial parameter hash + sequence length
+tokenizer repository + immutable revision + preprocessing identity
+batch/accumulation/precision + inner optimizer/scheduler
+dataset repository + immutable revision + config + source/shard hashes + cache/local staging policy
 fragment map/F/H
 learner count/syncer count
 core training implementation

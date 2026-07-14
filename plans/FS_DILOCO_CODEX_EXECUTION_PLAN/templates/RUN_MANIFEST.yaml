@@ -1,4 +1,4 @@
-schema_version: 1
+schema_version: 2
 run_id: <unique-run-id>
 purpose:
   stage: <stage>
@@ -9,7 +9,7 @@ status: planned
 authority:
   research_plan_sha256: <sha256>
   stage0_4_spec_sha256: <sha256>
-  plan_version: "1.0.1"
+  plan_version: "1.0.2"
 code:
   repository: <url>
   branch: <branch>
@@ -52,6 +52,24 @@ identities:
   tokenizer_sha256: <sha>
   dataset_manifest_sha256: <sha>
   fragment_map_sha256: <sha>
+assets:
+  offline_only: true
+  model:
+    repository: openai-community/gpt2
+    revision: 607a30d783dfa663caf39e06633721c8d4cfcd7e
+    weight_files_sha256: <sha-or-map>
+  tokenizer:
+    repository: openai-community/gpt2
+    revision: 607a30d783dfa663caf39e06633721c8d4cfcd7e
+    files_sha256: <sha-or-map>
+  dataset:
+    repository: Salesforce/wikitext
+    revision: b08601e04326c79dfdd32d625aee71d232d685c3
+    config_name: wikitext-2-raw-v1
+    source_files_sha256: <sha-or-map>
+    tokenized_split_and_shard_sha256: <sha-or-map>
+    split_block_counts: <map>
+    expected_train_blocks_per_learner: [590, 590, 590, 590, 590, 590, 589, 589]
 topology:
   learners: 8
   syncers: 1
@@ -64,14 +82,25 @@ training:
   local_optimizer_step_interval_H: 50
   target_global_cycles: 10
   actual_global_cycles: null
-  model_profile: <profile>
-  data_profile: <profile>
-  precision: <bf16-or-fp32>
+  model_profile: gpt2-small-pretrained
+  data_profile: wikitext2-raw-packed-512-8way
+  sequence_length: 512
+  per_device_train_batch_size: 4
+  gradient_accumulation_steps: 1
+  nominal_input_tokens_per_optimizer_step: 2048
+  nominal_loss_target_tokens_per_optimizer_step: 2044
+  precision: bf16
+  optimizer: adamw-lr5e-5-constant
+  learner_runtime_seed_base: 20260714
+  dataloader_seed_base: 20261714
   fragment_count: <F>
   Q: <Q>
   Q_fresh: <Q_fresh>
   S_max: <0-or-1>
   lambda_s: <value>
+  grace_seconds: <value>
+  fragment_offsets: <integer-list-length-F>
+  outer_optimizer: <fully-resolved-map>
 gate:
   thresholds_frozen_at: <UTC>
   baseline_run_id: <run-or-null>
@@ -79,12 +108,21 @@ gate:
   runtime_factor_limit: 1.5
   loss:
     finite_required: true
+    minimum_points_per_learner: 200
     smoothing: rolling_median
     window_points: 20
+    warmup_points: 20
     initial_fraction: 0.20
     final_fraction: 0.20
     max_final_over_initial: 0.99
     robust_slope_must_be_negative: true
+  validation:
+    split: validation
+    initial_snapshot_loss: null
+    final_snapshot_loss: null
+    finite_required: true
+    blocking_regression_threshold: null
+    test_split_used: false
 fault_or_overlay:
   type: none
   config: {}

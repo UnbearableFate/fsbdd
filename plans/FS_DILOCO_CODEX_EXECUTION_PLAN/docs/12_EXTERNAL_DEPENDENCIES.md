@@ -27,4 +27,10 @@
 
 ## Model/Data Assets
 
-模型、tokenizer、dataset revision和预处理代码都以manifest/hash固定。门禁运行使用预置cache/offline模式，不依赖在线Hub可用性。
+固定 9N gate 使用：
+
+- model/tokenizer：`openai-community/gpt2@607a30d783dfa663caf39e06633721c8d4cfcd7e`；
+- dataset：`Salesforce/wikitext@b08601e04326c79dfdd32d625aee71d232d685c3`，config `wikitext-2-raw-v1`；
+- 只预取 train/validation source files；test 不用于实现、阈值冻结或门禁判断。
+
+模型、tokenizer、dataset revision和预处理代码都以manifest/hash固定。门禁运行使用预置cache/offline模式，不依赖在线Hub可用性。mutable revision、count/hash drift 或 runtime download 均 fail closed。

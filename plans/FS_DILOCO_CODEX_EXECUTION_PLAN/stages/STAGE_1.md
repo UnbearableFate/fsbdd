@@ -32,7 +32,8 @@
 
 ## 技术约束
 
-- 160M 级 decoder-only HF model 作为固定门禁模型；
+- GPT-2 small (`openai-community/gpt2`) + WikiText-2 raw 作为固定 9N 回归门禁 workload；
+- source 要求的 160M/M=4/≥1B-token run 使用独立正式验收 profile，不复用 9N runtime baseline；
 - custom training loop；
 - learner 不组成 DDP world；
 - FS 是唯一算法数据面；

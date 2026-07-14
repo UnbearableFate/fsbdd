@@ -10,6 +10,15 @@
 - active runtime：
 - budget：
 
+## Frozen Workload
+
+- model repository/revision/parameter SHA：
+- tokenizer repository/revision/files SHA：
+- dataset repository/revision/config/source SHA：
+- tokenized split/shard hashes and block counts：
+- sequence length/batch/gradient accumulation/precision：
+- inner optimizer/scheduler/seeds：
+
 ## Topology
 
 - learners/syncers：
@@ -35,6 +44,15 @@
 - robust slope：
 - per-learner regressions：
 - verdict：
+
+## WikiText-2 Validation
+
+- evaluated initial/final snapshot IDs：
+- validation blocks/tokens：
+- initial/final token-weighted mean NLL：
+- finite：
+- test split unused：
+- diagnostic（首次 baseline 不作 blocking quality threshold）：
 
 ## Runtime
 

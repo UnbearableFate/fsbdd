@@ -2,7 +2,7 @@
 
 这些 YAML 描述必须进入最终项目 config schema 的字段与门禁含义，不保证可直接被尚未实现的 CLI 读取。
 
-- `miyabi_8l1s_50x10.yaml`：用户补充的每-loop真实门禁。
+- `miyabi_8l1s_50x10.yaml`：每-loop真实门禁；固定 pretrained GPT-2 small + WikiText-2 raw packed-512、8-way shards、batch/optimizer/precision/loss 口径。
 - `profile_a_fresh.yaml`：Stage 1 fresh reference。
 - `profile_b_stale.yaml`：Stage 4 stale-aware。
 - `stage0_simulation_scan.yaml`：SIM-03。
