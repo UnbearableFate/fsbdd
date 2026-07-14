@@ -1,0 +1,80 @@
+schema_version: 1
+loop_id: S0B-03
+title: Metadata/Bandwidth 压测与 Stage 1 FS 决策
+stage: stage0
+status: oriented
+source_hashes:
+  research_plan: 2c0db3148110da10ea62f445c189d2d53b405527d8da264b9af9817f5ca9d835
+  stage0_4_spec: fad26a8add51e70ddf50d0130b61d80fe06e1c3945221c29508412a5bcab2feb
+git:
+  integration_branch: master
+  branch: codex/S0B-03-storage-capacity
+  base_commit: 92432035bf8c73696a11fd2c372e55a51e2244e7
+  result_commit: null
+  dirty_at_start: false
+dependencies:
+  - S0B-02
+dependency_evidence:
+  S0B-02: evidence/indexes/S0B-02.md and reports/checkers/S0B-02.md close A-BENCH-01/02 with PASS on the same frozen target Lustre root.
+requirements:
+  - BENCH-03
+  - BENCH-04
+  - FS-05
+  - FS-06
+  - BENCH-05
+acceptance_ids:
+  - A-BENCH-03
+  - A-BENCH-04
+orient:
+  unique_failing_gap: No target-Lustre evidence measures sustained bounded M-by-F fixed-slot metadata discovery or the frozen 50-500MB single/16-stream sequential I/O matrix, so Stage 1 storage capacity is undecided.
+  planned_files:
+    - configs/stage0/storage_benchmark.json
+    - src/fsbdd_stage0/storage_capacity.py
+    - pbs/stage0_storage_capacity.pbs
+    - tests/storage/test_stage0_storage_capacity.py
+    - tests/red_cases/s0b03_incomplete_capacity_surrogate.py
+    - reports/stage0/storage_capacity_summary.json
+    - reports/stage0/storage_capacity.md
+    - evidence/indexes/S0B-03.md
+  protected_interfaces:
+    - src/fsbdd_stage0/oracle.py
+    - src/fsbdd_stage0/simulation.py
+    - src/fsbdd_stage0/sweep.py
+    - src/fsbdd_stage0/storage_stress.py
+    - all future learner/syncer production runtime paths
+  target_shared_run_root: /work/xg24i002/x10041/fsbdd/runtime_runs
+  metadata_matrix: M in [4,8,16], F in [8,16,32], stat/read/readdir, first-touch/warm, flat/sharded fixed-slot layouts, two one-second sustained repetitions; history sizes [0,1000,10000] are negative-control only.
+  bandwidth_matrix: Deterministic sequential payloads of 50, 100, 250 and 500 MB, single and 16 concurrent streams, write and verified read, two repetitions, 8 MiB chunks.
+  frozen_thresholds: M=16,F=32,poll=1s gives 512 metadata ops/s steady demand and 5120 ops/s required capacity; H=50s gives at most 5s for the 16-stream fragment write round.
+  resolved_measurement_plan: Use writer/observer-local monotonic elapsed times only; report syscall or reference observations, p50/p95/p99/max latency, aggregate/per-stream MB/s, round elapsed, live file/temp counts, bounded versus history-scanning discovery, and cleanup verification.
+  model_data_profile: Fixed structured latest references and deterministic byte payloads only; no model, dataset, Torch, GPU, training, or quality claim.
+  resource_profile: Two distinct Miyabi compute nodes, 16 launcher ranks at eight ranks per node, debug-g walltime at most 30 minutes; benchmark data and coordination only below the frozen Lustre RUN_ROOT.
+  miyabi_skill_repository: https://github.com/UnbearableFate/miyabi-development
+  miyabi_skill_commit: c3ddfa47cadfd9132edf939d359b90b28ab5f8ed
+  initial_hostname: miyabi-g1
+  workflow: miyabi-g1 is control plane only; tests and benchmarks run only inside verified PBS compute allocations.
+red:
+  command: null
+  exit_code: null
+  evidence_path: null
+green:
+  command: null
+  evidence_path: null
+harden:
+  commands: []
+  evidence_paths: []
+nine_node_gate:
+  required: false
+  run_id: null
+  topology_gate: not_applicable_before_S1-13
+  loss_gate: not_applicable
+  runtime_gate: not_applicable
+checker:
+  verdict: null
+  report_path: null
+persist:
+  evidence_index: null
+  raw_evidence_root: /work/xg24i002/x10041/fsbdd/evidence/raw/S0B-03
+  acceptance_traceability_updated: false
+  next_gap: Stage 0 checkpoint and current-skill provenance audit
+blocker: null
