@@ -9,7 +9,7 @@ runtime correctness, model-quality, or a reason to cancel Stage 4.
 
 - Complete SIM-03 extended matrix: `7776` / `7776` raw rows.
 - Three seeds per profile; reported uncertainty is sample standard deviation and a normal 95% CI half-width.
-- Full seed-level CSV and `2592` profile aggregates remain in the immutable evidence run `20260714T143800Z-green2-n8d3c-51edd8599de6`.
+- Full seed-level CSV and `2592` profile aggregates remain in the immutable evidence run `20260714T145700Z-green3-resume-n7b4a-14126dde2f00`.
 - Recovery is paired `accepted_token_efficiency(S_max=1) - accepted_token_efficiency(S_max=0)` in fraction units; percentage points are `100 × fraction`.
 
 ## Stage 1 Profile A recommendation
@@ -28,6 +28,9 @@ The preregistered ranking selects `M=8`, `Q=4`
 `F=4`, and `H=50` steps. The validation
 anchor injects constant heterogeneity `2.0×` and
 visibility `1.0s` (`delay/H=0.020000`).
+Here `H` in seconds uses the simulator's explicit nominal-fastest
+`1.0s/step` reference; real training must
+recompute the ratio from its measured step time.
 
 - predicted recovery: `-0.0446` percentage points, 95% CI half-width `0.0000` pp;
 - stale accepted-token rate: `5.3108%` (95% CI half-width `0.0000` pp);

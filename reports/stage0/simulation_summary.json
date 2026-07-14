@@ -1,6 +1,6 @@
 {
   "claims_boundary": "Simulation selects parameters and anchors later measurements; it is not runtime correctness or training-quality evidence.",
-  "evidence_run_id": "20260714T143800Z-green2-n8d3c-51edd8599de6",
+  "evidence_run_id": "20260714T145700Z-green3-resume-n7b4a-14126dde2f00",
   "marginals": {
     "grace_fraction_of_h": [
       {
@@ -1350,6 +1350,7 @@
       "heterogeneity_ratio": 2.0,
       "lambda_s": 1.0,
       "learners": 8,
+      "nominal_fastest_step_seconds": 1.0,
       "q": 4,
       "q_fresh": 1,
       "quorum_fraction": 0.5,
