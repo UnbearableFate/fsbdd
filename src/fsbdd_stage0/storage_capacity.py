@@ -318,14 +318,20 @@ def _run_metadata_state(
 
 
 def _run_metadata_rank(
-    config: Mapping[str, Any], run_id: str, test_root: Path, rank: int
-) -> list[dict[str, Any]]:
+    config: Mapping[str, Any],
+    run_id: str,
+    test_root: Path,
+    rank: int,
+    world: int,
+    timeout: float,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     output: list[dict[str, Any]] = []
+    coordinator_rounds: list[dict[str, Any]] = []
     metadata = config["metadata"]
+    control = test_root / "control"
+    ranks = list(range(world))
     for learners, fragments, layout, repeat, profile in metadata_matrix(config):
         active = rank < learners and (profile != "readdir" or layout != "flat" or rank == 0)
-        if not active:
-            continue
         root = _dataset_root(
             test_root,
             learners=learners,
@@ -334,31 +340,100 @@ def _run_metadata_rank(
             repeat=repeat,
         )
         for state in metadata["cache_states"]:
-            result = _run_metadata_state(
-                root=root,
-                profile=profile,
-                layout=layout,
-                learner=rank,
+            phase = _metadata_phase_id(
                 learners=learners,
                 fragments=fragments,
-                run_id=run_id,
+                layout=layout,
+                repeat=repeat,
+                profile=profile,
                 state=str(state),
-                sustained_seconds=float(metadata["sustained_seconds"]),
-                reservoir_size=int(metadata["latency_reservoir_size"]),
-                seed=f"{run_id}:{rank}:{learners}:{fragments}:{layout}:{repeat}:{profile}:{state}",
             )
-            result.update(
+            atomic_write_json(
+                control / f"metadata-ready-{rank}.json",
+                {"phase": phase, "rank": rank},
+            )
+            if rank == 0:
+                ready_records = _wait_rank_records(
+                    control,
+                    prefix="metadata-ready",
+                    ranks=ranks,
+                    phase=phase,
+                    timeout=timeout,
+                )
+                round_started = time.monotonic_ns()
+                atomic_write_json(control / "metadata-phase.json", {"phase": phase})
+            _wait_json(control / "metadata-phase.json", phase=phase, timeout=timeout)
+            result: dict[str, Any] | None = None
+            if active:
+                result = _run_metadata_state(
+                    root=root,
+                    profile=profile,
+                    layout=layout,
+                    learner=rank,
+                    learners=learners,
+                    fragments=fragments,
+                    run_id=run_id,
+                    state=str(state),
+                    sustained_seconds=float(metadata["sustained_seconds"]),
+                    reservoir_size=int(metadata["latency_reservoir_size"]),
+                    seed=(
+                        f"{run_id}:{rank}:{learners}:{fragments}:{layout}:"
+                        f"{repeat}:{profile}:{state}"
+                    ),
+                )
+                result.update(
+                    {
+                        "learners": learners,
+                        "fragments": fragments,
+                        "layout": layout,
+                        "repeat": repeat,
+                        "profile": profile,
+                        "rank": rank,
+                        "coordinator_phase": phase,
+                        "measurement_interval": "filesystem_barrier_coordinator_round",
+                    }
+                )
+                output.append(result)
+            atomic_write_json(
+                control / f"metadata-done-{rank}.json",
                 {
-                    "learners": learners,
-                    "fragments": fragments,
-                    "layout": layout,
-                    "repeat": repeat,
-                    "profile": profile,
+                    "phase": phase,
                     "rank": rank,
-                }
+                    "active": active,
+                    "reference_operations": (
+                        int(result["reference_operations"]) if result is not None else 0
+                    ),
+                },
             )
-            output.append(result)
-    return output
+            if rank == 0:
+                done = _wait_rank_records(
+                    control,
+                    prefix="metadata-done",
+                    ranks=ranks,
+                    phase=phase,
+                    timeout=timeout,
+                )
+                coordinator_rounds.append(
+                    {
+                        "phase": phase,
+                        "learners": learners,
+                        "fragments": fragments,
+                        "layout": layout,
+                        "repeat": repeat,
+                        "profile": profile,
+                        "state": str(state),
+                        "round_elapsed_ns": time.monotonic_ns() - round_started,
+                        "ready_ranks": [int(record["rank"]) for record in ready_records],
+                        "done_ranks": [int(record["rank"]) for record in done],
+                        "timing_method": "rank0_monotonic_start_to_all_done_after_fs_barrier",
+                    }
+                )
+    if rank == 0:
+        (control / "metadata-phase.json").unlink()
+        for barrier_rank in ranks:
+            (control / f"metadata-ready-{barrier_rank}.json").unlink()
+            (control / f"metadata-done-{barrier_rank}.json").unlink()
+    return output, coordinator_rounds
 
 
 def _history_controls(config: Mapping[str, Any], test_root: Path, run_id: str) -> list[dict[str, Any]]:
@@ -408,6 +483,15 @@ def _payload_path(test_root: Path, stream: int) -> Path:
 
 def _phase_id(size_mb: int, streams: int, repeat: int) -> str:
     return f"size-{size_mb}-streams-{streams}-repeat-{repeat}"
+
+
+def _metadata_phase_id(
+    *, learners: int, fragments: int, layout: str, repeat: int, profile: str, state: str
+) -> str:
+    return (
+        f"metadata-m{learners}-f{fragments}-{layout}-repeat-{repeat}-"
+        f"{profile}-{state}"
+    )
 
 
 def _write_payload(
@@ -597,14 +681,17 @@ def run_capacity_role(
         )
         atomic_write_json(ready, {"run_id": run_id, "phase": "ready"})
     _wait_json(ready, phase="ready", timeout=float(config["smoke"]["timeout_seconds"]) * 10)
-    metadata_results = _run_metadata_rank(config, run_id, test_root, rank)
+    timeout = float(config["smoke"]["timeout_seconds"]) * 10
+    metadata_results, metadata_coordinator_rounds = _run_metadata_rank(
+        config, run_id, test_root, rank, world, timeout
+    )
     history = _history_controls(config, test_root, run_id) if rank == 0 else []
     bandwidth_results, coordinator_rounds = _run_bandwidth_rank(
         config,
         run_id,
         test_root,
         rank,
-        timeout=float(config["smoke"]["timeout_seconds"]) * 10,
+        timeout=timeout,
     )
     state: dict[str, Any] | None = None
     if rank == 0:
@@ -633,6 +720,7 @@ def run_capacity_role(
         "pbs_job_id": job_id,
         "clock": "time.monotonic_ns",
         "metadata": metadata_results,
+        "metadata_coordinator_rounds": metadata_coordinator_rounds,
         "history_controls": history,
         "bandwidth": bandwidth_results,
         "coordinator_rounds": coordinator_rounds,
@@ -664,22 +752,78 @@ def _metadata_summary(roles: Sequence[Mapping[str, Any]], config: Mapping[str, A
     if set(groups) != expected_keys:
         missing = sorted(expected_keys - set(groups))
         raise StorageHarnessError(f"metadata matrix is incomplete: {missing[:3]}")
+    coordinator_records = [
+        record
+        for role in roles
+        for record in role.get("metadata_coordinator_rounds", [])
+    ]
+    coordinator_groups: dict[tuple[Any, ...], Mapping[str, Any]] = {}
+    for record in coordinator_records:
+        key = (
+            record["learners"],
+            record["fragments"],
+            record["layout"],
+            record["repeat"],
+            record["profile"],
+            record["state"],
+        )
+        if key in coordinator_groups:
+            raise StorageHarnessError("metadata coordinator interval is duplicated")
+        coordinator_groups[key] = record
+    if set(coordinator_groups) != expected_keys:
+        missing = sorted(expected_keys - set(coordinator_groups))
+        raise StorageHarnessError(
+            f"metadata coordinator interval matrix is incomplete: {missing[:3]}"
+        )
+    world = int(config["bandwidth"]["launcher_world_size"])
+    expected_barrier_ranks = list(range(world))
     summaries: list[dict[str, Any]] = []
     for key in sorted(groups, key=lambda value: tuple(str(item) for item in value)):
         learners, fragments, layout, repeat, profile, state = key
         records = groups[key]
         expected_ranks = 1 if profile == "readdir" and layout == "flat" else int(learners)
-        if len(records) != expected_ranks:
+        expected_active_ranks = set(range(expected_ranks))
+        if {int(record["rank"]) for record in records} != expected_active_ranks:
             raise StorageHarnessError("metadata concurrency does not match the frozen matrix")
+        coordinator = coordinator_groups[key]
+        phase = _metadata_phase_id(
+            learners=int(learners),
+            fragments=int(fragments),
+            layout=str(layout),
+            repeat=int(repeat),
+            profile=str(profile),
+            state=str(state),
+        )
+        if (
+            coordinator.get("phase") != phase
+            or coordinator.get("timing_method")
+            != "rank0_monotonic_start_to_all_done_after_fs_barrier"
+            or coordinator.get("ready_ranks") != expected_barrier_ranks
+            or coordinator.get("done_ranks") != expected_barrier_ranks
+        ):
+            raise StorageHarnessError("metadata coordinator interval provenance is invalid")
+        if any(
+            record.get("coordinator_phase") != phase
+            or record.get("measurement_interval")
+            != "filesystem_barrier_coordinator_round"
+            for record in records
+        ):
+            raise StorageHarnessError("metadata result lacks coordinator interval provenance")
         references = sum(int(record["reference_operations"]) for record in records)
         syscalls = sum(int(record["syscall_operations"]) for record in records)
-        elapsed_ns = max(int(record["elapsed_ns"]) for record in records)
+        rank_local_elapsed_ns = max(int(record["elapsed_ns"]) for record in records)
+        elapsed_ns = int(coordinator["round_elapsed_ns"])
         latency = [
             int(value)
             for record in records
             for value in record["latency_samples_ns"]
         ]
-        if not latency or references <= 0 or elapsed_ns <= 0:
+        if (
+            not latency
+            or references <= 0
+            or elapsed_ns <= 0
+            or elapsed_ns < rank_local_elapsed_ns
+        ):
             raise StorageHarnessError("metadata result contains no measurable operations")
         summaries.append(
             {
@@ -693,6 +837,9 @@ def _metadata_summary(roles: Sequence[Mapping[str, Any]], config: Mapping[str, A
                 "reference_operations": references,
                 "syscall_operations": syscalls,
                 "elapsed_seconds_upper_bound": elapsed_ns / 1e9,
+                "rank_local_elapsed_seconds_max": rank_local_elapsed_ns / 1e9,
+                "timing_method": coordinator["timing_method"],
+                "coordinator_phase": phase,
                 "reference_ops_per_second": references / (elapsed_ns / 1e9),
                 "syscalls_per_second": syscalls / (elapsed_ns / 1e9),
                 "latency_sample_count": len(latency),

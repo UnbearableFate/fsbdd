@@ -14,6 +14,7 @@ from fsbdd_stage0.storage_capacity import (
     StorageHarnessError,
     _bandwidth_summary,
     _history_summary,
+    _metadata_phase_id,
     _metadata_summary,
     _phase_id,
     bandwidth_matrix,
@@ -45,6 +46,7 @@ def _synthetic_roles(config: dict, run_id: str = "capacity-test") -> list[dict]:
             "pbs_job_id": "1.opbs",
             "status": "passed",
             "metadata": [],
+            "metadata_coordinator_rounds": [],
             "history_controls": [],
             "bandwidth": [],
             "coordinator_rounds": [],
@@ -55,6 +57,14 @@ def _synthetic_roles(config: dict, run_id: str = "capacity-test") -> list[dict]:
     for learners, fragments, layout, repeat, profile in metadata_matrix(config):
         active_ranks = [0] if profile == "readdir" and layout == "flat" else list(range(learners))
         for state in config["metadata"]["cache_states"]:
+            phase = _metadata_phase_id(
+                learners=learners,
+                fragments=fragments,
+                layout=layout,
+                repeat=repeat,
+                profile=profile,
+                state=state,
+            )
             multiplier = 20 if state == "warm" else 1
             for rank in active_ranks:
                 references = (
@@ -77,8 +87,25 @@ def _synthetic_roles(config: dict, run_id: str = "capacity-test") -> list[dict]:
                         "elapsed_ns": 1_000_000_000,
                         "latency_samples_ns": [1_000, 2_000, 3_000],
                         "latency_operations_seen": syscalls,
+                        "coordinator_phase": phase,
+                        "measurement_interval": "filesystem_barrier_coordinator_round",
                     }
                 )
+            roles[0]["metadata_coordinator_rounds"].append(
+                {
+                    "phase": phase,
+                    "learners": learners,
+                    "fragments": fragments,
+                    "layout": layout,
+                    "repeat": repeat,
+                    "profile": profile,
+                    "state": state,
+                    "round_elapsed_ns": 1_000_000_000,
+                    "ready_ranks": list(range(16)),
+                    "done_ranks": list(range(16)),
+                    "timing_method": "rank0_monotonic_start_to_all_done_after_fs_barrier",
+                }
+            )
     roles[0]["history_controls"] = [
         {
             "history_objects": size,
@@ -186,6 +213,28 @@ class TestStage0StorageCapacity(unittest.TestCase):
         broken[0]["metadata"].pop()
         with self.assertRaisesRegex(StorageHarnessError, "metadata (matrix|concurrency)"):
             _metadata_summary(broken, config)
+
+        missing_interval = copy.deepcopy(roles)
+        missing_interval[0]["metadata_coordinator_rounds"].pop()
+        with self.assertRaisesRegex(StorageHarnessError, "coordinator interval"):
+            _metadata_summary(missing_interval, config)
+
+    def test_bench_03__disjoint_rank_local_intervals_cannot_prove_capacity(self) -> None:
+        config = _config()
+        roles = _synthetic_roles(config)
+        for interval in roles[0]["metadata_coordinator_rounds"]:
+            if (
+                interval["learners"] == 16
+                and interval["fragments"] == 32
+                and interval["state"] == "warm"
+            ):
+                interval["round_elapsed_ns"] = 16_000_000_000
+        summary = _metadata_summary(roles, config)
+        self.assertFalse(summary["threshold"]["passed"])
+        self.assertEqual(
+            summary["threshold"]["measured_minimum_warm_reference_ops_per_second"],
+            640.0,
+        )
 
     def test_fs_05__history_scan_grows_but_fixed_discovery_stays_bounded(self) -> None:
         config = _config()
