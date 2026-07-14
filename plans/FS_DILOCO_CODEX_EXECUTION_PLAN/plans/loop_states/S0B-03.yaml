@@ -2,7 +2,7 @@ schema_version: 1
 loop_id: S0B-03
 title: Metadata/Bandwidth 压测与 Stage 1 FS 决策
 stage: stage0
-status: oriented
+status: red
 source_hashes:
   research_plan: 2c0db3148110da10ea62f445c189d2d53b405527d8da264b9af9817f5ca9d835
   stage0_4_spec: fad26a8add51e70ddf50d0130b61d80fe06e1c3945221c29508412a5bcab2feb
@@ -54,9 +54,12 @@ orient:
   initial_hostname: miyabi-g1
   workflow: miyabi-g1 is control plane only; tests and benchmarks run only inside verified PBS compute allocations.
 red:
-  command: null
-  exit_code: null
-  evidence_path: null
+  command: TEST_TARGETS=tests.red_cases.s0b03_incomplete_capacity_surrogate EXPECTED_TEST_RESULT=fail qsub pbs/stage0_cpu_tests.pbs
+  exit_code: 1
+  evidence_path: evidence/raw/S0B-03/20260714T170406Z-red-n3069021613-840458639ec1
+  checksum_manifest_sha256: 2c3a717928cc671ebc47f2c5060923edf66021c83d0cf620b433c96a6d660a1f
+  pbs_job_id: 2383721.opbs
+  failure_summary: Five deterministic failures reject history scanning, an incomplete stat-only profile matrix, a threshold report without steady-demand math, an incomplete payload/concurrency matrix, and bandwidth reporting without the 10%-of-H concurrent-round comparison.
 green:
   command: null
   evidence_path: null

@@ -209,6 +209,51 @@ def validate_storage_config(config: Mapping[str, Any]) -> None:
         if isinstance(value, bool) or not isinstance(value, (int, float)) or value <= 0:
             raise StorageHarnessError(f"atomicity.{field} must be positive")
 
+    metadata = config.get("metadata")
+    bandwidth = config.get("bandwidth")
+    if not isinstance(metadata, Mapping) or not isinstance(bandwidth, Mapping):
+        raise StorageHarnessError("metadata and bandwidth benchmark mappings are required")
+    if metadata.get("learner_counts") != [4, 8, 16]:
+        raise StorageHarnessError("metadata learner counts must be 4, 8, and 16")
+    if metadata.get("fragment_counts") != [8, 16, 32]:
+        raise StorageHarnessError("metadata fragment counts must be 8, 16, and 32")
+    if metadata.get("profiles") != ["stat", "read", "readdir"]:
+        raise StorageHarnessError("metadata profiles must be stat, read, and readdir")
+    if metadata.get("cache_states") != ["first_touch", "warm"]:
+        raise StorageHarnessError("metadata cache states must be first_touch and warm")
+    if metadata.get("directory_layouts") != ["flat", "per_learner"]:
+        raise StorageHarnessError("metadata layouts must be flat and per_learner")
+    if metadata.get("history_sizes_for_negative_control") != [0, 1000, 10000]:
+        raise StorageHarnessError("metadata history controls must be 0, 1000, and 10000")
+    for field in (
+        "repeats",
+        "sustained_seconds",
+        "latency_reservoir_size",
+        "polling_interval_seconds",
+        "history_scan_repeats",
+    ):
+        value = metadata.get(field)
+        if isinstance(value, bool) or not isinstance(value, (int, float)) or value <= 0:
+            raise StorageHarnessError(f"metadata.{field} must be positive")
+    if metadata.get("repeats") != 2:
+        raise StorageHarnessError("metadata requires two repetitions")
+    if bandwidth.get("payload_sizes_mb") != [50, 100, 250, 500]:
+        raise StorageHarnessError("bandwidth payload sizes must cover 50 through 500 MB")
+    if bandwidth.get("streams") != [1, 16]:
+        raise StorageHarnessError("bandwidth streams must be single and M=16 concurrent")
+    if bandwidth.get("repeats") != 2:
+        raise StorageHarnessError("bandwidth requires two repetitions")
+    if bandwidth.get("launcher_world_size") != 16:
+        raise StorageHarnessError("capacity benchmark requires 16 launcher ranks")
+    if bandwidth.get("ranks_per_node") != 8:
+        raise StorageHarnessError("capacity benchmark requires eight ranks per node")
+    if bandwidth.get("cross_host_rank_offset") != 8:
+        raise StorageHarnessError("capacity readers must use the opposite-host rank offset")
+    for field in ("chunk_bytes", "launcher_world_size", "ranks_per_node"):
+        value = bandwidth.get(field)
+        if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+            raise StorageHarnessError(f"bandwidth.{field} must be a positive integer")
+
 
 def require_compute_context(
     *,

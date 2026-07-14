@@ -44,14 +44,24 @@
   "metadata": {
     "learner_counts": [4, 8, 16],
     "fragment_counts": [8, 16, 32],
+    "profiles": ["stat", "read", "readdir"],
+    "cache_states": ["first_touch", "warm"],
+    "directory_layouts": ["flat", "per_learner"],
+    "repeats": 2,
+    "sustained_seconds": 1.0,
+    "latency_reservoir_size": 2048,
     "polling_interval_seconds": 1.0,
-    "history_sizes_for_negative_control": [0, 1000, 10000]
+    "history_sizes_for_negative_control": [0, 1000, 10000],
+    "history_scan_repeats": 20
   },
   "bandwidth": {
     "payload_sizes_mb": [50, 100, 250, 500],
     "streams": [1, 16],
     "chunk_bytes": 8388608,
-    "repeats": 2
+    "repeats": 2,
+    "launcher_world_size": 16,
+    "ranks_per_node": 8,
+    "cross_host_rank_offset": 8
   },
   "thresholds": {
     "planned_sync_period_seconds": 50.0,

@@ -1,0 +1,220 @@
+#!/bin/bash
+#PBS -q debug-g
+#PBS -l select=2
+#PBS -l walltime=00:30:00
+#PBS -W group_list=xg24i002
+#PBS -N fsbdd-s0-capacity
+
+set -eEuo pipefail
+trap 'echo "[ERROR] line=$LINENO command=$BASH_COMMAND" >&2' ERR
+
+export PAGER=cat MODULES_PAGER=cat LMOD_PAGER=cat
+
+: "${PROJECT_ROOT:=/work/xg24i002/x10041/fsbdd}"
+: "${LOOP_ID:=S0B-03}"
+: "${RUN_ID:?RUN_ID is required}"
+: "${SUBMISSION_NONCE:?SUBMISSION_NONCE is required}"
+: "${CONFIG_DIGEST:?CONFIG_DIGEST is required}"
+: "${CONFIG_PATHS:?CONFIG_PATHS is required}"
+: "${MIYABI_SKILL_DIR:=/work/xg24i002/x10041/.codex/skills/miyabi-development}"
+: "${MIYABI_SKILL_COMMIT:?MIYABI_SKILL_COMMIT is required}"
+: "${STORAGE_CONFIG:=configs/stage0/storage_benchmark.json}"
+: "${TARGET_RUN_ROOT:=/work/xg24i002/x10041/fsbdd/runtime_runs}"
+: "${MODULE_NAME:=nv-hpcx/25.9}"
+: "${INITIAL_HOSTNAME:=miyabi-g1}"
+: "${EVIDENCE_ROOT:=$PROJECT_ROOT/evidence/raw}"
+
+CONFIG_DIGEST_SHORT="${CONFIG_DIGEST:0:12}"
+if [[ "$RUN_ID" != *"$SUBMISSION_NONCE"* ]] || [[ "$RUN_ID" != *"$CONFIG_DIGEST_SHORT"* ]]; then
+  echo "RUN_ID must contain the submission nonce and short config digest" >&2
+  exit 64
+fi
+
+HOST="$(hostname -s)"
+if [[ ! "$HOST" =~ ^mg[0-9]+$ ]] || [[ -z "${PBS_JOBID:-}" ]] || [[ -z "${PBS_NODEFILE:-}" ]]; then
+  echo "Refusing storage capacity benchmark outside a confirmed Miyabi PBS compute allocation" >&2
+  exit 70
+fi
+if [[ "$MIYABI_SKILL_COMMIT" != "c3ddfa47cadfd9132edf939d359b90b28ab5f8ed" ]]; then
+  echo "storage config requires miyabi-development@c3ddfa47cadfd9132edf939d359b90b28ab5f8ed" >&2
+  exit 65
+fi
+ACTUAL_MIYABI_SKILL_COMMIT="$(git -C "$MIYABI_SKILL_DIR" rev-parse HEAD)"
+if [[ "$ACTUAL_MIYABI_SKILL_COMMIT" != "$MIYABI_SKILL_COMMIT" ]]; then
+  echo "miyabi-development commit mismatch: expected=$MIYABI_SKILL_COMMIT actual=$ACTUAL_MIYABI_SKILL_COMMIT" >&2
+  exit 65
+fi
+
+cd "$PROJECT_ROOT"
+PYTHON="$PROJECT_ROOT/.venv/bin/python"
+if [[ ! -x "$PYTHON" ]]; then
+  echo "Missing project Python: $PYTHON" >&2
+  exit 69
+fi
+export PYTHONPATH="$PROJECT_ROOT/src${PYTHONPATH:+:$PYTHONPATH}"
+module load "$MODULE_NAME"
+
+read -r -a CONFIG_ARRAY <<< "$CONFIG_PATHS"
+if [[ "${#CONFIG_ARRAY[@]}" -eq 0 ]]; then
+  echo "CONFIG_PATHS must name at least one tracked input" >&2
+  exit 64
+fi
+ACTUAL_CONFIG_DIGEST="$(sha256sum "${CONFIG_ARRAY[@]}" | sha256sum | awk '{print $1}')"
+if [[ "$ACTUAL_CONFIG_DIGEST" != "$CONFIG_DIGEST" ]]; then
+  echo "CONFIG_DIGEST mismatch: expected=$CONFIG_DIGEST actual=$ACTUAL_CONFIG_DIGEST" >&2
+  exit 65
+fi
+
+RUN_DIR="$EVIDENCE_ROOT/$LOOP_ID/$RUN_ID"
+if [[ -e "$RUN_DIR" ]]; then
+  echo "Evidence directory already exists: $RUN_DIR" >&2
+  exit 73
+fi
+mkdir -p "$RUN_DIR"/{stdout,stderr,env,configs,results,probes}
+exec > "$RUN_DIR/stdout/job.log" 2> "$RUN_DIR/stderr/job.log"
+
+sort -u "$PBS_NODEFILE" > "$RUN_DIR/env/compute_hosts.txt"
+HOST_COUNT="$(wc -l < "$RUN_DIR/env/compute_hosts.txt")"
+if [[ "$HOST_COUNT" -ne 2 ]]; then
+  echo "Storage capacity requires two distinct allocated hosts; observed=$HOST_COUNT" >&2
+  exit 66
+fi
+cp "$PBS_NODEFILE" "$RUN_DIR/env/pbs_nodefile.txt"
+hostname > "$RUN_DIR/env/hostname.txt"
+git rev-parse HEAD > "$RUN_DIR/env/git_commit.txt"
+git status --short --branch > "$RUN_DIR/env/git_status.txt"
+"$PYTHON" --version > "$RUN_DIR/env/python_version.txt" 2>&1
+printf '%s\n' "$ACTUAL_MIYABI_SKILL_COMMIT" > "$RUN_DIR/env/miyabi_skill_commit.txt"
+git -C "$MIYABI_SKILL_DIR" status --short > "$RUN_DIR/env/miyabi_skill_status.txt"
+cp "$MIYABI_SKILL_DIR/SKILL.md" "$RUN_DIR/env/miyabi_skill_SKILL.md"
+module list 2>&1 | sed '/^[[:space:]]*$/d' > "$RUN_DIR/env/modules.txt"
+mpirun --version > "$RUN_DIR/env/mpirun_version.txt" 2>&1
+sha256sum "${CONFIG_ARRAY[@]}" > "$RUN_DIR/configs/config_digest_inputs.sha256"
+printf '%s\n' "${CONFIG_ARRAY[@]}" > "$RUN_DIR/configs/config_paths.txt"
+for index in "${!CONFIG_ARRAY[@]}"; do
+  source_path="${CONFIG_ARRAY[$index]}"
+  printf -v snapshot_name 'input-%03d-%s' "$index" "$(basename "$source_path")"
+  cp -- "$source_path" "$RUN_DIR/configs/$snapshot_name"
+done
+sha256sum \
+  plans/FS_DILOCO_CODEX_EXECUTION_PLAN/source/RESEARCH_PLAN.md \
+  plans/FS_DILOCO_CODEX_EXECUTION_PLAN/source/STAGE0-4_SPEC.md \
+  > "$RUN_DIR/env/source_hashes.txt"
+
+mkdir -p "$TARGET_RUN_ROOT"
+FILESYSTEM_TYPE="$(findmnt -n -o FSTYPE -T "$TARGET_RUN_ROOT")"
+FILESYSTEM_SOURCE="$(findmnt -n -o SOURCE -T "$TARGET_RUN_ROOT")"
+if [[ "${FILESYSTEM_TYPE,,}" != "lustre" ]]; then
+  echo "Frozen target RUN_ROOT is not Lustre: type=$FILESYSTEM_TYPE path=$TARGET_RUN_ROOT" >&2
+  exit 67
+fi
+findmnt -T "$TARGET_RUN_ROOT" > "$RUN_DIR/probes/findmnt.txt"
+df -T "$TARGET_RUN_ROOT" > "$RUN_DIR/probes/df.txt"
+stat -f "$TARGET_RUN_ROOT" > "$RUN_DIR/probes/statfs.txt"
+stat "$TARGET_RUN_ROOT" > "$RUN_DIR/probes/stat.txt"
+
+set +e
+lfs getstripe "$TARGET_RUN_ROOT" > "$RUN_DIR/probes/lfs_getstripe.stdout" 2> "$RUN_DIR/probes/lfs_getstripe.stderr"
+STRIPE_EXIT=$?
+lfs quota -g xg24i002 "$TARGET_RUN_ROOT" > "$RUN_DIR/probes/lfs_quota.stdout" 2> "$RUN_DIR/probes/lfs_quota.stderr"
+QUOTA_EXIT=$?
+set -e
+printf '{"schema_version":1,"command":"lfs getstripe","exit_code":%s}\n' "$STRIPE_EXIT" \
+  > "$RUN_DIR/probes/stripe.json"
+printf '{"schema_version":1,"command":"lfs quota -g xg24i002","exit_code":%s}\n' "$QUOTA_EXIT" \
+  > "$RUN_DIR/probes/quota.json"
+
+PERMISSION_FILE="$TARGET_RUN_ROOT/.fsbdd-s0-permission-${RUN_ID}"
+printf '%s\n' "$RUN_ID" > "$PERMISSION_FILE"
+PERMISSION_MODE="$(stat -c '%a' "$PERMISSION_FILE")"
+PERMISSION_UID="$(stat -c '%u' "$PERMISSION_FILE")"
+PERMISSION_GID="$(stat -c '%g' "$PERMISSION_FILE")"
+rm -f "$PERMISSION_FILE"
+printf '{"schema_version":1,"create":true,"read":true,"delete":true,"probe_removed":true,"mode":"%s","uid":%s,"gid":%s}\n' \
+  "$PERMISSION_MODE" "$PERMISSION_UID" "$PERMISSION_GID" \
+  > "$RUN_DIR/probes/permissions.json"
+
+"$PYTHON" -m fsbdd_stage0.storage_bench manifest \
+  --config "$STORAGE_CONFIG" \
+  --run-id "$RUN_ID" \
+  --initial-hostname "$INITIAL_HOSTNAME" \
+  --compute-hostname "$HOST" \
+  --pbs-job-id "$PBS_JOBID" \
+  --node-type cpu_compute \
+  --pbs-queue "${PBS_QUEUE:-debug-g}" \
+  --pbs-group xg24i002 \
+  --pbs-nodefile "$RUN_DIR/env/pbs_nodefile.txt" \
+  --filesystem-type "$FILESYSTEM_TYPE" \
+  --filesystem-source "$FILESYSTEM_SOURCE" \
+  --module-list "$RUN_DIR/env/modules.txt" \
+  --permission-probe "$RUN_DIR/probes/permissions.json" \
+  --loop-id "$LOOP_ID" \
+  --code-commit "$(cat "$RUN_DIR/env/git_commit.txt")" \
+  --submission-nonce "$SUBMISSION_NONCE" \
+  --config-digest "$CONFIG_DIGEST" \
+  --config-paths "$CONFIG_PATHS" \
+  --output "$RUN_DIR/manifest.json"
+
+TEST_ROOT="$TARGET_RUN_ROOT/stage0-storage-capacity/$RUN_ID"
+RESULT_ROOT="$RUN_DIR/results"
+
+printf '%q ' mpirun -np 16 --map-by ppr:8:node --bind-to none --hostfile "$PBS_NODEFILE" \
+  /usr/bin/env "PYTHONPATH=$PYTHONPATH" "PBS_JOBID=$PBS_JOBID" \
+  "PBS_NODEFILE=$PBS_NODEFILE" "$PYTHON" -m fsbdd_stage0.storage_capacity role \
+  --config "$STORAGE_CONFIG" --test-root "$TEST_ROOT" \
+  --result-root "$RESULT_ROOT" --run-id "$RUN_ID" \
+  > "$RUN_DIR/commands.log"
+printf '\n' >> "$RUN_DIR/commands.log"
+
+if mpirun -np 16 --map-by ppr:8:node --bind-to none --hostfile "$PBS_NODEFILE" \
+    /usr/bin/env "PYTHONPATH=$PYTHONPATH" "PBS_JOBID=$PBS_JOBID" \
+    "PBS_NODEFILE=$PBS_NODEFILE" "$PYTHON" -m fsbdd_stage0.storage_capacity role \
+    --config "$STORAGE_CONFIG" \
+    --test-root "$TEST_ROOT" \
+    --result-root "$RESULT_ROOT" \
+    --run-id "$RUN_ID" \
+    > "$RUN_DIR/results/mpirun.stdout" \
+    2> "$RUN_DIR/results/mpirun.stderr"; then
+  MPI_EXIT=0
+else
+  MPI_EXIT=$?
+fi
+printf '%s\n' "$MPI_EXIT" > "$RUN_DIR/results/mpirun_exit_code.txt"
+if [[ "$MPI_EXIT" -ne 0 ]]; then
+  cat "$RUN_DIR/results/mpirun.stderr" >&2
+  exit "$MPI_EXIT"
+fi
+
+"$PYTHON" -m fsbdd_stage0.storage_capacity summarize \
+  --config "$STORAGE_CONFIG" \
+  --result-root "$RESULT_ROOT" \
+  --run-id "$RUN_ID" \
+  > "$RUN_DIR/results/summarize.stdout"
+
+"$PYTHON" -m fsbdd_stage0.storage_capacity finalize-manifest \
+  --manifest "$RUN_DIR/manifest.json" \
+  --summary "$RUN_DIR/results/capacity-summary.json" \
+  --output "$RUN_DIR/manifest.yaml"
+
+"$PYTHON" -m fsbdd_stage0.storage_capacity cleanup \
+  --config "$STORAGE_CONFIG" \
+  --test-root "$TEST_ROOT" \
+  > "$RUN_DIR/results/cleanup.json"
+
+{
+  echo "schema_version: 1"
+  echo "status: complete"
+  echo "run_id: $RUN_ID"
+  echo "benchmark: metadata_and_bandwidth_capacity"
+  echo "mpirun_exit_code: $MPI_EXIT"
+  echo "test_root: $TEST_ROOT"
+  echo "test_root_removed: true"
+  echo "application_coordination: filesystem_only_fixed_slots"
+  echo "mpi_usage: launcher_only"
+} > "$RUN_DIR/results/completion.yaml"
+
+echo "stage0 storage capacity evidence complete: $RUN_DIR"
+find "$RUN_DIR" -type f ! -name checksums.sha256 -print0 \
+  | sort -z \
+  | xargs -0 sha256sum \
+  > "$RUN_DIR/checksums.sha256"

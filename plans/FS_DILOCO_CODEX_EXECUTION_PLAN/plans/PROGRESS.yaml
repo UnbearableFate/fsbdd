@@ -108,7 +108,7 @@ loops:
   title: Metadata/Bandwidth 压测与 Stage 1 FS 决策
   depends_on:
   - S0B-02
-  status: oriented
+  status: red
   nine_node_gate_required: false
   acceptance_ids:
   - A-BENCH-03
