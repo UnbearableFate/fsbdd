@@ -18,8 +18,8 @@ export PAGER=cat MODULES_PAGER=cat LMOD_PAGER=cat
 : "${CONFIG_PATHS:?CONFIG_PATHS is required}"
 : "${STORAGE_CONFIG:=configs/stage0/storage_benchmark.json}"
 : "${TARGET_RUN_ROOT:=/work/xg24i002/x10041/fsbdd/runtime_runs}"
-: "${PATH_MODE:=shared}"
-: "${EXPECTED_SMOKE_RESULT:=pass}"
+: "${SMOKE_PATH_MODE:=shared}"
+: "${SMOKE_EXPECTED_RESULT:=pass}"
 : "${MODULE_NAME:=nv-hpcx/25.9}"
 : "${INITIAL_HOSTNAME:=miyabi-g1}"
 : "${EVIDENCE_ROOT:=$PROJECT_ROOT/evidence/raw}"
@@ -29,10 +29,10 @@ if [[ "$RUN_ID" != *"$SUBMISSION_NONCE"* ]] || [[ "$RUN_ID" != *"$CONFIG_DIGEST_
   echo "RUN_ID must contain the submission nonce and short config digest" >&2
   exit 64
 fi
-case "$PATH_MODE:$EXPECTED_SMOKE_RESULT" in
+case "$SMOKE_PATH_MODE:$SMOKE_EXPECTED_RESULT" in
   shared:pass|local-negative:failure) ;;
   *)
-    echo "Supported smoke contracts are shared/pass and local/fail" >&2
+    echo "Supported smoke contracts are shared/pass and local-negative/failure" >&2
     exit 64
     ;;
 esac
@@ -158,8 +158,8 @@ printf '{"schema_version":1,"command":"lfs quota -g xg24i002","exit_code":%s,"st
   echo "filesystem_type: $FILESYSTEM_TYPE"
   echo "filesystem_source: $FILESYSTEM_SOURCE"
   echo "module_list_file: $RUN_DIR/env/modules.txt"
-  echo "smoke_path_mode: $PATH_MODE"
-  echo "expected_smoke_result: $EXPECTED_SMOKE_RESULT"
+  echo "smoke_path_mode: $SMOKE_PATH_MODE"
+  echo "expected_smoke_result: $SMOKE_EXPECTED_RESULT"
   echo "submission_nonce: $SUBMISSION_NONCE"
   echo "config_digest: $CONFIG_DIGEST"
   echo "config_paths: $CONFIG_PATHS"
@@ -168,7 +168,7 @@ printf '{"schema_version":1,"command":"lfs quota -g xg24i002","exit_code":%s,"st
   echo "raw_evidence_root: $RUN_DIR"
 } > "$RUN_DIR/manifest.yaml"
 
-if [[ "$PATH_MODE" == "shared" ]]; then
+if [[ "$SMOKE_PATH_MODE" == "shared" ]]; then
   TEST_ROOT="$TARGET_RUN_ROOT/stage0-storage-smoke/$RUN_ID"
 else
   TEST_ROOT="/tmp/fsbdd-stage0-storage-smoke/$RUN_ID"
@@ -179,7 +179,7 @@ mkdir -p "$RESULT_ROOT"
 printf '%q ' mpirun -np 2 --map-by ppr:1:node --hostfile "$PBS_NODEFILE" \
   -x PYTHONPATH "$PYTHON" -m fsbdd_stage0.storage_bench smoke-role \
   --config "$STORAGE_CONFIG" --test-root "$TEST_ROOT" \
-  --result-root "$RESULT_ROOT" --run-id "$RUN_ID" --path-mode "$PATH_MODE" \
+  --result-root "$RESULT_ROOT" --run-id "$RUN_ID" --path-mode "$SMOKE_PATH_MODE" \
   > "$RUN_DIR/commands.log"
 printf '\n' >> "$RUN_DIR/commands.log"
 
@@ -191,14 +191,14 @@ mpirun -np 2 --map-by ppr:1:node --hostfile "$PBS_NODEFILE" \
   --test-root "$TEST_ROOT" \
   --result-root "$RESULT_ROOT" \
   --run-id "$RUN_ID" \
-  --path-mode "$PATH_MODE" \
+  --path-mode "$SMOKE_PATH_MODE" \
   > "$RUN_DIR/results/mpirun.stdout" \
   2> "$RUN_DIR/results/mpirun.stderr"
 MPI_EXIT=$?
 set -e
 printf '%s\n' "$MPI_EXIT" > "$RUN_DIR/results/mpirun_exit_code.txt"
 
-case "$EXPECTED_SMOKE_RESULT" in
+case "$SMOKE_EXPECTED_RESULT" in
   pass)
     if [[ "$MPI_EXIT" -ne 0 ]]; then
       cat "$RUN_DIR/results/mpirun.stderr" >&2
@@ -217,16 +217,16 @@ esac
   --config "$STORAGE_CONFIG" \
   --result-root "$RESULT_ROOT" \
   --run-id "$RUN_ID" \
-  --path-mode "$PATH_MODE" \
-  --expected "$EXPECTED_SMOKE_RESULT" \
+  --path-mode "$SMOKE_PATH_MODE" \
+  --expected "$SMOKE_EXPECTED_RESULT" \
   > "$RUN_DIR/results/summarize.stdout"
 
 {
   echo "schema_version: 1"
   echo "status: complete"
   echo "run_id: $RUN_ID"
-  echo "smoke_path_mode: $PATH_MODE"
-  echo "expected_result: $EXPECTED_SMOKE_RESULT"
+  echo "smoke_path_mode: $SMOKE_PATH_MODE"
+  echo "expected_result: $SMOKE_EXPECTED_RESULT"
   echo "mpirun_exit_code: $MPI_EXIT"
   echo "test_root: $TEST_ROOT"
   echo "application_coordination: filesystem_only"
