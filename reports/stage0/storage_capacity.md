@@ -1,5 +1,11 @@
 # Stage 0 metadata and bandwidth capacity result
 
+> **Blocked candidate:** independent review of candidate `4ef5229` found that
+> the reported metadata aggregate combines nonsynchronous rank-local
+> intervals. The raw I/O result still proves `A-BENCH-04`, but the metadata
+> rates below do not prove `A-BENCH-03` and must be replaced by a common
+> coordinator-timed measurement.
+
 ## Decision
 
 The frozen Miyabi Lustre `RUN_ROOT` passes the S0B-03 capacity gates. At the

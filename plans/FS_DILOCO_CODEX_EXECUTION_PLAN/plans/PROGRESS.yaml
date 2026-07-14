@@ -108,7 +108,7 @@ loops:
   title: Metadata/Bandwidth 压测与 Stage 1 FS 决策
   depends_on:
   - S0B-02
-  status: checking
+  status: red
   nine_node_gate_required: false
   acceptance_ids:
   - A-BENCH-03
@@ -117,8 +117,8 @@ loops:
   base_commit: 7cd3e6ffcf36343d782b241c9815c57d62f87a69
   result_commit: null
   evidence_index: null
-  checker_verdict: null
-  blocker: null
+  checker_verdict: BLOCKED
+  blocker: Candidate 4ef5229 aggregates nonsynchronous rank-local metadata intervals; corrective RED and a filesystem-barrier coordinator interval are required.
 - id: S1-00
   stage: stage1
   title: 项目 Skeleton、Typed Config、Identity 与 Run Manifest

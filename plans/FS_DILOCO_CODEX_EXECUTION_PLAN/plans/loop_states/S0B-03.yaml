@@ -2,7 +2,7 @@ schema_version: 1
 loop_id: S0B-03
 title: Metadata/Bandwidth 压测与 Stage 1 FS 决策
 stage: stage0
-status: checking
+status: red
 source_hashes:
   research_plan: 2c0db3148110da10ea62f445c189d2d53b405527d8da264b9af9817f5ca9d835
   stage0_4_spec: fad26a8add51e70ddf50d0130b61d80fe06e1c3945221c29508412a5bcab2feb
@@ -87,11 +87,11 @@ nine_node_gate:
   loss_gate: not_applicable
   runtime_gate: not_applicable
 checker:
-  verdict: null
-  report_path: null
+  verdict: BLOCKED
+  report_path: reports/checkers/S0B-03-blocked-1.md
 persist:
   evidence_index: null
   raw_evidence_root: /work/xg24i002/x10041/fsbdd/evidence/raw/S0B-03
   acceptance_traceability_updated: false
-  next_gap: Fresh independent S0B-03 Checker, then Stage 0 checkpoint and independent stage Checker
-blocker: null
+  next_gap: Corrective RED and filesystem-barrier coordinator timing for every metadata cell
+blocker: Candidate 4ef5229 aggregates nonsynchronous rank-local metadata intervals; A-BENCH-03 requires a common coordinator-timed interval.

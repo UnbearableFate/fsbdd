@@ -1,5 +1,9 @@
 # Stage 1 storage capability decision
 
+> **BLOCKED:** candidate `4ef5229` does not establish `A-BENCH-03` because its
+> aggregate metadata rate combines nonsynchronous rank-local intervals. The
+> no-mitigation decision below is withdrawn pending a coordinator-timed rerun.
+
 ## Decision
 
 `PASS`: use the frozen Miyabi target Lustre path for Stage 1 with the profile

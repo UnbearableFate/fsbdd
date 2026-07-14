@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "loop_id": "S0B-03",
-  "status": "pass_candidate",
+  "status": "blocked",
   "runtime_commit": "6e5508bd3a743e94c5a81146d68a9424c72e8b23",
   "source_hashes": {
     "RESEARCH_PLAN.md": "2c0db3148110da10ea62f445c189d2d53b405527d8da264b9af9817f5ca9d835",
@@ -111,17 +111,17 @@
   },
   "decision": {
     "filesystem": "frozen_target_lustre",
-    "stage1_profile": "H=50s_fixed_slot_discovery_no_history_scan",
-    "mitigation_required": false,
+    "stage1_profile": "blocked_pending_synchronized_metadata_measurement",
+    "mitigation_required": true,
     "BENCH-05": "optional_not_executed",
-    "A-BENCH-03": "pass_candidate",
-    "A-BENCH-04": "pass_candidate"
+    "A-BENCH-03": "blocked",
+    "A-BENCH-04": "pass"
   },
   "checker": {
-    "checked_candidate": null,
-    "verdict": null,
-    "report": null,
-    "report_sha256": null
+    "checked_candidate": "4ef52290b607ded61bb8c519a06aedd324a5e665",
+    "verdict": "BLOCKED",
+    "report": "reports/checkers/S0B-03-blocked-1.md",
+    "report_sha256": "dad6ef2140852711acefce71690e9bf285cc4fdad4e8e522f2b3d338ed67d6c1"
   },
   "claims_boundary": "Stage 0 metadata and sequential-I/O capacity on the frozen Miyabi Lustre RUN_ROOT only; no production protocol, training, model, loss, GPU, object-store, or nine-node claim."
 }
