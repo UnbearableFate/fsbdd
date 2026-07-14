@@ -15,7 +15,15 @@ export PAGER=cat MODULES_PAGER=cat LMOD_PAGER=cat
 : "${RUN_ID:?RUN_ID is required}"
 : "${TEST_TARGETS:?TEST_TARGETS is required}"
 : "${EXPECTED_TEST_RESULT:=pass}"
+: "${SUBMISSION_NONCE:?SUBMISSION_NONCE is required}"
+: "${CONFIG_DIGEST:?CONFIG_DIGEST is required}"
 : "${EVIDENCE_ROOT:=$PROJECT_ROOT/evidence/raw}"
+
+CONFIG_DIGEST_SHORT="${CONFIG_DIGEST:0:12}"
+if [[ "$RUN_ID" != *"$SUBMISSION_NONCE"* ]] || [[ "$RUN_ID" != *"$CONFIG_DIGEST_SHORT"* ]]; then
+  echo "RUN_ID must contain the submission nonce and short config digest" >&2
+  exit 64
+fi
 
 HOST="$(hostname)"
 if [[ ! "$HOST" =~ ^mg[0-9]+$ ]] || [[ -z "${PBS_JOBID:-}" ]] || [[ -z "${PBS_NODEFILE:-}" ]]; then
@@ -29,7 +37,7 @@ if [[ -e "$RUN_DIR" ]]; then
   exit 73
 fi
 mkdir -p "$RUN_DIR"/{stdout,stderr,env,tests,configs,analysis,checker}
-exec > >(tee "$RUN_DIR/stdout/job.log") 2> >(tee "$RUN_DIR/stderr/job.log" >&2)
+exec > "$RUN_DIR/stdout/job.log" 2> "$RUN_DIR/stderr/job.log"
 
 cd "$PROJECT_ROOT"
 PYTHON="$PROJECT_ROOT/.venv/bin/python"
@@ -62,6 +70,8 @@ sha256sum \
   echo "node_count: $(sort -u "$PBS_NODEFILE" | wc -l)"
   echo "test_targets: $TEST_TARGETS"
   echo "expected_test_result: $EXPECTED_TEST_RESULT"
+  echo "submission_nonce: $SUBMISSION_NONCE"
+  echo "config_digest: $CONFIG_DIGEST"
   echo "miyabi_skill_repository: https://github.com/UnbearableFate/miyabi-development"
   echo "miyabi_skill_commit: ad1fd34a9de976b4fb26ba47d9a1770430884765"
   echo "raw_evidence_root: $RUN_DIR"
@@ -98,8 +108,8 @@ case "$EXPECTED_TEST_RESULT" in
     ;;
 esac
 
+echo "stage0 CPU test evidence complete: $RUN_DIR"
 find "$RUN_DIR" -type f ! -name checksums.sha256 -print0 \
   | sort -z \
   | xargs -0 sha256sum \
   > "$RUN_DIR/checksums.sha256"
-echo "stage0 CPU test evidence complete: $RUN_DIR"

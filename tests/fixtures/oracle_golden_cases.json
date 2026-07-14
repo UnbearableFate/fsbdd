@@ -50,5 +50,37 @@
       "lambda_s": 2.0,
       "expected": [0.25, 0.75]
     }
+  ],
+  "invalid_base_cases": [
+    {
+      "id": "wrong-base-identity",
+      "base": [2.0],
+      "local": [1.0],
+      "base_version": 2,
+      "current_version": 3,
+      "s_max": 1,
+      "base_identity_matches": false,
+      "error": "identity"
+    },
+    {
+      "id": "future-base",
+      "base": [2.0],
+      "local": [1.0],
+      "base_version": 4,
+      "current_version": 3,
+      "s_max": 1,
+      "base_identity_matches": true,
+      "error": "future"
+    },
+    {
+      "id": "too-stale-base",
+      "base": [2.0],
+      "local": [1.0],
+      "base_version": 1,
+      "current_version": 3,
+      "s_max": 1,
+      "base_identity_matches": true,
+      "error": "too stale"
+    }
   ]
 }
