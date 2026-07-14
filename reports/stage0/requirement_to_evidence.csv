@@ -14,6 +14,12 @@ ORACLE-02,S0C-01,evidence/indexes/S0C-01.md,passed
 ORACLE-03,S0C-02,tests/fixtures/stage0_decision_vectors.json,in_progress
 ORACLE-04,S0C-02,tests/fixtures/stage0_decision_vectors.json,in_progress
 ORACLE-05,S0C-02,reports/stage0/requirement_to_evidence.csv,in_progress
+INV-05,S0C-02,tests/fixtures/stage0_decision_vectors.json,in_progress
+PROP-06,S0C-02,tests/oracle/test_a_alg_00__consumption_outer_transitions.py,in_progress
+OPT-01,S0C-01,tests/fixtures/oracle_golden_cases.json,passed
+OPT-02,S0C-02,tests/oracle/test_a_alg_00__consumption_outer_transitions.py,in_progress
+OPT-04,S0C-02,tests/fixtures/stage0_decision_vectors.json,in_progress
+OPT-05,S0C-02,tests/oracle/test_a_alg_00__consumption_outer_transitions.py,in_progress
 A-SIM-01,S0A-01,evidence/indexes/S0A-01.md,planned
 A-SIM-02,S0A-02,evidence/indexes/S0A-02.md,planned
 A-SIM-03,S0A-02,evidence/indexes/S0A-02.md,planned

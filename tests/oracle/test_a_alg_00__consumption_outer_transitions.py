@@ -3,6 +3,7 @@ from __future__ import annotations
 import csv
 import itertools
 import json
+import re
 import unittest
 from pathlib import Path
 
@@ -22,6 +23,14 @@ from fsbdd_stage0.oracle import (
 ROOT = Path(__file__).resolve().parents[2]
 FIXTURE = ROOT / "tests" / "fixtures" / "stage0_decision_vectors.json"
 TRACEABILITY = ROOT / "reports" / "stage0" / "requirement_to_evidence.csv"
+LOOP_CARD = (
+    ROOT
+    / "plans"
+    / "FS_DILOCO_CODEX_EXECUTION_PLAN"
+    / "loops"
+    / "stage0"
+    / "S0C-02.md"
+)
 
 
 class TestAAlg00ConsumptionOuterTransitions(unittest.TestCase):
@@ -76,6 +85,18 @@ class TestAAlg00ConsumptionOuterTransitions(unittest.TestCase):
         proposals = self.make_proposals(case)
         for order in itertools.permutations(proposals):
             self.assert_case(case, list(order))
+
+    def test_inv_05__effective_token_priority_is_exact_above_binary64_limit(self) -> None:
+        proposals = [
+            Proposal("a", "a", 2, 0, 2**53, 1, True),
+            Proposal("b", "b", 1, 0, 2**53 + 1, 1, True),
+        ]
+        result = select_proposals(
+            proposals,
+            {},
+            CandidatePolicy(0, 0, 1, 1, 1, 1.0),
+        )
+        self.assertEqual([proposal.proposal_id for proposal in result.selected], ["b"])
 
     def test_prop_06__frontier_commits_only_after_successful_publication(self) -> None:
         case = next(
@@ -194,6 +215,16 @@ class TestAAlg00ConsumptionOuterTransitions(unittest.TestCase):
             "A-BENCH-04",
             "A-ALG-00",
         }
+        requirement_row = re.search(
+            r"^\| 规范条款 \| ([^|]+)\|$",
+            LOOP_CARD.read_text(encoding="utf-8"),
+            flags=re.MULTILINE,
+        )
+        self.assertIsNotNone(requirement_row)
+        required.update(
+            requirement.strip()
+            for requirement in requirement_row.group(1).split(",")
+        )
         validate_requirement_evidence(rows, required)
 
 

@@ -11,6 +11,7 @@ import math
 import struct
 from collections.abc import Sequence
 from dataclasses import dataclass
+from fractions import Fraction
 
 
 class OracleInputError(ValueError):
@@ -204,9 +205,14 @@ def _eligibility_reason(
     return None
 
 
-def _candidate_key(proposal: Proposal, policy: CandidatePolicy) -> tuple[float | str, ...]:
+def _candidate_key(
+    proposal: Proposal, policy: CandidatePolicy
+) -> tuple[int | Fraction | str, ...]:
     staleness = policy.current_version - proposal.base_version
-    effective_tokens = proposal.tokens / (1.0 + policy.lambda_s * staleness)
+    lambda_fraction = Fraction.from_float(policy.lambda_s)
+    effective_tokens = Fraction(proposal.tokens, 1) / (
+        Fraction(1, 1) + lambda_fraction * staleness
+    )
     return (
         staleness,
         -effective_tokens,
