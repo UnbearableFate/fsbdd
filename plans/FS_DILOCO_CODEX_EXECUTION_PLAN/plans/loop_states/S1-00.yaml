@@ -37,21 +37,21 @@ preflight:
   package_validator_result: admissible
   checker_phase_a: not_required
 red:
-  command: python tests/red_cases/s1_00_naive_identity_evidence_surrogate.py
+  command: python tests/red_cases/s1_00_naive_identity_evidence_surrogate.py plus Checker counterexample tests
   exit_code: 1
-  evidence_path: runtime_runs/S1-00/red-fda16e6/stderr/red.log
+  evidence_path: runtime_runs/S1-00/red-checker-f18d672
 green:
   command: PYTHONPATH=src uv run --frozen --with pytest python -m pytest -q tests/stage1/test_s1_00_*.py
   evidence_path: runtime_runs/S1-00/green-worktree/stdout/pytest-rerun.log
 harden:
   commands:
-  - PYTHONPATH=src .venv/bin/python -m pytest -q tests/oracle tests/simulation tests/storage tests/stage1
-  - PYTHONPATH=src .venv/bin/python -m fsbdd.cli evidence validate runtime_runs/S1-00/harden-fda87cb-2384507
+  - PYTHONPATH=src .venv/bin/python -m pytest -q tests/stage1
+  - PYTHONPATH=src .venv/bin/python -m fsbdd.cli evidence validate runtime_runs/S1-00/harden2-79fd3e7-2384525
   evidence_paths:
-  - runtime_runs/S1-00/harden-fda87cb-2384507/stdout/pytest.log
-  - runtime_runs/S1-00/harden-fda87cb-2384507/validation-summary.json
+  - runtime_runs/S1-00/harden2-79fd3e7-2384525/stdout/pytest.log
+  - runtime_runs/S1-00/harden2-79fd3e7-2384525/validation-summary.json
 nine_node_gate: {required: false, run_id: null, topology_gate: null, loss_gate: null, runtime_gate: null}
-checker: {context_id: null, maker_chat_inherited: false, phase_a_verdict: null, verdict: null, report_path: null}
+checker: {context_id: /root/s1_00_checker, maker_chat_inherited: false, phase_a_verdict: null, verdict: BLOCKED, report_path: reports/checkers/S1-00.md}
 persist:
   evidence_index: evidence/indexes/S1-00.md
   raw_evidence_root: runtime_runs/S1-00
@@ -59,12 +59,12 @@ persist:
   next_gap: null
   handoff: {proven_facts: [], checked_commit: null, selected_evidence: [], next_command: null}
   cost:
-    attempts_by_level: {L0: 1, L1: 3}
+    attempts_by_level: {L0: 2, L1: 5}
     queue_seconds: null
-    active_seconds: 360
-    checker_cycles: 0
+    active_seconds: 520
+    checker_cycles: 1
     goal_tokens_end: null
     agent_tokens_used: null
     phase_token_deltas: {}
-    rework_causes: [initial compute environment lacked pytest, CLI module entrypoint initially omitted]
+    rework_causes: [initial compute environment lacked pytest, CLI module entrypoint initially omitted, Checker found deep-freeze manifest-validation and log-envelope bypasses]
 blocker: null
