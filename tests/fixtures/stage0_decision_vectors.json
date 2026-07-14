@@ -81,6 +81,36 @@
       "expected_ready": true,
       "expected_selected": ["a-seq9-base4"],
       "expected_rejections": {}
+    },
+    {
+      "id": "invalid-base-boundaries-are-classified",
+      "current_version": 4,
+      "s_max": 1,
+      "q": 1,
+      "q_fresh": 0,
+      "max_contributors": 1,
+      "frontiers": {},
+      "proposals": [
+        {"proposal_id": "future", "learner_id": "a", "sequence": 1, "base_version": 5, "tokens": 10, "local_steps": 1, "base_identity_matches": true},
+        {"proposal_id": "too-stale", "learner_id": "b", "sequence": 1, "base_version": 2, "tokens": 10, "local_steps": 1, "base_identity_matches": true},
+        {"proposal_id": "wrong-identity", "learner_id": "c", "sequence": 1, "base_version": 4, "tokens": 10, "local_steps": 1, "base_identity_matches": false}
+      ],
+      "expected_ready": false,
+      "expected_selected": [],
+      "expected_rejections": {"future": "future_base", "too-stale": "too_stale", "wrong-identity": "base_identity_mismatch"}
+    },
+    {
+      "id": "empty-candidate-boundary",
+      "current_version": 0,
+      "s_max": 0,
+      "q": 1,
+      "q_fresh": 1,
+      "max_contributors": 1,
+      "frontiers": {},
+      "proposals": [],
+      "expected_ready": false,
+      "expected_selected": [],
+      "expected_rejections": {}
     }
   ],
   "outer_transition_cases": [

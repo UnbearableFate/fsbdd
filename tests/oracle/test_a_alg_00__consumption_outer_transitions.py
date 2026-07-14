@@ -92,6 +92,31 @@ class TestAAlg00ConsumptionOuterTransitions(unittest.TestCase):
         self.assertFalse(repeated.ready)
         self.assertEqual(repeated.rejections["a-seq9-base4"], "consumed_sequence")
 
+    def test_prop_06__frontier_remains_fixed_size_across_many_updates(self) -> None:
+        frontiers: dict[str, ConsumptionFrontier] = {}
+        for version in range(1_000):
+            proposal = Proposal(
+                proposal_id=f"a-{version}",
+                learner_id="a",
+                sequence=version,
+                base_version=version,
+                tokens=1,
+                local_steps=1,
+                base_identity_matches=True,
+            )
+            policy = CandidatePolicy(
+                current_version=version,
+                s_max=0,
+                q=1,
+                q_fresh=1,
+                max_contributors=1,
+                lambda_s=1.0,
+            )
+            result = select_proposals([proposal], frontiers, policy)
+            self.assertTrue(result.ready)
+            frontiers = commit_consumption(frontiers, result.selected, True)
+        self.assertEqual(frontiers, {"a": ConsumptionFrontier(999, 999)})
+
     def test_oracle_04__nesterov_reference_transitions(self) -> None:
         case = self.fixture["outer_transition_cases"][0]
         parameters = case["initial_parameters"]
@@ -133,6 +158,25 @@ class TestAAlg00ConsumptionOuterTransitions(unittest.TestCase):
         self.assertEqual(state, OuterSGDState(momentum_buffer=None))
         for actual, expected in zip(parameters, [6.5, 2.5], strict=True):
             self.assertAlmostEqual(actual, expected, delta=1e-6)
+
+    def test_opt_01__mixed_fresh_stale_merge_is_applied_to_current(self) -> None:
+        current = [12.0, -2.0]
+        merged = weighted_direct_merge(
+            current=current,
+            bases=[[3.0, 5.0], current],
+            locals_=[[1.0, 1.0], [8.0, -4.0]],
+            weights=[0.5, 0.5],
+        )
+        self.assertEqual(merged, [3.0, 3.0])
+        parameters, _ = outer_sgd_step(
+            current,
+            merged,
+            OuterSGDState(momentum_buffer=None),
+            learning_rate=1.0,
+            momentum=0.0,
+            nesterov=False,
+        )
+        self.assertEqual(parameters, [9.0, -5.0])
 
     def test_oracle_05__initial_requirement_evidence_map_is_complete(self) -> None:
         with TRACEABILITY.open(newline="", encoding="utf-8") as handle:
