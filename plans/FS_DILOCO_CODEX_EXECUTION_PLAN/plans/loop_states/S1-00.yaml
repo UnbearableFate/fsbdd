@@ -2,7 +2,7 @@ schema_version: 2
 loop_id: S1-00
 title: Project skeleton, typed config, identity, and run manifest
 stage: stage1
-status: oriented
+status: check_pending
 source_hashes:
   research_plan: 2c0db3148110da10ea62f445c189d2d53b405527d8da264b9af9817f5ca9d835
   stage0_4_spec: 1ea71fb6e34fef0d7b5558d8e7999dfdedeb82957f4331afcf6f80279d1f5a7d
@@ -34,29 +34,37 @@ preflight:
   measurement_contract: reports/stage1/S1-00-evidence-contract.json
   package_contract: reports/stage1/S1-00-evidence-contract.json
   package_validator_command: fsbdd evidence validate <package>
-  package_validator_result: pending_implementation
+  package_validator_result: admissible
   checker_phase_a: not_required
 red:
   command: python tests/red_cases/s1_00_naive_identity_evidence_surrogate.py
-  exit_code: null
-  evidence_path: null
-green: {command: null, evidence_path: null}
-harden: {commands: [], evidence_paths: []}
+  exit_code: 1
+  evidence_path: runtime_runs/S1-00/red-fda16e6/stderr/red.log
+green:
+  command: PYTHONPATH=src uv run --frozen --with pytest python -m pytest -q tests/stage1/test_s1_00_*.py
+  evidence_path: runtime_runs/S1-00/green-worktree/stdout/pytest-rerun.log
+harden:
+  commands:
+  - PYTHONPATH=src .venv/bin/python -m pytest -q tests/oracle tests/simulation tests/storage tests/stage1
+  - PYTHONPATH=src .venv/bin/python -m fsbdd.cli evidence validate runtime_runs/S1-00/harden-fda87cb-2384507
+  evidence_paths:
+  - runtime_runs/S1-00/harden-fda87cb-2384507/stdout/pytest.log
+  - runtime_runs/S1-00/harden-fda87cb-2384507/validation-summary.json
 nine_node_gate: {required: false, run_id: null, topology_gate: null, loss_gate: null, runtime_gate: null}
 checker: {context_id: null, maker_chat_inherited: false, phase_a_verdict: null, verdict: null, report_path: null}
 persist:
-  evidence_index: null
+  evidence_index: evidence/indexes/S1-00.md
   raw_evidence_root: runtime_runs/S1-00
   acceptance_traceability_updated: false
   next_gap: null
   handoff: {proven_facts: [], checked_commit: null, selected_evidence: [], next_command: null}
   cost:
-    attempts_by_level: {L0: 1}
+    attempts_by_level: {L0: 1, L1: 3}
     queue_seconds: null
-    active_seconds: null
+    active_seconds: 360
     checker_cycles: 0
     goal_tokens_end: null
     agent_tokens_used: null
     phase_token_deltas: {}
-    rework_causes: []
+    rework_causes: [initial compute environment lacked pytest, CLI module entrypoint initially omitted]
 blocker: null

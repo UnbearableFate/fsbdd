@@ -133,13 +133,13 @@ loops:
   - S0A-02
   - S0B-03
   - S0C-02
-  status: not_started
+  status: in_progress
   nine_node_gate_required: false
   acceptance_ids: []
-  branch: null
-  base_commit: null
+  branch: codex/S1-00-skeleton-identity
+  base_commit: 0e704d76da207119469857bd9660cae45a6351e4
   result_commit: null
-  evidence_index: null
+  evidence_index: evidence/indexes/S1-00.md
   checker_verdict: null
   blocker: null
 - id: S1-01
