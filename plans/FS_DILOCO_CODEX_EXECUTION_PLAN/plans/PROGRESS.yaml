@@ -108,16 +108,16 @@ loops:
   title: Metadata/Bandwidth 压测与 Stage 1 FS 决策
   depends_on:
   - S0B-02
-  status: checking
+  status: pass
   nine_node_gate_required: false
   acceptance_ids:
   - A-BENCH-03
   - A-BENCH-04
   branch: codex/S0B-03-storage-capacity
   base_commit: 7cd3e6ffcf36343d782b241c9815c57d62f87a69
-  result_commit: null
-  evidence_index: null
-  checker_verdict: null
+  result_commit: 4d2e1e2579ec703241a360ae698d2bc3392f7879
+  evidence_index: evidence/indexes/S0B-03.md
+  checker_verdict: PASS
   blocker: null
 - id: S1-00
   stage: stage1

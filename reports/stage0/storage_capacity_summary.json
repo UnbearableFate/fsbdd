@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "loop_id": "S0B-03",
-  "status": "pass_candidate",
+  "status": "pass",
   "runtime_commit": "5424daecc01adfaf633450a1449c154c0784edbe",
   "source_hashes": {
     "RESEARCH_PLAN.md": "2c0db3148110da10ea62f445c189d2d53b405527d8da264b9af9817f5ca9d835",
@@ -131,18 +131,18 @@
     "stage1_profile": "H=50s_fixed_slot_discovery_no_history_scan",
     "mitigation_required": false,
     "BENCH-05": "optional_not_executed",
-    "A-BENCH-03": "pass_candidate",
-    "A-BENCH-04": "pass_candidate"
+    "A-BENCH-03": "pass",
+    "A-BENCH-04": "pass"
   },
   "checker": {
     "prior_blocked_candidate": "4ef52290b607ded61bb8c519a06aedd324a5e665",
     "prior_verdict": "BLOCKED",
     "prior_report": "reports/checkers/S0B-03-blocked-1.md",
     "prior_report_sha256": "dad6ef2140852711acefce71690e9bf285cc4fdad4e8e522f2b3d338ed67d6c1",
-    "checked_candidate": null,
-    "verdict": null,
-    "report": null,
-    "report_sha256": null
+    "checked_candidate": "4d2e1e2579ec703241a360ae698d2bc3392f7879",
+    "verdict": "PASS",
+    "report": "reports/checkers/S0B-03.md",
+    "report_sha256": "8b6d80e9d897940bc8263729a8caca32f3271d8f79994208f761772cc5f9a83d"
   },
   "claims_boundary": "Stage 0 metadata and sequential-I/O capacity on the frozen Miyabi Lustre RUN_ROOT only; no production protocol, training, model, loss, GPU, object-store, or nine-node claim."
 }
