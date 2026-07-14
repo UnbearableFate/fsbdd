@@ -2,7 +2,7 @@ schema_version: 1
 loop_id: S0B-02
 title: 跨节点可见性与 10^5 次原子发布验证
 stage: stage0
-status: implementing
+status: checking
 source_hashes:
   research_plan: 2c0db3148110da10ea62f445c189d2d53b405527d8da264b9af9817f5ca9d835
   stage0_4_spec: fad26a8add51e70ddf50d0130b61d80fe06e1c3945221c29508412a5bcab2feb
@@ -55,11 +55,15 @@ red:
   exit_code: 1
   evidence_path: evidence/raw/S0B-02/20260714T155627Z-red-n3f8c-3c37e0b38ef2
 green:
-  command: null
-  evidence_path: null
+  command: qsub pbs/stage0_storage_visibility_atomicity.pbs with FSBDD_STRESS_MODE=full
+  evidence_path: evidence/raw/S0B-02/20260714T161909Z-fullfix-fullfix-n6c9a-006abf2a3b43
 harden:
-  commands: []
-  evidence_paths: []
+  commands:
+    - qsub pbs/stage0_storage_visibility_atomicity.pbs with FSBDD_STRESS_MODE=unsafe
+    - qsub pbs/stage0_cpu_tests.pbs with all six Stage 0 test modules
+  evidence_paths:
+    - evidence/raw/S0B-02/20260714T162735Z-unsafefix-unsafefix-n2e5c-006abf2a3b43
+    - evidence/raw/S0B-02/20260714T162750Z-hardenfix-hardenfix-n7a3d-435f3f3bdf1c
 nine_node_gate:
   required: false
   run_id: null
@@ -70,7 +74,7 @@ checker:
   verdict: null
   report_path: null
 persist:
-  evidence_index: null
+  evidence_index: evidence/indexes/S0B-02.md
   raw_evidence_root: /work/xg24i002/x10041/fsbdd/evidence/raw/S0B-02
   acceptance_traceability_updated: false
   next_gap: S0B-03 metadata and bandwidth capacity decision

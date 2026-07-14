@@ -1,0 +1,74 @@
+{
+  "schema_version": 1,
+  "loop_id": "S0B-02",
+  "status": "maker_pass_pending_checker",
+  "runtime_commit": "78e5992383d3fc6900edeb80f6055451bb08933b",
+  "miyabi_skill_commit": "c3ddfa47cadfd9132edf939d359b90b28ab5f8ed",
+  "target_run_root": "/work/xg24i002/x10041/fsbdd/runtime_runs",
+  "full_run": {
+    "run_id": "20260714T161909Z-fullfix-fullfix-n6c9a-006abf2a3b43",
+    "pbs_job_id": "2383537.opbs",
+    "hosts": ["mg0030", "mg0031"],
+    "config_digest": "006abf2a3b433ca2e092fcb5d33914b37eac9875d06b348ba910c786dd7bd28a",
+    "checksum_manifest_sha256": "b0da24c0ad6c1d7ad09046143123852aa9fa2fbaf33acf35828b21c2ad891280"
+  },
+  "visibility": {
+    "timing_method": "writer_ack_roundtrip_upper_bound",
+    "timing_origin": "visibility_record_replace_complete",
+    "clock_skew_handling": "writer_clock_elapsed_only_no_cross_host_subtraction",
+    "threshold_p99_seconds": 2.5,
+    "empty": {
+      "samples": 1000,
+      "p50_seconds": 0.005804742,
+      "p95_seconds": 0.00713011725,
+      "p99_seconds": 0.00793855513,
+      "max_seconds": 0.163547301
+    },
+    "loaded": {
+      "samples": 1000,
+      "p50_seconds": 0.005571845,
+      "p95_seconds": 0.00701004205,
+      "p99_seconds": 0.00780090579,
+      "max_seconds": 0.008833697,
+      "background_replacements_at_start": 1000,
+      "background_replacements_at_end": 5958,
+      "background_reader_observations": 7497,
+      "background_violations": 0
+    }
+  },
+  "atomicity": {
+    "primitive": "complete_same_directory_temporary_then_os_replace",
+    "claim_boundary": "atomic_visibility_not_crash_durability",
+    "concurrent_readers": 4,
+    "record_sizes": {
+      "256": {
+        "replacements": 100000,
+        "reader_observations": [166406, 165979, 165117, 164840],
+        "sequence_regressions": 0,
+        "violations": 0
+      },
+      "4096": {
+        "replacements": 100000,
+        "reader_observations": [165990, 165542, 165992, 166207],
+        "sequence_regressions": 0,
+        "violations": 0
+      }
+    },
+    "total_replacements": 200000,
+    "writer_kill_positions": ["before_visibility", "after_visibility"],
+    "raw_violation_lines": 0
+  },
+  "unsafe_control": {
+    "run_id": "20260714T162735Z-unsafefix-unsafefix-n2e5c-006abf2a3b43",
+    "pbs_job_id": "2383599.opbs",
+    "iterations": 1000,
+    "readers": 4,
+    "detected_partial_or_torn_reads": 5208,
+    "checksum_manifest_sha256": "0a8055c387eeeb6fa6b0132d0700cc2206942ba4faa0dab8f4482a1a1081d0c1"
+  },
+  "acceptance": {
+    "A-BENCH-01": "maker_pass",
+    "A-BENCH-02": "maker_pass"
+  },
+  "claims_boundary": "Target-Lustre Stage 0 visibility and atomic-replacement evidence only; no training, model-quality, crash-durability, or nine-node claim."
+}
