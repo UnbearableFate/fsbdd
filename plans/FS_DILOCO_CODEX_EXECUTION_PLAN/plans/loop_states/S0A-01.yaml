@@ -2,7 +2,7 @@ schema_version: 1
 loop_id: S0A-01
 title: 离散事件模拟器内核与 oracle 对齐
 stage: stage0
-status: oriented
+status: pass
 source_hashes:
   research_plan: 2c0db3148110da10ea62f445c189d2d53b405527d8da264b9af9817f5ca9d835
   stage0_4_spec: fad26a8add51e70ddf50d0130b61d80fe06e1c3945221c29508412a5bcab2feb
@@ -10,7 +10,7 @@ git:
   integration_branch: master
   branch: codex/S0A-01-simulator-core
   base_commit: 35694ba1d3444b3791b1a6f9f5be11acc8237570
-  result_commit: null
+  result_commit: 9dbec27ae562b20174e55e53b84d55b9c2795c6f
   dirty_at_start: false
 dependencies:
   - S0C-02
@@ -35,15 +35,17 @@ orient:
   initial_hostname: miyabi-g1
   workflow: Miyabi control plane; deterministic CPU runtime checks submitted to one PBS compute node.
 red:
-  command: null
-  exit_code: null
-  evidence_path: null
+  command: qsub debug-g stage0_cpu_tests.pbs with tests.red_cases.s0a01_naive_event_simulator_surrogate and EXPECTED_TEST_RESULT=fail
+  exit_code: 1
+  evidence_path: evidence/raw/S0A-01/20260715T000500Z-red-n4b2c-96de0c07d935
 green:
-  command: null
-  evidence_path: null
+  command: qsub debug-g corrected S0A-01 simulator suite with retained config digest inputs
+  evidence_path: evidence/raw/S0A-01/20260714T141300Z-green3-n3f8b-933359ca8de4
 harden:
-  commands: []
-  evidence_paths: []
+  commands:
+    - qsub debug-g combined S0C oracle and corrected S0A-01 duration-scaling regression
+  evidence_paths:
+    - evidence/raw/S0A-01/20260714T141500Z-harden3-n7a2d-fbdaaee6cf1a
 nine_node_gate:
   required: false
   run_id: null
@@ -51,11 +53,11 @@ nine_node_gate:
   loss_gate: not_applicable
   runtime_gate: not_applicable
 checker:
-  verdict: null
-  report_path: null
+  verdict: PASS
+  report_path: reports/checkers/S0A-01.md
 persist:
-  evidence_index: null
+  evidence_index: evidence/indexes/S0A-01.md
   raw_evidence_root: /work/xg24i002/x10041/fsbdd/evidence/raw/S0A-01
-  acceptance_traceability_updated: false
+  acceptance_traceability_updated: true
   next_gap: S0A-02 full SIM-03 sweep and recommendation report
 blocker: null

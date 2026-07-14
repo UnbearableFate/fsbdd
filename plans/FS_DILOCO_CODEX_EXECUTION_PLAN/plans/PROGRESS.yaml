@@ -12,7 +12,7 @@ capabilities:
     status: inactive
     established_by: S1-13
     baseline_9n_run_id: null
-current_loop: S0A-01
+current_loop: S0A-02
 loops:
 - id: S0C-01
   stage: stage0
@@ -48,15 +48,15 @@ loops:
   title: 离散事件模拟器内核与 oracle 对齐
   depends_on:
   - S0C-02
-  status: not_started
+  status: pass
   nine_node_gate_required: false
   acceptance_ids:
   - A-SIM-01
-  branch: null
-  base_commit: null
-  result_commit: null
-  evidence_index: null
-  checker_verdict: null
+  branch: codex/S0A-01-simulator-core
+  base_commit: 35694ba1d3444b3791b1a6f9f5be11acc8237570
+  result_commit: 9dbec27ae562b20174e55e53b84d55b9c2795c6f
+  evidence_index: evidence/indexes/S0A-01.md
+  checker_verdict: PASS
   blocker: null
 - id: S0A-02
   stage: stage0

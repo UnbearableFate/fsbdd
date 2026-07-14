@@ -1,5 +1,5 @@
 stage,acceptance_id,primary_loop,supporting_loops,required_evidence,status,evidence_path,checker_verdict,notes
-0-A,A-SIM-01,S0A-01,,共享decision vectors全部通过,not_started,,,
+0-A,A-SIM-01,S0A-01,,共享decision vectors全部通过,passed,evidence/indexes/S0A-01.md,PASS,7/7 shared vectors plus deterministic event and bounded-state evidence
 0-A,A-SIM-02,S0A-02,,完整SIM-03矩阵与原始manifest,not_started,,,
 0-A,A-SIM-03,S0A-02,,默认profile与stale挽回预测,not_started,,,
 0-B,A-BENCH-01,S0B-02,,跨节点visibility p50/p99，满足阈值,not_started,,,
