@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import copy
+import hashlib
 import json
 import subprocess
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -14,6 +16,7 @@ from fsbdd_stage0.storage_stress import (
     TIMING_ORIGIN,
     build_atomic_record,
     percentile,
+    replace_visibility_bytes,
     validate_atomic_record,
     validate_atomicity_results,
     validate_latency_samples,
@@ -58,6 +61,11 @@ def atomic_results(config: dict) -> tuple[dict, dict]:
             {
                 "record_size": record_size,
                 "replacements": config["atomicity"]["replacements_per_record_size"],
+                "publication_transcript": f"atomic_publications_{record_size}.jsonl",
+                "publication_transcript_records": config["atomicity"][
+                    "replacements_per_record_size"
+                ],
+                "publication_transcript_sha256": "b" * 64,
             }
         )
         reader_sizes.append(
@@ -67,7 +75,10 @@ def atomic_results(config: dict) -> tuple[dict, dict]:
                 "readers": [
                     {
                         "reader_id": reader_id,
+                        "polls": config["atomicity"]["minimum_observations_per_reader"],
                         "observations": config["atomicity"]["minimum_observations_per_reader"],
+                        "first_observed_monotonic_ns": 10,
+                        "last_observed_monotonic_ns": 20,
                         "final_seen": True,
                         "violations": 0,
                         "transcript_sha256": "a" * 64,
@@ -128,6 +139,19 @@ class TestVisibilityAtomicityContracts(unittest.TestCase):
             with self.assertRaises(StorageHarnessError):
                 validate_atomic_record(bytes(corrupt), run_id="run-a", record_size=record_size)
 
+    def test_bench_02__visibility_replace_exposes_complete_records(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "current.json"
+            replace_visibility_bytes(path, build_atomic_record("run-a", 256, 1))
+            self.assertEqual(
+                validate_atomic_record(path.read_bytes(), run_id="run-a", record_size=256), 1
+            )
+            replace_visibility_bytes(path, build_atomic_record("run-a", 256, 2))
+            self.assertEqual(
+                validate_atomic_record(path.read_bytes(), run_id="run-a", record_size=256), 2
+            )
+            self.assertEqual(list(path.parent.glob(".*.visibility-*")), [])
+
     def test_bench_02__summary_requires_100k_zero_violations_and_four_readers(self) -> None:
         config = load_config()
         writer, reader = atomic_results(config)
@@ -150,6 +174,39 @@ class TestVisibilityAtomicityContracts(unittest.TestCase):
         three_readers["record_sizes"][0]["readers"].pop()
         with self.assertRaisesRegex(StorageHarnessError, "reader count"):
             validate_atomicity_results(writer, three_readers, config)
+
+    def test_bench_02__raw_publication_transcript_is_complete_and_hashed(self) -> None:
+        config = load_config()
+        config["atomicity"]["replacements_per_record_size"] = 3
+        config["atomicity"]["record_sizes_bytes"] = [256]
+        writer, reader = atomic_results(config)
+        records = [
+            {
+                "schema_version": 1,
+                "run_id": "run-a",
+                "record_size": 256,
+                "sequence": sequence,
+                "record_sha256": f"{sequence + 1:064x}",
+                "publication_complete_monotonic_ns": 100 + sequence,
+                "timing_origin": TIMING_ORIGIN,
+            }
+            for sequence in range(3)
+        ]
+        content = "".join(
+            json.dumps(record, sort_keys=True, separators=(",", ":")) + "\n"
+            for record in records
+        )
+        writer["record_sizes"][0]["publication_transcript_sha256"] = hashlib.sha256(
+            content.encode("utf-8")
+        ).hexdigest()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "atomic_publications_256.jsonl").write_text(content, encoding="utf-8")
+            validate_atomicity_results(writer, reader, config, result_root=root)
+            corrupt = content.replace('"sequence":1', '"sequence":2', 1)
+            (root / "atomic_publications_256.jsonl").write_text(corrupt, encoding="utf-8")
+            with self.assertRaisesRegex(StorageHarnessError, "sequence"):
+                validate_atomicity_results(writer, reader, config, result_root=root)
 
     def test_bench_02__pbs_is_two_node_compute_only_and_launcher_only(self) -> None:
         subprocess.run(["bash", "-n", str(PBS_PATH)], check=True)

@@ -13,6 +13,7 @@ import json
 import math
 import os
 import signal
+import shutil
 import socket
 import threading
 import time
@@ -124,6 +125,29 @@ def _write_jsonl(path: Path, records: Iterable[Mapping[str, Any]]) -> None:
     _fsync_directory(path.parent)
 
 
+def replace_visibility_bytes(path: Path, content: bytes) -> None:
+    """Close a complete same-directory temporary, then atomically replace.
+
+    BENCH-02 measures the POSIX rename visibility primitive, not persistence
+    after power loss.  Per-replacement file and directory fsync would measure
+    durability barriers instead and would dominate the 200000-operation
+    matrix.  Durable payload/publication and kill probes continue to use
+    ``atomic_write_bytes``.
+    """
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_name(
+        f".{path.name}.visibility-{socket.gethostname()}-{os.getpid()}-{time.monotonic_ns()}"
+    )
+    try:
+        with temporary.open("xb") as handle:
+            handle.write(content)
+            handle.flush()
+        os.replace(temporary, path)
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
 def _read_jsonl(path: Path) -> list[dict[str, Any]]:
     records: list[dict[str, Any]] = []
     try:
@@ -191,18 +215,35 @@ def _run_latency_writer(
         sequence = 0
         try:
             while not stop_background.is_set() or sequence < minimum:
-                atomic_write_bytes(background_path, _background_record(run_id, sequence, size))
+                replace_visibility_bytes(
+                    background_path, _background_record(run_id, sequence, size)
+                )
                 sequence += 1
                 background_state["replacements"] = sequence
         except (OSError, StorageHarnessError) as error:
             background_state["error"] = str(error)
 
     background_thread: threading.Thread | None = None
+    loaded_profile_start_replacements = 0
+    loaded_profile_end_replacements = 0
     samples: list[dict[str, Any]] = []
     for sequence, profile, cache_state in _latency_schedule(config):
         if profile == "loaded" and background_thread is None:
             background_thread = threading.Thread(target=background_writer, daemon=True)
             background_thread.start()
+            minimum = int(visibility["background_minimum_replacements"])
+            warmup_deadline = time.monotonic() + timeout * 75
+            while int(background_state["replacements"]) < minimum:
+                if background_state["error"]:
+                    raise StorageHarnessError(
+                        f"background writer failed during warmup: {background_state['error']}"
+                    )
+                if time.monotonic() > warmup_deadline:
+                    raise StorageHarnessError(
+                        "background writer did not reach its frozen warmup replacement count"
+                    )
+                time.sleep(poll)
+            loaded_profile_start_replacements = int(background_state["replacements"])
         payload = hashlib.sha256(f"{run_id}:payload:{sequence}".encode()).digest() * 4
         payload_path = test_root / "payloads" / f"payload-{sequence:08d}.bin"
         payload_digest = hashlib.sha256(payload).hexdigest()
@@ -263,6 +304,7 @@ def _run_latency_writer(
 
     if background_thread is None:
         raise StorageHarnessError("loaded latency profile did not start its background load")
+    loaded_profile_end_replacements = int(background_state["replacements"])
     stop_background.set()
     background_thread.join(timeout=timeout)
     if background_thread.is_alive():
@@ -285,6 +327,8 @@ def _run_latency_writer(
         "profile_counts": dict(Counter(sample["profile"] for sample in samples)),
         "cache_state_counts": dict(Counter(sample["cache_state"] for sample in samples)),
         "background_replacements": background_state["replacements"],
+        "loaded_profile_start_replacements": loaded_profile_start_replacements,
+        "loaded_profile_end_replacements": loaded_profile_end_replacements,
         "timing_method": TIMING_METHOD,
         "timing_origin": TIMING_ORIGIN,
     }
@@ -469,7 +513,7 @@ class _ViolationLog:
 
 
 def _run_atomic_writer(
-    *, config: Mapping[str, Any], run_id: str, test_root: Path
+    *, config: Mapping[str, Any], run_id: str, test_root: Path, result_root: Path
 ) -> dict[str, Any]:
     atomicity = config["atomicity"]
     timeout = float(config["smoke"]["timeout_seconds"])
@@ -478,7 +522,7 @@ def _run_atomic_writer(
     for record_size in atomicity["record_sizes_bytes"]:
         record_size = int(record_size)
         record_path = test_root / "atomic" / f"record-{record_size}.json"
-        atomic_write_bytes(record_path, build_atomic_record(run_id, record_size, -1))
+        replace_visibility_bytes(record_path, build_atomic_record(run_id, record_size, -1))
         _wait_for_expected_record(
             test_root / "atomic" / f"reader-ready-{record_size}.json",
             run_id=run_id,
@@ -488,11 +532,44 @@ def _run_atomic_writer(
             required_fields=("run_id", "sequence"),
         )
         started_ns = time.monotonic_ns()
-        for sequence in range(count):
-            atomic_write_bytes(
-                record_path, build_atomic_record(run_id, record_size, sequence)
-            )
+        local_transcript = Path("/tmp") / (
+            f"fsbdd-{os.getpid()}-{hashlib.sha256(run_id.encode()).hexdigest()[:12]}-"
+            f"atomic-writer-{record_size}.jsonl"
+        )
+        transcript_digest = hashlib.sha256()
+        first_publication_ns: int | None = None
+        last_publication_ns: int | None = None
+        try:
+            with local_transcript.open("x", encoding="utf-8") as transcript:
+                for sequence in range(count):
+                    content = build_atomic_record(run_id, record_size, sequence)
+                    content_sha256 = hashlib.sha256(content).hexdigest()
+                    replace_visibility_bytes(record_path, content)
+                    publication_ns = time.monotonic_ns()
+                    if first_publication_ns is None:
+                        first_publication_ns = publication_ns
+                    last_publication_ns = publication_ns
+                    entry = {
+                        "schema_version": 1,
+                        "run_id": run_id,
+                        "record_size": record_size,
+                        "sequence": sequence,
+                        "record_sha256": content_sha256,
+                        "publication_complete_monotonic_ns": publication_ns,
+                        "timing_origin": TIMING_ORIGIN,
+                    }
+                    line = _canonical_json(entry) + "\n"
+                    transcript.write(line)
+                    transcript_digest.update(line.encode("utf-8"))
+                transcript.flush()
+                os.fsync(transcript.fileno())
+            transcript_name = f"atomic_publications_{record_size}.jsonl"
+            shutil.copyfile(local_transcript, result_root / transcript_name)
+            _fsync_directory(result_root)
+        finally:
+            local_transcript.unlink(missing_ok=True)
         completed_ns = time.monotonic_ns()
+        _fsync_directory(record_path.parent)
         atomic_write_json(
             test_root / "atomic" / f"writer-done-{record_size}.json",
             {
@@ -517,9 +594,20 @@ def _run_atomic_writer(
                 "replacements": count,
                 "final_sequence": count - 1,
                 "elapsed_ns": completed_ns - started_ns,
+                "first_publication_complete_monotonic_ns": first_publication_ns,
+                "last_publication_complete_monotonic_ns": last_publication_ns,
+                "publication_transcript": transcript_name,
+                "publication_transcript_records": count,
+                "publication_transcript_sha256": transcript_digest.hexdigest(),
             }
         )
-    return {"record_sizes": sizes, "total_replacements": count * len(sizes)}
+    return {
+        "run_id": run_id,
+        "record_sizes": sizes,
+        "total_replacements": count * len(sizes),
+        "primitive": "complete_same_directory_temporary_then_os_replace",
+        "claim_boundary": "atomic_visibility_not_crash_durability",
+    }
 
 
 def _run_atomic_reader(
@@ -541,8 +629,12 @@ def _run_atomic_reader(
             states = [
                 {
                     "reader_id": reader_id,
+                    "polls": 0,
                     "observations": 0,
                     "last_sequence": -2,
+                    "first_observed_monotonic_ns": None,
+                    "last_observed_monotonic_ns": None,
+                    "sequence_regressions": 0,
                     "final_seen": False,
                     "transcript_sha256": "",
                     "violations": 0,
@@ -560,6 +652,7 @@ def _run_atomic_reader(
                     with checkpoint_path.open("x", encoding="utf-8") as checkpoint:
                         deadline = time.monotonic() + timeout * 75
                         while time.monotonic() <= deadline:
+                            state["polls"] += 1
                             try:
                                 content = record_path.read_bytes()
                                 sequence = validate_atomic_record(
@@ -580,7 +673,13 @@ def _run_atomic_reader(
                                     }
                                 )
                             else:
+                                observed_ns = time.monotonic_ns()
                                 state["observations"] += 1
+                                if state["first_observed_monotonic_ns"] is None:
+                                    state["first_observed_monotonic_ns"] = observed_ns
+                                state["last_observed_monotonic_ns"] = observed_ns
+                                if sequence < state["last_sequence"]:
+                                    state["sequence_regressions"] += 1
                                 state["last_sequence"] = sequence
                                 state["final_seen"] = state["final_seen"] or sequence == count - 1
                                 digest.update(f"{sequence}\n".encode())
@@ -591,7 +690,10 @@ def _run_atomic_reader(
                                                 "reader_id": state["reader_id"],
                                                 "record_size": record_size,
                                                 "observations": state["observations"],
+                                                "polls": state["polls"],
                                                 "last_sequence": sequence,
+                                                "observed_monotonic_ns": observed_ns,
+                                                "violations": state["violations"],
                                                 "transcript_sha256": digest.hexdigest(),
                                             }
                                         )
@@ -606,6 +708,24 @@ def _run_atomic_reader(
                             raise StorageHarnessError(
                                 f"atomic reader {state['reader_id']} timed out for {record_size} bytes"
                             )
+                        checkpoint.write(
+                            _canonical_json(
+                                {
+                                    "reader_id": state["reader_id"],
+                                    "record_size": record_size,
+                                    "observations": state["observations"],
+                                    "polls": state["polls"],
+                                    "last_sequence": state["last_sequence"],
+                                    "observed_monotonic_ns": state[
+                                        "last_observed_monotonic_ns"
+                                    ],
+                                    "violations": state["violations"],
+                                    "transcript_sha256": digest.hexdigest(),
+                                    "final": True,
+                                }
+                            )
+                            + "\n"
+                        )
                         checkpoint.flush()
                         os.fsync(checkpoint.fileno())
                 except (OSError, StorageHarnessError) as error:
@@ -908,7 +1028,10 @@ def run_stress_role(
                 config=config, run_id=run_id, test_root=test_root, result_root=result_root
             )
             result["atomicity"] = _run_atomic_writer(
-                config=config, run_id=run_id, test_root=test_root
+                config=config,
+                run_id=run_id,
+                test_root=test_root,
+                result_root=result_root,
             )
             result["writer_kill"] = _run_kill_probe_writer(
                 run_id=run_id,
@@ -990,7 +1113,12 @@ def validate_latency_samples(
 
 
 def validate_atomicity_results(
-    writer: Mapping[str, Any], reader: Mapping[str, Any], config: Mapping[str, Any]
+    writer: Mapping[str, Any],
+    reader: Mapping[str, Any],
+    config: Mapping[str, Any],
+    *,
+    result_root: Path | None = None,
+    run_id: str | None = None,
 ) -> dict[str, Any]:
     atomicity = config["atomicity"]
     expected_count = int(atomicity["replacements_per_record_size"])
@@ -1007,6 +1135,44 @@ def validate_atomicity_results(
         reader_result = reader_sizes[record_size]
         if writer_result.get("replacements") != expected_count:
             raise StorageHarnessError("atomic writer completed too few replacements")
+        if writer_result.get("publication_transcript_records") != expected_count:
+            raise StorageHarnessError("atomic writer transcript has the wrong record count")
+        transcript_name = str(writer_result.get("publication_transcript", ""))
+        transcript_sha256 = str(writer_result.get("publication_transcript_sha256", ""))
+        if not transcript_name or len(transcript_sha256) != 64:
+            raise StorageHarnessError("atomic writer transcript identity is missing")
+        if Path(transcript_name).name != transcript_name:
+            raise StorageHarnessError("atomic writer transcript path is not a safe basename")
+        if result_root is not None:
+            transcript = _read_jsonl(result_root / transcript_name)
+            if len(transcript) != expected_count:
+                raise StorageHarnessError("raw atomic writer transcript is incomplete")
+            digest = hashlib.sha256()
+            last_publication_ns: int | None = None
+            for sequence, publication in enumerate(transcript):
+                publication_run_id = publication.get("run_id")
+                if publication_run_id is None or (
+                    run_id is not None and publication_run_id != run_id
+                ):
+                    raise StorageHarnessError("atomic publication run identity is invalid")
+                if publication.get("record_size") != record_size:
+                    raise StorageHarnessError("atomic publication record size changed")
+                if publication.get("sequence") != sequence:
+                    raise StorageHarnessError("atomic publication transcript sequence is incomplete")
+                if publication.get("timing_origin") != TIMING_ORIGIN:
+                    raise StorageHarnessError("atomic publication timing origin is invalid")
+                publication_ns = publication.get("publication_complete_monotonic_ns")
+                if isinstance(publication_ns, bool) or not isinstance(publication_ns, int):
+                    raise StorageHarnessError("atomic publication timestamp is invalid")
+                if last_publication_ns is not None and publication_ns < last_publication_ns:
+                    raise StorageHarnessError("atomic publication timestamps regressed")
+                last_publication_ns = publication_ns
+                record_sha256 = str(publication.get("record_sha256", ""))
+                if len(record_sha256) != 64 or set(record_sha256) - set("0123456789abcdef"):
+                    raise StorageHarnessError("atomic publication checksum is invalid")
+                digest.update((_canonical_json(publication) + "\n").encode("utf-8"))
+            if digest.hexdigest() != transcript_sha256:
+                raise StorageHarnessError("atomic writer transcript digest mismatch")
         readers = reader_result.get("readers")
         if not isinstance(readers, list) or len(readers) != int(atomicity["concurrent_readers"]):
             raise StorageHarnessError("atomicity evidence has the wrong concurrent reader count")
@@ -1019,6 +1185,18 @@ def validate_atomicity_results(
                 raise StorageHarnessError("an atomic reader did not observe the final replacement")
             if not str(state.get("transcript_sha256", "")):
                 raise StorageHarnessError("atomic reader transcript digest is missing")
+            if int(state.get("polls", 0)) < int(state.get("observations", 0)):
+                raise StorageHarnessError("atomic reader poll accounting is invalid")
+            first_observed = state.get("first_observed_monotonic_ns")
+            last_observed = state.get("last_observed_monotonic_ns")
+            if (
+                isinstance(first_observed, bool)
+                or not isinstance(first_observed, int)
+                or isinstance(last_observed, bool)
+                or not isinstance(last_observed, int)
+                or last_observed < first_observed
+            ):
+                raise StorageHarnessError("atomic reader timestamps are invalid")
         summary[str(record_size)] = {
             "replacements": expected_count,
             "reader_count": len(readers),
@@ -1071,12 +1249,24 @@ def summarize_stress(
             config["visibility"]["background_minimum_replacements"]
         ):
             raise StorageHarnessError("loaded profile background replacement count is too low")
+        loaded_start = int(writer["latency"].get("loaded_profile_start_replacements", 0))
+        loaded_end = int(writer["latency"].get("loaded_profile_end_replacements", 0))
+        if loaded_start < int(config["visibility"]["background_minimum_replacements"]):
+            raise StorageHarnessError("loaded profile began before background-load warmup")
+        if loaded_end <= loaded_start:
+            raise StorageHarnessError("background load was not active throughout loaded sampling")
         if reader["latency"].get("background_violations") != 0:
             raise StorageHarnessError("loaded profile observed a partial background record")
         raw_violations = _read_jsonl(result_root / "atomic_violations.jsonl")
         if raw_violations:
             raise StorageHarnessError("raw atomicity scanner contains violations")
-        atomicity = validate_atomicity_results(writer["atomicity"], reader["atomicity"], config)
+        atomicity = validate_atomicity_results(
+            writer["atomicity"],
+            reader["atomicity"],
+            config,
+            result_root=result_root,
+            run_id=run_id,
+        )
         expected_positions = set(config["atomicity"]["writer_kill_positions"])
         for role in roles:
             probes = role.get("writer_kill", {}).get("probes", [])
@@ -1090,6 +1280,8 @@ def summarize_stress(
                 "latency": latency,
                 "loaded_background": {
                     "replacements": writer["latency"]["background_replacements"],
+                    "replacements_at_profile_start": loaded_start,
+                    "replacements_at_profile_end": loaded_end,
                     "reader_observations": reader["latency"]["background_observations"],
                     "violations": 0,
                 },
