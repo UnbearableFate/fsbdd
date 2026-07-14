@@ -2,11 +2,11 @@
 
 ## Status
 
-`CHECK_PENDING` (`PASS` candidate)
+`PASS`
 
 All seven Stage 0 loops and all eight Stage 0 acceptance IDs have independent
-loop-level `PASS` verdicts. No loop blocker remains. Stage closure awaits the
-fresh independent stage-level Checker required by `STAGE_0.md`.
+loop-level `PASS` verdicts. The fresh independent stage-level Checker also
+returns `PASS`; no Stage 0 blocker or follow-up remains.
 
 ## Source and code
 
@@ -16,7 +16,8 @@ fresh independent stage-level Checker required by `STAGE_0.md`.
   fad26a8add51e70ddf50d0130b61d80fe06e1c3945221c29508412a5bcab2feb`.
 - Integration branch: `master` (not automatically merged).
 - Stage assembly branch: `codex/S0B-03-storage-capacity`.
-- Stage assembly parent: `c00bb363cb6aff93781a15d9828b3d3477a928fa`.
+- Checked checkpoint candidate: `6400f1633f6ea0cfd7bfb8dc2eac7177cac91e75`
+  (parent `c00bb363cb6aff93781a15d9828b3d3477a928fa`).
 - Current Miyabi skill:
   `https://github.com/UnbearableFate/miyabi-development@c3ddfa47cadfd9132edf939d359b90b28ab5f8ed`.
 - Current full regression: job `2383871.opbs`, 57/57 Stage 0 tests on a
@@ -124,9 +125,11 @@ the post-`S1-13` 8+1/50x10 regression gate.
 - [x] Stage 4 remains mandatory despite the simulator prediction.
 - [x] Nine-node execution remains disabled until `S1-13` establishes base
   training capability.
-- [ ] Fresh independent Stage 0 Checker approves this checkpoint.
+- [x] Fresh independent Stage 0 Checker approves this checkpoint.
 
 ## Checker
 
-- Report: pending `reports/checkers/STAGE_0.md`.
-- Verdict: pending.
+- Report: `reports/checkers/STAGE_0.md` (SHA-256
+  `85d4f1c3e9d4f1cd9c99a3d6d4972980b537211c29b1871c9fcbd915d54aa760`).
+- Checked candidate: `6400f1633f6ea0cfd7bfb8dc2eac7177cac91e75`.
+- Verdict: `PASS`.

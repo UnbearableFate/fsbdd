@@ -101,5 +101,5 @@ persist:
   evidence_index: evidence/indexes/S0B-03.md
   raw_evidence_root: /work/xg24i002/x10041/fsbdd/evidence/raw/S0B-03
   acceptance_traceability_updated: true
-  next_gap: Stage 0 checkpoint and independent stage-level Checker
+  next_gap: S1-00 project skeleton, typed config, identity, and run manifest
 blocker: null

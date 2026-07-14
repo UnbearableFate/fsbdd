@@ -12,7 +12,7 @@ capabilities:
     status: inactive
     established_by: S1-13
     baseline_9n_run_id: null
-current_loop: S0B-03
+current_loop: S1-00
 loops:
 - id: S0C-01
   stage: stage0
