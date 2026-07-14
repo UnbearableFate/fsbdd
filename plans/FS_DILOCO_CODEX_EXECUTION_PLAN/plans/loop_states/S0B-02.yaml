@@ -2,7 +2,7 @@ schema_version: 1
 loop_id: S0B-02
 title: 跨节点可见性与 10^5 次原子发布验证
 stage: stage0
-status: oriented
+status: implementing
 source_hashes:
   research_plan: 2c0db3148110da10ea62f445c189d2d53b405527d8da264b9af9817f5ca9d835
   stage0_4_spec: fad26a8add51e70ddf50d0130b61d80fe06e1c3945221c29508412a5bcab2feb
@@ -29,6 +29,7 @@ orient:
   planned_files:
     - configs/stage0/storage_benchmark.json
     - src/fsbdd_stage0/storage_bench.py
+    - src/fsbdd_stage0/storage_stress.py
     - pbs/stage0_storage_visibility_atomicity.pbs
     - tests/storage/test_stage0_visibility_atomicity.py
     - tests/red_cases/s0b02_unsafe_visibility_surrogate.py
@@ -50,9 +51,9 @@ orient:
   initial_hostname: miyabi-g1
   workflow: miyabi-g1 is control plane only; tests and benchmarks run only inside verified PBS compute allocations.
 red:
-  command: null
-  exit_code: null
-  evidence_path: null
+  command: TEST_TARGETS=tests.red_cases.s0b02_unsafe_visibility_surrogate EXPECTED_TEST_RESULT=fail qsub pbs/stage0_cpu_tests.pbs
+  exit_code: 1
+  evidence_path: evidence/raw/S0B-02/20260714T155627Z-red-n3f8c-3c37e0b38ef2
 green:
   command: null
   evidence_path: null

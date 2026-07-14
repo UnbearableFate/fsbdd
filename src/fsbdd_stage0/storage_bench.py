@@ -160,6 +160,55 @@ def validate_storage_config(config: Mapping[str, Any]) -> None:
     if thresholds.get("metadata_required_ops_per_second") != 5120.0:
         raise StorageHarnessError("metadata capacity threshold must be 10x steady demand")
 
+    visibility = config.get("visibility")
+    atomicity = config.get("atomicity")
+    if not isinstance(visibility, Mapping) or not isinstance(atomicity, Mapping):
+        raise StorageHarnessError("visibility and atomicity benchmark mappings are required")
+    if visibility.get("profiles") != ["empty", "loaded"]:
+        raise StorageHarnessError("visibility profiles must be frozen as empty and loaded")
+    if visibility.get("cache_states") != ["cold", "warm"]:
+        raise StorageHarnessError("visibility cache states must be frozen as cold and warm")
+    if visibility.get("samples_per_profile") != 1000:
+        raise StorageHarnessError("visibility requires exactly 1000 samples per profile")
+    if visibility.get("samples_per_cache_state") != 500:
+        raise StorageHarnessError("visibility requires 500 samples per cache state")
+    if visibility.get("timing_method") != "writer_ack_roundtrip_upper_bound":
+        raise StorageHarnessError("visibility timing must use writer-side acknowledgement RTT")
+    if visibility.get("timing_origin") != "visibility_record_replace_complete":
+        raise StorageHarnessError("visibility timing must begin after visibility replacement")
+    if visibility.get("report_percentiles") != [50, 95, 99, 100]:
+        raise StorageHarnessError("visibility percentiles must be p50/p95/p99/max")
+    for field in (
+        "poll_interval_seconds",
+        "background_record_bytes",
+        "background_minimum_replacements",
+    ):
+        value = visibility.get(field)
+        if isinstance(value, bool) or not isinstance(value, (int, float)) or value <= 0:
+            raise StorageHarnessError(f"visibility.{field} must be positive")
+    if atomicity.get("replacements_per_record_size") != 100000:
+        raise StorageHarnessError("atomicity requires 100000 replacements per record size")
+    if atomicity.get("concurrent_readers") != 4:
+        raise StorageHarnessError("atomicity requires four concurrent readers")
+    if atomicity.get("record_sizes_bytes") != [256, 4096]:
+        raise StorageHarnessError("atomicity record sizes must be 256 and 4096 bytes")
+    if atomicity.get("writer_kill_positions") != [
+        "before_visibility",
+        "after_visibility",
+    ]:
+        raise StorageHarnessError("both writer-kill publication boundaries are required")
+    if atomicity.get("permitted_violations") != 0:
+        raise StorageHarnessError("atomicity permits zero torn-record violations")
+    for field in (
+        "minimum_observations_per_reader",
+        "checkpoint_every_observations",
+        "unsafe_direct_overwrite_iterations",
+        "unsafe_half_write_pause_seconds",
+    ):
+        value = atomicity.get(field)
+        if isinstance(value, bool) or not isinstance(value, (int, float)) or value <= 0:
+            raise StorageHarnessError(f"atomicity.{field} must be positive")
+
 
 def require_compute_context(
     *,
