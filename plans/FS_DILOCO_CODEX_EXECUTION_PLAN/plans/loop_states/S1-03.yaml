@@ -34,7 +34,7 @@ preflight:
   measurement_contract: reports/stage1/S1-03-evidence-contract.json
   package_contract: reports/stage1/S1-03-evidence-contract.json
   package_validator_command: fsbdd evidence validate runtime_runs/S1-03/formal-l2-r2
-  package_validator_result: corrected preflight pending; runtime_runs/S1-03/formal-l2 is preserved but not admissible for selection because its PBS qtime was labeled UTC without converting from JST
+  package_validator_result: admissible at runtime_runs/S1-03/preflight-qtime-31c6f5d (manifest eaae119c5d549e50f821df2166ab00efcab83a22d7faa0b355c85f3179c3d0e4); runtime_runs/S1-03/formal-l2 is preserved but not selected because its PBS qtime was labeled UTC without converting from JST
   checker_phase_a: required
 red:
   command: two expected-failure commands recorded under runtime_runs/S1-03/red-474182d
@@ -50,6 +50,7 @@ harden:
   evidence_paths:
   - runtime_runs/S1-03/preflight-e64b6d1
   - runtime_runs/S1-03/l1-smoke2-e64b6d1
+  - runtime_runs/S1-03/preflight-qtime-31c6f5d
 nine_node_gate: {required: false, run_id: null, topology_gate: null, loss_gate: null, runtime_gate: null}
 checker:
   context_id: /root/s1_03_checker
@@ -67,11 +68,12 @@ persist:
     - fixed-slot readers observe only the old or a fully validated new compound payload in focused crash and concurrency tests
     - normal reads use one visibility record and its referenced immutable payload without directory scans
     - the frozen preflight package is checksum-finalized and validator-admissible with the full Stage 1 suite passing
-    checked_commit: e64b6d1b60867df03fb21b8f0bcecbb878cf994f
-    selected_evidence: [runtime_runs/S1-03/preflight-e64b6d1, runtime_runs/S1-03/l1-smoke2-e64b6d1]
-    next_command: finalize corrected L1 preflight and request Phase A recheck in the same Checker context
+    - the PBS qtime regression failed before correction and the corrected L1 package proves explicit JST-to-UTC conversion
+    checked_commit: 31c6f5da8f2c822076d860f197c200fef4d925a7
+    selected_evidence: [runtime_runs/S1-03/preflight-qtime-31c6f5d, runtime_runs/S1-03/l1-smoke2-e64b6d1]
+    next_command: request Phase A recheck in the same Checker context before the replacement L2 submission
   cost:
-    attempts_by_level: {L0: 3, L1: 1, L2: 1}
+    attempts_by_level: {L0: 3, L1: 2, L2: 1}
     queue_seconds: null
     active_seconds: null
     checker_cycles: 1
