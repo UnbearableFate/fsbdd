@@ -2,7 +2,7 @@ schema_version: 1
 loop_id: S0B-03
 title: Metadata/Bandwidth 压测与 Stage 1 FS 决策
 stage: stage0
-status: red
+status: checking
 source_hashes:
   research_plan: 2c0db3148110da10ea62f445c189d2d53b405527d8da264b9af9817f5ca9d835
   stage0_4_spec: fad26a8add51e70ddf50d0130b61d80fe06e1c3945221c29508412a5bcab2feb
@@ -46,7 +46,7 @@ orient:
   metadata_matrix: M in [4,8,16], F in [8,16,32], stat/read/readdir, first-touch/warm, flat/sharded fixed-slot layouts, two one-second sustained repetitions; history sizes [0,1000,10000] are negative-control only.
   bandwidth_matrix: Deterministic sequential payloads of 50, 100, 250 and 500 MB, single and 16 concurrent streams, write and verified read, two repetitions, 8 MiB chunks.
   frozen_thresholds: M=16,F=32,poll=1s gives 512 metadata ops/s steady demand and 5120 ops/s required capacity; H=50s gives at most 5s for the 16-stream fragment write round.
-  resolved_measurement_plan: Use writer/observer-local monotonic elapsed times only; report syscall or reference observations, p50/p95/p99/max latency, aggregate/per-stream MB/s, round elapsed, live file/temp counts, bounded versus history-scanning discovery, and cleanup verification.
+  resolved_measurement_plan: Every metadata cell uses a rank-0 monotonic start-to-all-done interval after all 16 ranks enter a filesystem barrier; bandwidth uses coordinator-local monotonic rounds. Report syscall/reference observations, p50/p95/p99/max latency, aggregate/per-stream MB/s, live file/temp counts, bounded versus history-scanning discovery, and cleanup verification.
   model_data_profile: Fixed structured latest references and deterministic byte payloads only; no model, dataset, Torch, GPU, training, or quality claim.
   resource_profile: Two distinct Miyabi compute nodes, 16 launcher ranks at eight ranks per node, debug-g walltime at most 30 minutes; benchmark data and coordination only below the frozen Lustre RUN_ROOT.
   miyabi_skill_repository: https://github.com/UnbearableFate/miyabi-development
@@ -60,26 +60,32 @@ red:
   checksum_manifest_sha256: 2c3a717928cc671ebc47f2c5060923edf66021c83d0cf620b433c96a6d660a1f
   pbs_job_id: 2383721.opbs
   failure_summary: Five deterministic failures reject history scanning, an incomplete stat-only profile matrix, a threshold report without steady-demand math, an incomplete payload/concurrency matrix, and bandwidth reporting without the 10%-of-H concurrent-round comparison.
+  corrective_command: TEST_TARGETS=tests.red_cases.s0b03_nonsynchronous_metadata_surrogate EXPECTED_TEST_RESULT=fail qsub pbs/stage0_cpu_tests.pbs
+  corrective_exit_code: 1
+  corrective_evidence_path: evidence/raw/S0B-03/20260714T173810Z-red-sync-n773a38-730e81e5729d
+  corrective_checksum_manifest_sha256: 4eb003eafdd98dbc25af3757ccdd5478214442af622e02b910dc6ab86665357e
+  corrective_pbs_job_id: 2383846.opbs
+  corrective_failure_summary: The pre-fix summarizer accepted a complete synthetic matrix containing only nonsynchronous rank-local intervals and no coordinator timing provenance.
 green:
-  command: RUN_LABEL=green qsub pbs/stage0_storage_capacity.pbs
-  evidence_path: evidence/raw/S0B-03/20260714T171502Z-green-n2d6c-cdd8a3e5e65a
-  checksum_manifest_sha256: 0aaae840eb301cf3ef6902fe79beb238b93535fe729827aaf6300f8b6033112e
-  pbs_job_id: 2383755.opbs
-  result_summary: Two distinct compute hosts and 16 ranks completed the full metadata and sequential-I/O matrix; the minimum M=16/F=32 warm rate was 45137.772292205256 references/s and the maximum 16-stream write round was 0.320653538s, so both frozen gates passed.
+  command: RUN_LABEL=green-sync qsub pbs/stage0_storage_capacity.pbs
+  evidence_path: evidence/raw/S0B-03/20260714T174115Z-green-sync-n654bce-7b2e1047f86c
+  checksum_manifest_sha256: 677d5b67177b3cde52e719a45022ce2e6257e8feb428a795a3a1608e0efed3bd
+  pbs_job_id: 2383872.opbs
+  result_summary: All 216 metadata cells have complete 16-rank filesystem barriers and conservative coordinator intervals. On mg0029/mg0030 the minimum M=16/F=32 warm rate was 40463.13108630455 references/s and the maximum 16-stream write round was 0.321475476s; both gates passed.
 harden:
   commands:
     - TEST_TARGETS=tests.storage.test_stage0_storage_capacity qsub pbs/stage0_cpu_tests.pbs
     - TEST_TARGETS=all_stage0 qsub pbs/stage0_cpu_tests.pbs
-    - RUN_LABEL=repeat qsub pbs/stage0_storage_capacity.pbs
+    - RUN_LABEL=repeat-sync qsub pbs/stage0_storage_capacity.pbs
   evidence_paths:
-    - evidence/raw/S0B-03/20260714T171444Z-unit2-n8b3d-6ccb57f1fbc3
-    - evidence/raw/S0B-03/20260714T171520Z-harden-n5f9b-a8d36b961469
-    - evidence/raw/S0B-03/20260714T171837Z-repeat-n7a4e-cdd8a3e5e65a
+    - evidence/raw/S0B-03/20260714T174032Z-unit-sync-n80f10e-768517b0cb97
+    - evidence/raw/S0B-03/20260714T174115Z-harden-sync-n9d6803-8ac93ab4b410
+    - evidence/raw/S0B-03/20260714T174444Z-repeat-sync-n90ad24-7b2e1047f86c
   checksum_manifest_sha256:
-    focused_tests: 2d1e7e1c22897ac9a96cfab4eca519b06c0d05ab48cd1afdd5ec58931737fb27
-    full_stage0_tests: ec0b20d49643ac21c3eaf805465b458f13b04ab5e6cd5f1ac1a7701eed9c0905
-    independent_repeat: c53cb77728b38f80df4218fd51a0e5186fc3075210b72ad80dba51be60625a40
-  result_summary: Focused 7/7 and full Stage 0 56/56 tests passed. The repeat on mg0014/mg0016 measured 45339.33066917932 references/s and a 0.325864872s maximum write round; bounded counts and cleanup passed in both full runs.
+    focused_tests: c74cb681ebfc72a65b645add2135ddf08e431ad4d0aeb6f55a6cf04c5ee257cc
+    full_stage0_tests: f027b37211f0eb324a61778edc6ff83f98d500e1a716d7742a54b1a396cf438a
+    independent_repeat: ea99f2cfe5da11222033ea4e8d61c9818c6478372627a004edd6605ac401b3e9
+  result_summary: Focused 8/8 and full Stage 0 57/57 tests passed. The corrected repeat on mg0022/mg0026 has all 216 coordinator intervals, measured 39403.44760536479 references/s and a 0.323807765s maximum write round; bounded counts and cleanup passed in both full runs.
 nine_node_gate:
   required: false
   run_id: null
@@ -87,11 +93,13 @@ nine_node_gate:
   loss_gate: not_applicable
   runtime_gate: not_applicable
 checker:
-  verdict: BLOCKED
-  report_path: reports/checkers/S0B-03-blocked-1.md
+  verdict: null
+  report_path: null
+  prior_verdict: BLOCKED
+  prior_report_path: reports/checkers/S0B-03-blocked-1.md
 persist:
   evidence_index: null
   raw_evidence_root: /work/xg24i002/x10041/fsbdd/evidence/raw/S0B-03
   acceptance_traceability_updated: false
-  next_gap: Corrective RED and filesystem-barrier coordinator timing for every metadata cell
-blocker: Candidate 4ef5229 aggregates nonsynchronous rank-local metadata intervals; A-BENCH-03 requires a common coordinator-timed interval.
+  next_gap: Fresh independent recheck of the synchronized metadata candidate, then Stage 0 checkpoint
+blocker: null

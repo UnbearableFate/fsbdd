@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "loop_id": "S0B-03",
-  "status": "blocked",
-  "runtime_commit": "6e5508bd3a743e94c5a81146d68a9424c72e8b23",
+  "status": "pass_candidate",
+  "runtime_commit": "5424daecc01adfaf633450a1449c154c0784edbe",
   "source_hashes": {
     "RESEARCH_PLAN.md": "2c0db3148110da10ea62f445c189d2d53b405527d8da264b9af9817f5ca9d835",
     "STAGE0-4_SPEC.md": "fad26a8add51e70ddf50d0130b61d80fe06e1c3945221c29508412a5bcab2feb"
@@ -14,7 +14,7 @@
   "target": {
     "run_root": "/work/xg24i002/x10041/fsbdd/runtime_runs",
     "filesystem_type": "lustre",
-    "config_digest": "cdd8a3e5e65a3087ce3593a550f0f2040cc2bb1dd612e436fa8b8fd69eaede85"
+    "config_digest": "7b2e1047f86c5f8f9a32caf100272d72f63892679b0670d771077b3de2fac19b"
   },
   "measurement_contract": {
     "metadata": {
@@ -25,6 +25,10 @@
       "layouts": ["flat", "per_learner"],
       "repeats": 2,
       "warm_duration_seconds": 1.0,
+      "matrix_cells": 216,
+      "coordinator_intervals": 216,
+      "timing_method": "rank0_monotonic_start_to_all_done_after_fs_barrier",
+      "barrier_ranks_per_cell": 16,
       "history_negative_control_objects": [0, 1000, 10000]
     },
     "bandwidth": {
@@ -32,29 +36,32 @@
       "streams": [1, 16],
       "operations": ["write", "verified_read"],
       "repeats": 2,
-      "chunk_mib": 8
+      "chunk_mib": 8,
+      "matrix_cells": 32
     }
   },
   "primary": {
-    "run_id": "20260714T171502Z-green-n2d6c-cdd8a3e5e65a",
-    "pbs_job_id": "2383755.opbs",
-    "compute_hosts": ["mg0019", "mg0020"],
+    "run_id": "20260714T174115Z-green-sync-n654bce-7b2e1047f86c",
+    "pbs_job_id": "2383872.opbs",
+    "compute_hosts": ["mg0029", "mg0030"],
     "ranks_per_node": 8,
     "world_size": 16,
-    "checksum_manifest_sha256": "0aaae840eb301cf3ef6902fe79beb238b93535fe729827aaf6300f8b6033112e",
+    "checksum_manifest_sha256": "677d5b67177b3cde52e719a45022ce2e6257e8feb428a795a3a1608e0efed3bd",
     "outcome": "target_lustre_capacity_pass",
     "metadata": {
       "steady_demand_ops_per_second": 512.0,
       "required_ops_per_second": 5120.0,
-      "minimum_warm_reference_ops_per_second": 45137.772292205256,
-      "margin_over_steady_demand": 88.15971150821339,
+      "minimum_warm_reference_ops_per_second": 40463.13108630455,
+      "margin_over_steady_demand": 79.02955290293858,
+      "margin_over_required_gate": 7.902955290293857,
+      "all_cells_have_common_coordinator_interval": true,
       "passed": true
     },
     "bandwidth": {
       "synchronization_period_seconds": 50.0,
       "maximum_allowed_16_stream_write_round_seconds": 5.0,
-      "maximum_observed_16_stream_write_round_seconds": 0.320653538,
-      "maximum_round_fraction_of_H": 0.00641307076,
+      "maximum_observed_16_stream_write_round_seconds": 0.321475476,
+      "maximum_round_fraction_of_H": 0.00642950952,
       "all_payload_digests_verified": true,
       "passed": true
     },
@@ -69,59 +76,73 @@
       "temporary_files_after": 0
     },
     "history_negative_control": [
-      {"history_objects": 0, "scan_p50_seconds": 0.0001643685, "bounded_fixed_references": 512, "bounded_seconds": 0.241824616},
-      {"history_objects": 1000, "scan_p50_seconds": 0.0003620495, "bounded_fixed_references": 512, "bounded_seconds": 0.126452928},
-      {"history_objects": 10000, "scan_p50_seconds": 0.001912601, "bounded_fixed_references": 512, "bounded_seconds": 0.126855745}
+      {"history_objects": 0, "scan_p50_seconds": 0.0001765605, "bounded_fixed_references": 512, "bounded_seconds": 0.239181645},
+      {"history_objects": 1000, "scan_p50_seconds": 0.0003626085, "bounded_fixed_references": 512, "bounded_seconds": 0.13079564},
+      {"history_objects": 10000, "scan_p50_seconds": 0.0019720995, "bounded_fixed_references": 512, "bounded_seconds": 0.131702745}
     ]
   },
   "independent_repeat": {
-    "run_id": "20260714T171837Z-repeat-n7a4e-cdd8a3e5e65a",
-    "pbs_job_id": "2383771.opbs",
-    "compute_hosts": ["mg0014", "mg0016"],
+    "run_id": "20260714T174444Z-repeat-sync-n90ad24-7b2e1047f86c",
+    "pbs_job_id": "2383885.opbs",
+    "compute_hosts": ["mg0022", "mg0026"],
     "ranks_per_node": 8,
     "world_size": 16,
-    "checksum_manifest_sha256": "c53cb77728b38f80df4218fd51a0e5186fc3075210b72ad80dba51be60625a40",
-    "minimum_warm_reference_ops_per_second": 45339.33066917932,
-    "margin_over_steady_demand": 88.55338021324086,
-    "maximum_observed_16_stream_write_round_seconds": 0.325864872,
+    "checksum_manifest_sha256": "ea99f2cfe5da11222033ea4e8d61c9818c6478372627a004edd6605ac401b3e9",
+    "minimum_warm_reference_ops_per_second": 39403.44760536479,
+    "margin_over_steady_demand": 76.9598586042281,
+    "margin_over_required_gate": 7.69598586042281,
+    "maximum_observed_16_stream_write_round_seconds": 0.323807765,
+    "all_metadata_cells_have_common_coordinator_interval": true,
     "all_payload_digests_verified": true,
     "outcome": "target_lustre_capacity_pass"
   },
   "tests": {
     "focused": {
-      "run_id": "20260714T171444Z-unit2-n8b3d-6ccb57f1fbc3",
-      "pbs_job_id": "2383754.opbs",
-      "tests_run": 7,
+      "run_id": "20260714T174032Z-unit-sync-n80f10e-768517b0cb97",
+      "pbs_job_id": "2383865.opbs",
+      "tests_run": 8,
       "exit_code": 0,
-      "checksum_manifest_sha256": "2d1e7e1c22897ac9a96cfab4eca519b06c0d05ab48cd1afdd5ec58931737fb27"
+      "checksum_manifest_sha256": "c74cb681ebfc72a65b645add2135ddf08e431ad4d0aeb6f55a6cf04c5ee257cc"
     },
     "full_stage0": {
-      "run_id": "20260714T171520Z-harden-n5f9b-a8d36b961469",
-      "pbs_job_id": "2383756.opbs",
-      "tests_run": 56,
+      "run_id": "20260714T174115Z-harden-sync-n9d6803-8ac93ab4b410",
+      "pbs_job_id": "2383871.opbs",
+      "tests_run": 57,
       "exit_code": 0,
-      "checksum_manifest_sha256": "ec0b20d49643ac21c3eaf805465b458f13b04ab5e6cd5f1ac1a7701eed9c0905"
+      "checksum_manifest_sha256": "f027b37211f0eb324a61778edc6ff83f98d500e1a716d7742a54b1a396cf438a"
     }
   },
   "red": {
-    "run_id": "20260714T170406Z-red-n3069021613-840458639ec1",
-    "pbs_job_id": "2383721.opbs",
-    "expected_failures": 5,
-    "checksum_manifest_sha256": "2c3a717928cc671ebc47f2c5060923edf66021c83d0cf620b433c96a6d660a1f"
+    "initial": {
+      "run_id": "20260714T170406Z-red-n3069021613-840458639ec1",
+      "pbs_job_id": "2383721.opbs",
+      "expected_failures": 5,
+      "checksum_manifest_sha256": "2c3a717928cc671ebc47f2c5060923edf66021c83d0cf620b433c96a6d660a1f"
+    },
+    "corrective_metadata_timing": {
+      "run_id": "20260714T173810Z-red-sync-n773a38-730e81e5729d",
+      "pbs_job_id": "2383846.opbs",
+      "expected_failures": 1,
+      "checksum_manifest_sha256": "4eb003eafdd98dbc25af3757ccdd5478214442af622e02b910dc6ab86665357e"
+    }
   },
   "decision": {
     "filesystem": "frozen_target_lustre",
-    "stage1_profile": "blocked_pending_synchronized_metadata_measurement",
-    "mitigation_required": true,
+    "stage1_profile": "H=50s_fixed_slot_discovery_no_history_scan",
+    "mitigation_required": false,
     "BENCH-05": "optional_not_executed",
-    "A-BENCH-03": "blocked",
-    "A-BENCH-04": "pass"
+    "A-BENCH-03": "pass_candidate",
+    "A-BENCH-04": "pass_candidate"
   },
   "checker": {
-    "checked_candidate": "4ef52290b607ded61bb8c519a06aedd324a5e665",
-    "verdict": "BLOCKED",
-    "report": "reports/checkers/S0B-03-blocked-1.md",
-    "report_sha256": "dad6ef2140852711acefce71690e9bf285cc4fdad4e8e522f2b3d338ed67d6c1"
+    "prior_blocked_candidate": "4ef52290b607ded61bb8c519a06aedd324a5e665",
+    "prior_verdict": "BLOCKED",
+    "prior_report": "reports/checkers/S0B-03-blocked-1.md",
+    "prior_report_sha256": "dad6ef2140852711acefce71690e9bf285cc4fdad4e8e522f2b3d338ed67d6c1",
+    "checked_candidate": null,
+    "verdict": null,
+    "report": null,
+    "report_sha256": null
   },
   "claims_boundary": "Stage 0 metadata and sequential-I/O capacity on the frozen Miyabi Lustre RUN_ROOT only; no production protocol, training, model, loss, GPU, object-store, or nine-node claim."
 }
