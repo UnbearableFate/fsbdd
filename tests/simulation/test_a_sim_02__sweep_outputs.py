@@ -4,16 +4,19 @@ import csv
 import json
 import os
 import statistics
+import tempfile
 import unittest
 from pathlib import Path
 
 from fsbdd_stage0.sweep import (
     AXIS_ORDER,
     EXPECTED_SIM03_AXES,
+    SweepInputError,
     file_sha256,
     load_sweep_config,
     matrix_specs,
     run_matrix_row,
+    run_shard,
 )
 
 
@@ -80,6 +83,12 @@ class TestASim02SweepOutputs(unittest.TestCase):
         self.assertTrue(self.manifest["matrix"]["complete"])
         self.assertEqual(self.manifest["matrix"]["expected_rows"], expected)
         self.assertEqual(self.manifest["matrix"]["actual_rows"], expected)
+        self.assertTrue(self.manifest["resumed_from_checkpoint"])
+        self.assertGreaterEqual(self.manifest["execution_sessions"], 2)
+        self.assertNotEqual(
+            self.manifest["initial_pbs_job_id"],
+            self.manifest["pbs_job_id"],
+        )
         self.assertEqual(len(self.raw_rows), expected)
         self.assertEqual(
             len({row["row_key"] for row in self.raw_rows}),
@@ -174,7 +183,11 @@ class TestASim02SweepOutputs(unittest.TestCase):
             token_opportunities = int(row["token_opportunities"])
             self.assertAlmostEqual(
                 float(row["visibility_delay_over_h"]),
-                float(row["visibility_delay_seconds"]) / float(row["h_steps"]),
+                float(row["visibility_delay_seconds"])
+                / (
+                    float(row["h_steps"])
+                    * float(row["nominal_fastest_step_seconds"])
+                ),
             )
             self.assertAlmostEqual(
                 float(row["accepted_token_efficiency"]),
@@ -225,6 +238,62 @@ class TestASim02SweepOutputs(unittest.TestCase):
             for row in rows
         }
         self.assertGreater(len(outcomes), 1)
+
+    def test_sim_03__partial_shard_resume_rejects_mixed_or_corrupt_rows(self) -> None:
+        generator_commit = "resume-test-commit"
+        generator_digest = "resume-test-digest"
+        with tempfile.TemporaryDirectory() as temporary:
+            output = Path(temporary) / "partial.csv"
+            partial = run_shard(
+                CONFIG_PATH,
+                output,
+                0,
+                self.config["execution"]["shard_count"],
+                generator_commit,
+                generator_digest,
+                max_new_rows=1,
+            )
+            self.assertFalse(partial["complete"])
+            self.assertEqual(partial["rows"], 1)
+            retained = run_shard(
+                CONFIG_PATH,
+                output,
+                0,
+                self.config["execution"]["shard_count"],
+                generator_commit,
+                generator_digest,
+                max_new_rows=0,
+            )
+            self.assertEqual(retained["rows"], 1)
+            with self.assertRaises(SweepInputError):
+                run_shard(
+                    CONFIG_PATH,
+                    output,
+                    0,
+                    self.config["execution"]["shard_count"],
+                    "different-code",
+                    generator_digest,
+                    max_new_rows=0,
+                )
+            with output.open("r", encoding="utf-8", newline="") as handle:
+                reader = csv.DictReader(handle)
+                fieldnames = reader.fieldnames
+                rows = list(reader)
+            rows[0]["accepted_token_efficiency"] = "0.9"
+            with output.open("w", encoding="utf-8", newline="") as handle:
+                writer = csv.DictWriter(handle, fieldnames=fieldnames, lineterminator="\n")
+                writer.writeheader()
+                writer.writerows(rows)
+            with self.assertRaises(SweepInputError):
+                run_shard(
+                    CONFIG_PATH,
+                    output,
+                    0,
+                    self.config["execution"]["shard_count"],
+                    generator_commit,
+                    generator_digest,
+                    max_new_rows=0,
+                )
 
 
 if __name__ == "__main__":

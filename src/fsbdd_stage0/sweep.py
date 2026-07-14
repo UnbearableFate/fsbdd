@@ -48,6 +48,8 @@ CSV_FIELDS = (
     "matrix_index",
     "row_key",
     "config_digest",
+    "generator_commit",
+    "generator_digest",
     *AXIS_ORDER,
     "fragments",
     "q",
@@ -55,6 +57,7 @@ CSV_FIELDS = (
     "h_steps",
     "lambda_s",
     "upload_delay_seconds",
+    "nominal_fastest_step_seconds",
     "duration_seconds",
     "tokens_per_step",
     "visibility_delay_over_h",
@@ -81,6 +84,7 @@ CSV_FIELDS = (
     "max_frontier_slots",
     "max_rejection_tracking_slots",
     "max_accepted_tracking_slots",
+    "row_digest",
 )
 
 
@@ -149,6 +153,8 @@ def validate_sweep_config(config: dict[str, Any]) -> None:
     fixed = config.get("fixed", {})
     if fixed.get("fragments") != 4 or fixed.get("h_steps") != 50:
         raise SweepInputError("resolved Stage 0 scan requires F=4 and H=50")
+    if fixed.get("nominal_fastest_step_seconds") != 1.0:
+        raise SweepInputError("delay/H requires the explicit nominal 1s fastest step")
     if fixed.get("max_trace_events") != 0:
         raise SweepInputError("full-matrix rows must not retain event history")
     if not fixed.get("one_per_learner") or not fixed.get("same_base_once_only"):
@@ -189,6 +195,7 @@ def matrix_specs(config: dict[str, Any]) -> list[dict[str, Any]]:
             "h_steps": fixed["h_steps"],
             "lambda_s": fixed["lambda_s"],
             "upload_delay_seconds": fixed["upload_delay_seconds"],
+            "nominal_fastest_step_seconds": fixed["nominal_fastest_step_seconds"],
             "duration_seconds": fixed["duration_seconds"],
             "tokens_per_step": fixed["tokens_per_step"],
             "max_trace_events": fixed["max_trace_events"],
@@ -228,14 +235,31 @@ def _simulation_config(spec: dict[str, Any], *, max_trace_events: int | None = N
     )
 
 
-def run_matrix_row(matrix_index: int, spec: dict[str, Any]) -> dict[str, Any]:
+def _row_integrity_digest(row: dict[str, Any]) -> str:
+    normalized = {
+        field: str(row[field])
+        for field in CSV_FIELDS
+        if field != "row_digest"
+    }
+    return _sha256_bytes(_canonical_json(normalized).encode("utf-8"))
+
+
+def run_matrix_row(
+    matrix_index: int,
+    spec: dict[str, Any],
+    *,
+    generator_commit: str = "direct-test",
+    generator_digest: str = "direct-test",
+) -> dict[str, Any]:
     result = simulate(_simulation_config(spec))
     intervals = result.update_intervals
-    return {
+    row = {
         "schema_version": 1,
         "matrix_index": matrix_index,
         "row_key": spec_key(spec),
         "config_digest": result.config_digest,
+        "generator_commit": generator_commit,
+        "generator_digest": generator_digest,
         **{name: spec[name] for name in AXIS_ORDER},
         "fragments": spec["fragments"],
         "q": spec["q"],
@@ -243,9 +267,12 @@ def run_matrix_row(matrix_index: int, spec: dict[str, Any]) -> dict[str, Any]:
         "h_steps": spec["h_steps"],
         "lambda_s": spec["lambda_s"],
         "upload_delay_seconds": spec["upload_delay_seconds"],
+        "nominal_fastest_step_seconds": spec["nominal_fastest_step_seconds"],
         "duration_seconds": spec["duration_seconds"],
         "tokens_per_step": spec["tokens_per_step"],
-        "visibility_delay_over_h": float(spec["visibility_delay_seconds"]) / float(spec["h_steps"]),
+        "visibility_delay_over_h": float(spec["visibility_delay_seconds"]) / (
+            float(spec["h_steps"]) * float(spec["nominal_fastest_step_seconds"])
+        ),
         "processed_tokens": result.processed_tokens,
         "token_opportunities": result.token_opportunities,
         "accepted_tokens": result.accepted_tokens,
@@ -270,6 +297,8 @@ def run_matrix_row(matrix_index: int, spec: dict[str, Any]) -> dict[str, Any]:
         "max_rejection_tracking_slots": result.max_rejection_tracking_slots,
         "max_accepted_tracking_slots": result.max_accepted_tracking_slots,
     }
+    row["row_digest"] = _row_integrity_digest(row)
+    return row
 
 
 def _read_csv(path: Path) -> list[dict[str, str]]:
@@ -292,7 +321,110 @@ def _write_csv(path: Path, rows: Sequence[dict[str, Any]], fieldnames: Sequence[
     os.replace(temporary, path)
 
 
-def run_shard(config_path: Path, output_path: Path, shard_index: int, shard_count: int) -> dict[str, int]:
+def _validate_retained_row(
+    row: dict[str, str],
+    spec: dict[str, Any],
+    matrix_index: int,
+    generator_commit: str,
+    generator_digest: str,
+) -> None:
+    if int(row["schema_version"]) != 1 or int(row["matrix_index"]) != matrix_index:
+        raise SweepInputError("retained row schema/index mismatch")
+    if row["row_key"] != spec_key(spec):
+        raise SweepInputError("retained row does not match the frozen matrix")
+    if row["config_digest"] != _simulation_config(spec).digest:
+        raise SweepInputError("retained row simulation config digest mismatch")
+    if (
+        row["generator_commit"] != generator_commit
+        or row["generator_digest"] != generator_digest
+    ):
+        raise SweepInputError("retained row was produced by a different generator")
+    if row["row_digest"] != _row_integrity_digest(row):
+        raise SweepInputError("retained row integrity digest mismatch")
+    expected_spec_fields = (
+        *AXIS_ORDER,
+        "fragments",
+        "q",
+        "q_fresh",
+        "h_steps",
+        "lambda_s",
+        "upload_delay_seconds",
+        "nominal_fastest_step_seconds",
+        "duration_seconds",
+        "tokens_per_step",
+    )
+    for field in expected_spec_fields:
+        if row[field] != str(spec[field]):
+            raise SweepInputError(f"retained row field differs from frozen spec: {field}")
+    numeric_fields = (
+        "visibility_delay_over_h",
+        "accepted_token_efficiency",
+        "token_weighted_discard_rate",
+        "stale_acceptance_rate",
+        "update_interval_mean",
+        "update_interval_min",
+        "update_interval_max",
+    )
+    if any(not math.isfinite(float(row[field])) for field in numeric_fields):
+        raise SweepInputError("retained row contains a non-finite metric")
+    processed = int(row["processed_tokens"])
+    opportunities = int(row["token_opportunities"])
+    accepted = int(row["accepted_tokens"])
+    discarded = int(row["discarded_tokens"])
+    stale_tokens = int(row["stale_accepted_tokens"])
+    if min(processed, opportunities, accepted, discarded, stale_tokens) < 0:
+        raise SweepInputError("retained token counters must be non-negative")
+    if opportunities != processed * int(spec["fragments"]):
+        raise SweepInputError("retained token opportunity unit mismatch")
+    expected_efficiency = accepted / opportunities if opportunities else 0.0
+    discard_mass = accepted + discarded
+    expected_discard = discarded / discard_mass if discard_mass else 0.0
+    expected_stale = stale_tokens / accepted if accepted else 0.0
+    comparisons = (
+        (float(row["accepted_token_efficiency"]), expected_efficiency),
+        (float(row["token_weighted_discard_rate"]), expected_discard),
+        (float(row["stale_acceptance_rate"]), expected_stale),
+        (
+            float(row["visibility_delay_over_h"]),
+            float(spec["visibility_delay_seconds"])
+            / (
+                float(spec["h_steps"])
+                * float(spec["nominal_fastest_step_seconds"])
+            ),
+        ),
+    )
+    if any(not math.isclose(actual, expected, rel_tol=0.0, abs_tol=1e-15) for actual, expected in comparisons):
+        raise SweepInputError("retained derived metric failed recomputation")
+    intervals = json.loads(row["update_interval_buckets_json"])
+    if (
+        intervals["count"] != int(row["update_interval_count"])
+        or not math.isclose(intervals["mean"], float(row["update_interval_mean"]), abs_tol=1e-15)
+        or sum(intervals["bucket_counts"]) != intervals["count"]
+    ):
+        raise SweepInputError("retained interval distribution is inconsistent")
+    update_counts = json.loads(row["update_counts_json"])
+    if min(update_counts) != int(row["global_cycle"]):
+        raise SweepInputError("retained global_cycle is not the fragment minimum")
+    bound = int(spec["learners"]) * int(spec["fragments"])
+    bounded_fields = (
+        "max_latest_slots",
+        "max_frontier_slots",
+        "max_rejection_tracking_slots",
+        "max_accepted_tracking_slots",
+    )
+    if any(int(row[field]) > bound for field in bounded_fields):
+        raise SweepInputError("retained operational state exceeds M*F")
+
+
+def run_shard(
+    config_path: Path,
+    output_path: Path,
+    shard_index: int,
+    shard_count: int,
+    generator_commit: str,
+    generator_digest: str,
+    max_new_rows: int | None = None,
+) -> dict[str, int | bool]:
     config = load_sweep_config(config_path)
     if shard_count != config["execution"]["shard_count"]:
         raise SweepInputError("runtime shard_count differs from frozen config")
@@ -307,24 +439,43 @@ def run_shard(config_path: Path, output_path: Path, shard_index: int, shard_coun
                 raise SweepInputError("duplicate matrix index in resumable shard")
             if index % shard_count != shard_index:
                 raise SweepInputError("row stored in the wrong shard")
-            if row["row_key"] != spec_key(specs[index]):
-                raise SweepInputError("resumable row does not match frozen matrix")
+            _validate_retained_row(
+                row,
+                specs[index],
+                index,
+                generator_commit,
+                generator_digest,
+            )
             existing[index] = row
     checkpoint_every = config["execution"]["checkpoint_every_rows"]
     completed_since_checkpoint = 0
     for index, spec in enumerate(specs):
         if index % shard_count != shard_index or index in existing:
             continue
-        existing[index] = run_matrix_row(index, spec)
+        if max_new_rows is not None and completed_since_checkpoint >= max_new_rows:
+            break
+        existing[index] = run_matrix_row(
+            index,
+            spec,
+            generator_commit=generator_commit,
+            generator_digest=generator_digest,
+        )
         completed_since_checkpoint += 1
         if completed_since_checkpoint >= checkpoint_every:
             _write_csv(output_path, [existing[key] for key in sorted(existing)], CSV_FIELDS)
-            completed_since_checkpoint = 0
+            if max_new_rows is None:
+                completed_since_checkpoint = 0
     _write_csv(output_path, [existing[key] for key in sorted(existing)], CSV_FIELDS)
     expected = sum(1 for index in range(len(specs)) if index % shard_count == shard_index)
-    if len(existing) != expected:
+    complete = len(existing) == expected
+    if max_new_rows is None and not complete:
         raise SweepInputError("shard did not complete its frozen rows")
-    return {"shard_index": shard_index, "rows": len(existing), "expected": expected}
+    return {
+        "shard_index": shard_index,
+        "rows": len(existing),
+        "expected": expected,
+        "complete": complete,
+    }
 
 
 def _number(row: dict[str, str], name: str) -> float:
@@ -574,6 +725,9 @@ def _build_summary(
                 "heterogeneity_ratio": 2.0,
                 "visibility_delay_seconds": 1.0,
                 "visibility_delay_over_h": 1.0 / config["fixed"]["h_steps"],
+                "nominal_fastest_step_seconds": config["fixed"][
+                    "nominal_fastest_step_seconds"
+                ],
                 "speed_model": "constant_ratio",
             },
             "seed_count": len(anchor_rows),
@@ -630,6 +784,9 @@ The preregistered ranking selects `M={profile['learners']}`, `Q={profile['q']}`
 `F={profile['fragments']}`, and `H={profile['h_steps']}` steps. The validation
 anchor injects constant heterogeneity `{profile['heterogeneity_ratio']}×` and
 visibility `{profile['visibility_delay_seconds']}s` (`delay/H={profile['visibility_delay_over_h']:.6f}`).
+Here `H` in seconds uses the simulator's explicit nominal-fastest
+`{profile['nominal_fastest_step_seconds']}s/step` reference; real training must
+recompute the ratio from its measured step time.
 
 - predicted recovery: `{100.0 * recovery['mean']:.4f}` percentage points, 95% CI half-width `{100.0 * recovery['ci95_half_width']:.4f}` pp;
 - stale accepted-token rate: `{100.0 * stale['mean']:.4f}%` (95% CI half-width `{100.0 * stale['ci95_half_width']:.4f}` pp);
@@ -680,6 +837,8 @@ def aggregate_shards(
     evidence_config_digest: str,
     pbs_job_id: str,
     hostname: str,
+    initial_pbs_job_id: str,
+    session_count: int,
 ) -> dict[str, Any]:
     config = load_sweep_config(config_path)
     specs = matrix_specs(config)
@@ -691,8 +850,13 @@ def aggregate_shards(
         raise SweepInputError("combined shard cardinality is incomplete")
     seen: set[str] = set()
     for index, (row, spec) in enumerate(zip(rows, specs, strict=True)):
-        if int(row["matrix_index"]) != index or row["row_key"] != spec_key(spec):
-            raise SweepInputError("combined rows do not match the frozen matrix")
+        _validate_retained_row(
+            row,
+            spec,
+            index,
+            code_commit,
+            evidence_config_digest,
+        )
         if row["row_key"] in seen:
             raise SweepInputError("duplicate matrix row key")
         seen.add(row["row_key"])
@@ -719,6 +883,9 @@ def aggregate_shards(
         "run_id": run_id,
         "code_commit": code_commit,
         "pbs_job_id": pbs_job_id,
+        "initial_pbs_job_id": initial_pbs_job_id,
+        "execution_sessions": session_count,
+        "resumed_from_checkpoint": session_count > 1,
         "compute_hostname": hostname,
         "config_path": str(config_path),
         "config_file_sha256": file_sha256(config_path),
@@ -767,6 +934,9 @@ def _parser() -> argparse.ArgumentParser:
     shard.add_argument("--output", type=Path, required=True)
     shard.add_argument("--shard-index", type=int, required=True)
     shard.add_argument("--shard-count", type=int, required=True)
+    shard.add_argument("--generator-commit", required=True)
+    shard.add_argument("--generator-digest", required=True)
+    shard.add_argument("--max-new-rows", type=int)
     aggregate = subparsers.add_parser("aggregate")
     aggregate.add_argument("--config", type=Path, required=True)
     aggregate.add_argument("--shard", type=Path, action="append", required=True)
@@ -777,13 +947,23 @@ def _parser() -> argparse.ArgumentParser:
     aggregate.add_argument("--evidence-config-digest", required=True)
     aggregate.add_argument("--pbs-job-id", required=True)
     aggregate.add_argument("--hostname", required=True)
+    aggregate.add_argument("--initial-pbs-job-id", required=True)
+    aggregate.add_argument("--session-count", type=int, required=True)
     return parser
 
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     if args.command == "run-shard":
-        result = run_shard(args.config, args.output, args.shard_index, args.shard_count)
+        result = run_shard(
+            args.config,
+            args.output,
+            args.shard_index,
+            args.shard_count,
+            args.generator_commit,
+            args.generator_digest,
+            args.max_new_rows,
+        )
         print(_canonical_json(result))
         return 0
     manifest = aggregate_shards(
@@ -796,6 +976,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         args.evidence_config_digest,
         args.pbs_job_id,
         args.hostname,
+        args.initial_pbs_job_id,
+        args.session_count,
     )
     print(_canonical_json({"rows": manifest["matrix"]["actual_rows"], "complete": True}))
     return 0

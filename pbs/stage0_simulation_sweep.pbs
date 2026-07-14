@@ -18,11 +18,22 @@ export PAGER=cat MODULES_PAGER=cat LMOD_PAGER=cat
 : "${CONFIG_PATHS:?CONFIG_PATHS is required}"
 : "${SWEEP_CONFIG:=configs/stage0/simulation_sweep.json}"
 : "${SHARD_COUNT:=4}"
+: "${RESUME_MODE:=0}"
+: "${PLANNED_PARTIAL:=0}"
+: "${MAX_NEW_ROWS_PER_SHARD:=}"
 : "${EVIDENCE_ROOT:=$PROJECT_ROOT/evidence/raw}"
 
 CONFIG_DIGEST_SHORT="${CONFIG_DIGEST:0:12}"
 if [[ "$RUN_ID" != *"$SUBMISSION_NONCE"* ]] || [[ "$RUN_ID" != *"$CONFIG_DIGEST_SHORT"* ]]; then
   echo "RUN_ID must contain the submission nonce and short config digest" >&2
+  exit 64
+fi
+if [[ "$RESUME_MODE" != 0 && "$RESUME_MODE" != 1 ]]; then
+  echo "RESUME_MODE must be 0 or 1" >&2
+  exit 64
+fi
+if [[ "$PLANNED_PARTIAL" != 0 && "$PLANNED_PARTIAL" != 1 ]]; then
+  echo "PLANNED_PARTIAL must be 0 or 1" >&2
   exit 64
 fi
 
@@ -32,14 +43,6 @@ if [[ ! "$HOST" =~ ^mg[0-9]+$ ]] || [[ -z "${PBS_JOBID:-}" ]] || [[ -z "${PBS_NO
   exit 70
 fi
 
-RUN_DIR="$EVIDENCE_ROOT/$LOOP_ID/$RUN_ID"
-if [[ -e "$RUN_DIR" ]]; then
-  echo "Evidence directory already exists: $RUN_DIR" >&2
-  exit 73
-fi
-mkdir -p "$RUN_DIR"/{stdout,stderr,env,configs,shards,results,tests}
-exec > "$RUN_DIR/stdout/job.log" 2> "$RUN_DIR/stderr/job.log"
-
 cd "$PROJECT_ROOT"
 PYTHON="$PROJECT_ROOT/.venv/bin/python"
 if [[ ! -x "$PYTHON" ]]; then
@@ -47,67 +50,136 @@ if [[ ! -x "$PYTHON" ]]; then
   exit 69
 fi
 export PYTHONPATH="$PROJECT_ROOT/src${PYTHONPATH:+:$PYTHONPATH}"
-
 CODE_COMMIT="$(git rev-parse HEAD)"
-module list 2>&1 | cat > "$RUN_DIR/env/modules.txt"
-hostname > "$RUN_DIR/env/hostname.txt"
-cp "$PBS_NODEFILE" "$RUN_DIR/env/pbs_nodefile.txt"
-git status --short --branch > "$RUN_DIR/env/git_status.txt"
-printf '%s\n' "$CODE_COMMIT" > "$RUN_DIR/env/git_commit.txt"
-"$PYTHON" --version > "$RUN_DIR/env/python_version.txt" 2>&1
-sha256sum \
-  plans/FS_DILOCO_CODEX_EXECUTION_PLAN/source/RESEARCH_PLAN.md \
-  plans/FS_DILOCO_CODEX_EXECUTION_PLAN/source/STAGE0-4_SPEC.md \
-  > "$RUN_DIR/env/source_hashes.txt"
-
 read -r -a CONFIG_ARRAY <<< "$CONFIG_PATHS"
-sha256sum "${CONFIG_ARRAY[@]}" > "$RUN_DIR/configs/config_digest_inputs.sha256"
-ACTUAL_CONFIG_DIGEST="$(sha256sum "$RUN_DIR/configs/config_digest_inputs.sha256" | awk '{print $1}')"
+ACTUAL_CONFIG_DIGEST="$(sha256sum "${CONFIG_ARRAY[@]}" | sha256sum | awk '{print $1}')"
 if [[ "$ACTUAL_CONFIG_DIGEST" != "$CONFIG_DIGEST" ]]; then
   echo "CONFIG_DIGEST mismatch: expected=$CONFIG_DIGEST actual=$ACTUAL_CONFIG_DIGEST" >&2
   exit 65
 fi
-printf '%s\n' "${CONFIG_ARRAY[@]}" > "$RUN_DIR/configs/config_paths.txt"
-for index in "${!CONFIG_ARRAY[@]}"; do
-  source_path="${CONFIG_ARRAY[$index]}"
-  printf -v snapshot_name 'input-%03d-%s' "$index" "$(basename "$source_path")"
-  cp -- "$source_path" "$RUN_DIR/configs/$snapshot_name"
-done
 
-{
-  echo "schema_version: 1"
-  echo "loop_id: $LOOP_ID"
-  echo "run_id: $RUN_ID"
-  echo "initial_hostname: miyabi-g1"
-  echo "compute_hostname: $HOST"
-  echo "pbs_job_id: $PBS_JOBID"
-  echo "queue: ${PBS_QUEUE:-debug-g}"
-  echo "group: xg24i002"
-  echo "node_count: $(sort -u "$PBS_NODEFILE" | wc -l)"
-  echo "code_commit: $CODE_COMMIT"
-  echo "sweep_config: $SWEEP_CONFIG"
-  echo "shard_count: $SHARD_COUNT"
-  echo "submission_nonce: $SUBMISSION_NONCE"
-  echo "config_digest: $CONFIG_DIGEST"
-  echo "config_paths: $CONFIG_PATHS"
-  echo "miyabi_skill_repository: https://github.com/UnbearableFate/miyabi-development"
-  echo "miyabi_skill_commit: ad1fd34a9de976b4fb26ba47d9a1770430884765"
-  echo "raw_evidence_root: $RUN_DIR"
-} > "$RUN_DIR/manifest.yaml"
+RUN_DIR="$EVIDENCE_ROOT/$LOOP_ID/$RUN_ID"
+if [[ -e "$RUN_DIR" ]]; then
+  if [[ "$RESUME_MODE" != 1 ]]; then
+    echo "Evidence directory exists; set RESUME_MODE=1 for verified continuation: $RUN_DIR" >&2
+    exit 73
+  fi
+  for required in manifest.yaml env/git_commit.txt configs/config_digest_inputs.sha256 configs/config_paths.txt; do
+    if [[ ! -f "$RUN_DIR/$required" ]]; then
+      echo "Resume package is missing identity file: $required" >&2
+      exit 66
+    fi
+  done
+  STORED_RUN_ID="$(awk '$1 == "run_id:" {print $2}' "$RUN_DIR/manifest.yaml")"
+  STORED_COMMIT="$(cat "$RUN_DIR/env/git_commit.txt")"
+  STORED_DIGEST="$(awk '$1 == "config_digest:" {print $2}' "$RUN_DIR/manifest.yaml")"
+  STORED_NONCE="$(awk '$1 == "submission_nonce:" {print $2}' "$RUN_DIR/manifest.yaml")"
+  if [[ "$STORED_RUN_ID" != "$RUN_ID" || "$STORED_COMMIT" != "$CODE_COMMIT" || \
+        "$STORED_DIGEST" != "$CONFIG_DIGEST" || "$STORED_NONCE" != "$SUBMISSION_NONCE" ]]; then
+    echo "Resume identity differs from the interrupted run" >&2
+    exit 66
+  fi
+  if [[ "$(sha256sum "$RUN_DIR/configs/config_digest_inputs.sha256" | awk '{print $1}')" != "$CONFIG_DIGEST" ]]; then
+    echo "Stored config digest preimage does not reproduce" >&2
+    exit 66
+  fi
+  sha256sum -c "$RUN_DIR/configs/config_digest_inputs.sha256" >/dev/null
+  for index in "${!CONFIG_ARRAY[@]}"; do
+    source_path="${CONFIG_ARRAY[$index]}"
+    printf -v snapshot_name 'input-%03d-%s' "$index" "$(basename "$source_path")"
+    cmp -- "$source_path" "$RUN_DIR/configs/$snapshot_name"
+  done
+  INITIAL_PBS_JOB_ID="$(awk '$1 == "pbs_job_id:" {print $2}' "$RUN_DIR/manifest.yaml")"
+  SESSION_TAG="resume-${PBS_JOBID%%.*}"
+else
+  if [[ "$RESUME_MODE" == 1 ]]; then
+    echo "RESUME_MODE=1 requires an existing interrupted run directory" >&2
+    exit 66
+  fi
+  mkdir -p "$RUN_DIR"/{stdout,stderr,env/sessions,configs,shards,results,tests}
+  SESSION_TAG="initial-${PBS_JOBID%%.*}"
+  INITIAL_PBS_JOB_ID="$PBS_JOBID"
+  sha256sum "${CONFIG_ARRAY[@]}" > "$RUN_DIR/configs/config_digest_inputs.sha256"
+  printf '%s\n' "${CONFIG_ARRAY[@]}" > "$RUN_DIR/configs/config_paths.txt"
+  for index in "${!CONFIG_ARRAY[@]}"; do
+    source_path="${CONFIG_ARRAY[$index]}"
+    printf -v snapshot_name 'input-%03d-%s' "$index" "$(basename "$source_path")"
+    cp -- "$source_path" "$RUN_DIR/configs/$snapshot_name"
+  done
+  printf '%s\n' "$CODE_COMMIT" > "$RUN_DIR/env/git_commit.txt"
+  sha256sum \
+    plans/FS_DILOCO_CODEX_EXECUTION_PLAN/source/RESEARCH_PLAN.md \
+    plans/FS_DILOCO_CODEX_EXECUTION_PLAN/source/STAGE0-4_SPEC.md \
+    > "$RUN_DIR/env/source_hashes.txt"
+  {
+    echo "schema_version: 1"
+    echo "loop_id: $LOOP_ID"
+    echo "run_id: $RUN_ID"
+    echo "initial_hostname: miyabi-g1"
+    echo "compute_hostname: $HOST"
+    echo "pbs_job_id: $PBS_JOBID"
+    echo "queue: ${PBS_QUEUE:-debug-g}"
+    echo "group: xg24i002"
+    echo "node_count: $(sort -u "$PBS_NODEFILE" | wc -l)"
+    echo "code_commit: $CODE_COMMIT"
+    echo "sweep_config: $SWEEP_CONFIG"
+    echo "shard_count: $SHARD_COUNT"
+    echo "submission_nonce: $SUBMISSION_NONCE"
+    echo "config_digest: $CONFIG_DIGEST"
+    echo "config_paths: $CONFIG_PATHS"
+    echo "resume_supported: true"
+    echo "miyabi_skill_repository: https://github.com/UnbearableFate/miyabi-development"
+    echo "miyabi_skill_commit: ad1fd34a9de976b4fb26ba47d9a1770430884765"
+    echo "raw_evidence_root: $RUN_DIR"
+  } > "$RUN_DIR/manifest.yaml"
+  printf 'session\tpbs_job_id\thost\tcode_commit\tconfig_digest\tmode\n' > "$RUN_DIR/env/resume_sessions.tsv"
+  : > "$RUN_DIR/commands.log"
+fi
 
-: > "$RUN_DIR/commands.log"
+mkdir -p "$RUN_DIR"/{stdout,stderr,env/sessions,configs,shards,results,tests}
+exec > "$RUN_DIR/stdout/${SESSION_TAG}.log" 2> "$RUN_DIR/stderr/${SESSION_TAG}.log"
+
+module list 2>&1 | cat > "$RUN_DIR/env/sessions/${SESSION_TAG}.modules.txt"
+hostname > "$RUN_DIR/env/sessions/${SESSION_TAG}.hostname.txt"
+cp "$PBS_NODEFILE" "$RUN_DIR/env/sessions/${SESSION_TAG}.pbs_nodefile.txt"
+git status --short --branch > "$RUN_DIR/env/sessions/${SESSION_TAG}.git_status.txt"
+"$PYTHON" --version > "$RUN_DIR/env/sessions/${SESSION_TAG}.python_version.txt" 2>&1
+if [[ "$RESUME_MODE" == 0 ]]; then
+  cp "$RUN_DIR/env/sessions/${SESSION_TAG}.modules.txt" "$RUN_DIR/env/modules.txt"
+  cp "$RUN_DIR/env/sessions/${SESSION_TAG}.hostname.txt" "$RUN_DIR/env/hostname.txt"
+  cp "$RUN_DIR/env/sessions/${SESSION_TAG}.pbs_nodefile.txt" "$RUN_DIR/env/pbs_nodefile.txt"
+  cp "$RUN_DIR/env/sessions/${SESSION_TAG}.git_status.txt" "$RUN_DIR/env/git_status.txt"
+  cp "$RUN_DIR/env/sessions/${SESSION_TAG}.python_version.txt" "$RUN_DIR/env/python_version.txt"
+fi
+printf '%s\t%s\t%s\t%s\t%s\t%s\n' \
+  "$SESSION_TAG" "$PBS_JOBID" "$HOST" "$CODE_COMMIT" "$CONFIG_DIGEST" \
+  "$([[ "$RESUME_MODE" == 1 ]] && echo resume || echo initial)" \
+  >> "$RUN_DIR/env/resume_sessions.tsv"
+SESSION_COUNT="$(($(wc -l < "$RUN_DIR/env/resume_sessions.tsv") - 1))"
+
+MAX_NEW_ARGS=()
+if [[ -n "$MAX_NEW_ROWS_PER_SHARD" ]]; then
+  MAX_NEW_ARGS=(--max-new-rows "$MAX_NEW_ROWS_PER_SHARD")
+fi
 pids=()
 for ((shard=0; shard<SHARD_COUNT; shard++)); do
   output="$RUN_DIR/shards/shard-${shard}.csv"
-  printf '%q -m fsbdd_stage0.sweep run-shard --config %q --output %q --shard-index %q --shard-count %q\n' \
-    "$PYTHON" "$SWEEP_CONFIG" "$output" "$shard" "$SHARD_COUNT" >> "$RUN_DIR/commands.log"
+  printf '%q -m fsbdd_stage0.sweep run-shard --config %q --output %q --shard-index %q --shard-count %q --generator-commit %q --generator-digest %q' \
+    "$PYTHON" "$SWEEP_CONFIG" "$output" "$shard" "$SHARD_COUNT" "$CODE_COMMIT" "$CONFIG_DIGEST" >> "$RUN_DIR/commands.log"
+  if [[ -n "$MAX_NEW_ROWS_PER_SHARD" ]]; then
+    printf ' --max-new-rows %q' "$MAX_NEW_ROWS_PER_SHARD" >> "$RUN_DIR/commands.log"
+  fi
+  printf '\n' >> "$RUN_DIR/commands.log"
   "$PYTHON" -m fsbdd_stage0.sweep run-shard \
     --config "$SWEEP_CONFIG" \
     --output "$output" \
     --shard-index "$shard" \
     --shard-count "$SHARD_COUNT" \
-    > "$RUN_DIR/shards/shard-${shard}.stdout" \
-    2> "$RUN_DIR/shards/shard-${shard}.stderr" &
+    --generator-commit "$CODE_COMMIT" \
+    --generator-digest "$CONFIG_DIGEST" \
+    "${MAX_NEW_ARGS[@]}" \
+    > "$RUN_DIR/shards/${SESSION_TAG}-shard-${shard}.stdout" \
+    2> "$RUN_DIR/shards/${SESSION_TAG}-shard-${shard}.stderr" &
   pids+=("$!")
 done
 
@@ -117,20 +189,35 @@ for pid in "${pids[@]}"; do
     SHARD_EXIT=1
   fi
 done
-printf '%s\n' "$SHARD_EXIT" > "$RUN_DIR/tests/shard_exit_code.txt"
+printf '%s\n' "$SHARD_EXIT" > "$RUN_DIR/tests/${SESSION_TAG}-shard_exit_code.txt"
 if [[ "$SHARD_EXIT" -ne 0 ]]; then
-  for stderr_file in "$RUN_DIR"/shards/*.stderr; do
+  for stderr_file in "$RUN_DIR"/shards/"${SESSION_TAG}"-*.stderr; do
     cat "$stderr_file" >&2
   done
   exit 1
+fi
+
+if [[ "$PLANNED_PARTIAL" == 1 ]]; then
+  if [[ -z "$MAX_NEW_ROWS_PER_SHARD" ]]; then
+    echo "PLANNED_PARTIAL requires MAX_NEW_ROWS_PER_SHARD" >&2
+    exit 64
+  fi
+  {
+    echo "planned_interruption: true"
+    echo "pbs_job_id: $PBS_JOBID"
+    echo "rows_per_shard: $MAX_NEW_ROWS_PER_SHARD"
+    echo "resume_required: true"
+  } > "$RUN_DIR/planned_interruption.yaml"
+  echo "Planned partial sweep checkpoint complete; submit verified RESUME_MODE=1" >&2
+  exit 75
 fi
 
 SHARD_ARGS=()
 for ((shard=0; shard<SHARD_COUNT; shard++)); do
   SHARD_ARGS+=(--shard "$RUN_DIR/shards/shard-${shard}.csv")
 done
-printf '%q -m fsbdd_stage0.sweep aggregate --config %q --output-dir %q --publish-root %q --run-id %q --code-commit %q --evidence-config-digest %q --pbs-job-id %q --hostname %q' \
-  "$PYTHON" "$SWEEP_CONFIG" "$RUN_DIR/results" "$PROJECT_ROOT" "$RUN_ID" "$CODE_COMMIT" "$CONFIG_DIGEST" "$PBS_JOBID" "$HOST" >> "$RUN_DIR/commands.log"
+printf '%q -m fsbdd_stage0.sweep aggregate --config %q --output-dir %q --publish-root %q --run-id %q --code-commit %q --evidence-config-digest %q --pbs-job-id %q --hostname %q --initial-pbs-job-id %q --session-count %q' \
+  "$PYTHON" "$SWEEP_CONFIG" "$RUN_DIR/results" "$PROJECT_ROOT" "$RUN_ID" "$CODE_COMMIT" "$CONFIG_DIGEST" "$PBS_JOBID" "$HOST" "$INITIAL_PBS_JOB_ID" "$SESSION_COUNT" >> "$RUN_DIR/commands.log"
 printf ' --shard %q' "$RUN_DIR"/shards/shard-*.csv >> "$RUN_DIR/commands.log"
 printf '\n' >> "$RUN_DIR/commands.log"
 "$PYTHON" -m fsbdd_stage0.sweep aggregate \
@@ -142,6 +229,8 @@ printf '\n' >> "$RUN_DIR/commands.log"
   --evidence-config-digest "$CONFIG_DIGEST" \
   --pbs-job-id "$PBS_JOBID" \
   --hostname "$HOST" \
+  --initial-pbs-job-id "$INITIAL_PBS_JOB_ID" \
+  --session-count "$SESSION_COUNT" \
   "${SHARD_ARGS[@]}" \
   > "$RUN_DIR/results/aggregate.stdout" \
   2> "$RUN_DIR/results/aggregate.stderr"
@@ -160,7 +249,17 @@ cat "$RUN_DIR/tests/unittest.stdout"
 cat "$RUN_DIR/tests/unittest.stderr" >&2
 [[ "$TEST_EXIT" -eq 0 ]] || exit "$TEST_EXIT"
 
-echo "Stage 0-A full simulation sweep complete: $RUN_DIR"
+{
+  echo "schema_version: 1"
+  echo "run_id: $RUN_ID"
+  echo "initial_pbs_job_id: $INITIAL_PBS_JOB_ID"
+  echo "completion_pbs_job_id: $PBS_JOBID"
+  echo "session_count: $SESSION_COUNT"
+  echo "resumed_from_checkpoint: $([[ "$SESSION_COUNT" -gt 1 ]] && echo true || echo false)"
+  echo "status: complete"
+} > "$RUN_DIR/resume_summary.yaml"
+
+echo "Stage 0-A resumed full simulation sweep complete: $RUN_DIR"
 find "$RUN_DIR" -type f ! -name checksums.sha256 -print0 \
   | sort -z \
   | xargs -0 sha256sum \

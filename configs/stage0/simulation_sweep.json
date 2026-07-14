@@ -17,6 +17,7 @@
     "lambda_s": 1.0,
     "q_fresh": 1,
     "upload_delay_seconds": 0.05,
+    "nominal_fastest_step_seconds": 1.0,
     "duration_seconds": 2000.0,
     "tokens_per_step": 512,
     "max_trace_events": 0,
