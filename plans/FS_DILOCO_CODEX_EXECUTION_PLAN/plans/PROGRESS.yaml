@@ -162,14 +162,14 @@ loops:
   title: Layer-aligned 连续均衡 Fragment Map
   depends_on:
   - S1-01
-  status: not_started
+  status: in_progress
   nine_node_gate_required: false
   acceptance_ids:
   - A-FRAG-01
   - A-FRAG-02
   - A-FRAG-03
-  branch: null
-  base_commit: null
+  branch: codex/S1-02-fragment-map
+  base_commit: 1aa520632a9eb378b9a859307b5a9b707e255485
   result_commit: null
   evidence_index: null
   checker_verdict: null

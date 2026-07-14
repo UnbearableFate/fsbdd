@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "resource_level": "L1",
+  "objective": {
+    "primary": "minimize maximum fragment synchronization bytes",
+    "secondary": "minimize sum(abs(F * fragment_bytes - total_bytes))",
+    "tertiary": "lexicographically smallest tuple of exclusive cut indices"
+  },
+  "canonical_serialization": {
+    "function": "fsbdd.identity.canonical_digest",
+    "mapping_keys": "recursive Unicode key sort",
+    "sequence_order": "preserved",
+    "encoding": "UTF-8 compact JSON",
+    "digest": "SHA-256",
+    "sync_byte_unit": "parameter numel multiplied by registry sync_dtype_bytes"
+  },
+  "brute_force": {
+    "exhaustive_layer_counts": [3, 4, 5, 6],
+    "exhaustive_layer_byte_values": [0, 1, 2, 3, 4, 5],
+    "exclude_zero_total": true,
+    "fragment_counts": "2 through L-1",
+    "maximum_partitions_per_case": 10,
+    "random_seed": 20260715,
+    "random_cases": 500,
+    "random_max_layers": 12,
+    "random_max_layer_bytes": 1000000
+  },
+  "real_structure": {
+    "repository": "EleutherAI/pythia-160m",
+    "revision": "50f5173d932e8e61f858120bcb800b97af589f46",
+    "fragment_count": 4,
+    "weights_required": false
+  },
+  "observations": [
+    "registry_digest",
+    "ordered_layer_summaries",
+    "parameter_identity_partition",
+    "misc_assignments",
+    "tied_ownership",
+    "fragment_intervals",
+    "fragment_sync_bytes",
+    "objective_tuple",
+    "balance_statistics",
+    "map_digest"
+  ],
+  "formal_package": "S1-00 builder/finalizer/validator with clean code/config/source/skill/scheduler/role/path identity",
+  "fail_if_exists": true
+}
