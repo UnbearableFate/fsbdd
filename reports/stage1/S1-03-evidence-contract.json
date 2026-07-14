@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "resource_level": "L2",
-  "selected_evidence_root": "/work/xg24i002/x10041/fsbdd/runtime_runs/S1-03/formal-l2",
+  "selected_evidence_root": "/work/xg24i002/x10041/fsbdd/runtime_runs/S1-03/formal-l2-r2",
   "target_shared_root": "/work/xg24i002/x10041/fsbdd/runtime_runs",
   "topology": {
     "pbs_queue": "debug-g",

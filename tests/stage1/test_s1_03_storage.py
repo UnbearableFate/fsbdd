@@ -260,5 +260,6 @@ def test_pbs_contract_is_two_node_batch_and_filesystem_data_plane() -> None:
     assert "--map-by ppr:1:node" in content
     assert "fsbdd.storage_stress role" in content
     assert "fsbdd.cli evidence finalize" in content
+    assert 'date -u -d "$QTIME_RAW JST"' in content
     assert "torchrun" not in content
     assert "nccl" not in content.lower()

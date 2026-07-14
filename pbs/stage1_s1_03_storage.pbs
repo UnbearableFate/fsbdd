@@ -10,7 +10,7 @@ trap 'echo "[ERROR] line=$LINENO command=$BASH_COMMAND" >&2' ERR
 
 : "${PROJECT_ROOT:=/work/xg24i002/x10041/fsbdd-s100-clean}"
 : "${MAIN_ROOT:=/work/xg24i002/x10041/fsbdd}"
-: "${EVIDENCE_ROOT:=$MAIN_ROOT/runtime_runs/S1-03/formal-l2}"
+: "${EVIDENCE_ROOT:=$MAIN_ROOT/runtime_runs/S1-03/formal-l2-r2}"
 : "${EXPECTED_COMMIT:?EXPECTED_COMMIT is required}"
 : "${INITIAL_HOSTNAME:=miyabi-g1}"
 : "${MIYABI_SKILL_DIR:=/work/xg24i002/x10041/.codex/skills/miyabi-development}"
@@ -68,7 +68,7 @@ module -t list > "$EVIDENCE_ROOT/env/modules.txt" 2>&1
 qstat -f "$PBS_JOBID" > "$EVIDENCE_ROOT/env/qstat.txt"
 findmnt -T "$MAIN_ROOT/runtime_runs" > "$EVIDENCE_ROOT/env/findmnt.txt"
 QTIME_RAW="$(awk -F' = ' '/^[[:space:]]*qtime =/{print $2}' "$EVIDENCE_ROOT/env/qstat.txt")"
-QTIME_UTC="$(TZ=Asia/Tokyo date -u -d "$QTIME_RAW" '+%Y-%m-%dT%H:%M:%SZ')"
+QTIME_UTC="$(date -u -d "$QTIME_RAW JST" '+%Y-%m-%dT%H:%M:%SZ')"
 QUEUE="$(awk -F' = ' '/^[[:space:]]*queue =/{print $2}' "$EVIDENCE_ROOT/env/qstat.txt")"
 
 "$PYTHON" -m fsbdd.cli config resolve "$CONFIG_SOURCE" "$EVIDENCE_ROOT/configs/resolved.json" \

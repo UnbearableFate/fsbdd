@@ -25,3 +25,9 @@ shared-filesystem only. The cross-node run injects delay immediately before
 visibility replacement and counts every invalid read across the publication
 interval. The unsafe direct-overwrite detector and raw control are reused from
 S0B-02 rather than reimplemented.
+
+The first two-node package at `runtime_runs/S1-03/formal-l2` is retained as a
+failed identity attempt: its application observations passed, but its manifest
+labeled the local-JST PBS `qtime` as UTC. A static regression now requires the
+explicit JST parse, and the selected replacement package is frozen at
+`runtime_runs/S1-03/formal-l2-r2`.

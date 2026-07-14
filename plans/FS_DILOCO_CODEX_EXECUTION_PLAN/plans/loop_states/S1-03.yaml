@@ -33,8 +33,8 @@ preflight:
   requirements_complete: true
   measurement_contract: reports/stage1/S1-03-evidence-contract.json
   package_contract: reports/stage1/S1-03-evidence-contract.json
-  package_validator_command: fsbdd evidence validate runtime_runs/S1-03/formal-l2
-  package_validator_result: admissible at runtime_runs/S1-03/preflight-e64b6d1 (manifest 258ca21cbff18a88cb51dc7328f9338a97f9faa7ceb68d1cd892f05ace396164)
+  package_validator_command: fsbdd evidence validate runtime_runs/S1-03/formal-l2-r2
+  package_validator_result: corrected preflight pending; runtime_runs/S1-03/formal-l2 is preserved but not admissible for selection because its PBS qtime was labeled UTC without converting from JST
   checker_phase_a: required
 red:
   command: two expected-failure commands recorded under runtime_runs/S1-03/red-474182d
@@ -51,7 +51,12 @@ harden:
   - runtime_runs/S1-03/preflight-e64b6d1
   - runtime_runs/S1-03/l1-smoke2-e64b6d1
 nine_node_gate: {required: false, run_id: null, topology_gate: null, loss_gate: null, runtime_gate: null}
-checker: {context_id: null, maker_chat_inherited: false, phase_a_verdict: null, verdict: null, report_path: null}
+checker:
+  context_id: /root/s1_03_checker
+  maker_chat_inherited: false
+  phase_a_verdict: recheck required after qtime identity correction
+  verdict: null
+  report_path: reports/checkers/S1-03-phase-a.md
 persist:
   evidence_index: pending Phase B
   raw_evidence_root: runtime_runs/S1-03
@@ -64,14 +69,15 @@ persist:
     - the frozen preflight package is checksum-finalized and validator-admissible with the full Stage 1 suite passing
     checked_commit: e64b6d1b60867df03fb21b8f0bcecbb878cf994f
     selected_evidence: [runtime_runs/S1-03/preflight-e64b6d1, runtime_runs/S1-03/l1-smoke2-e64b6d1]
-    next_command: independent Checker Phase A over the candidate commit and frozen L2 contract
+    next_command: finalize corrected L1 preflight and request Phase A recheck in the same Checker context
   cost:
-    attempts_by_level: {L0: 2, L1: 1, L2: 0}
+    attempts_by_level: {L0: 3, L1: 1, L2: 1}
     queue_seconds: null
     active_seconds: null
-    checker_cycles: 0
+    checker_cycles: 1
     goal_tokens_end: null
     agent_tokens_used: null
     phase_token_deltas: {}
-    rework_causes: []
+    rework_causes:
+    - first L2 application results passed but the manifest timestamp converted an unzoned PBS qtime with -u before assigning JST; preserve formal-l2 and rerun only after a failing static regression plus corrected L1 preflight
 blocker: null
