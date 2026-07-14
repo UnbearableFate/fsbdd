@@ -1,0 +1,59 @@
+schema_version: 1
+loop_id: S0C-01
+title: Fresh/Stale 数学 oracle 与 weighting
+stage: stage0
+status: oriented
+source_hashes:
+  research_plan: 2c0db3148110da10ea62f445c189d2d53b405527d8da264b9af9817f5ca9d835
+  stage0_4_spec: fad26a8add51e70ddf50d0130b61d80fe06e1c3945221c29508412a5bcab2feb
+git:
+  integration_branch: master
+  branch: codex/S0C-01-oracle-weighting
+  base_commit: cd4ae9defa2688184077e09725175eb91d28b692
+  result_commit: null
+  dirty_at_start: false
+dependencies: []
+requirements:
+  - ORACLE-01
+  - ORACLE-02
+  - INV-07
+  - OPT-01
+  - STALE-05
+acceptance_ids:
+  - A-ALG-00
+orient:
+  unique_failing_gap: No executable reference math or golden fixture rejects current-minus-local stale displacement and proves inverse-staleness weighting properties.
+  planned_files:
+    - src/fsbdd_stage0/oracle.py
+    - tests/oracle/test_a_alg_00__pseudo_gradient_weighting.py
+    - tests/fixtures/oracle_golden_cases.json
+    - pbs/stage0_cpu_tests.pbs
+  model_data_profile: Pure scalar/small-vector stdlib CPU oracle; no model or dataset.
+  miyabi_skill_commit: ad1fd34a9de976b4fb26ba47d9a1770430884765
+  initial_hostname: miyabi-g1
+  workflow: Miyabi control plane; runtime tests are submitted to one PBS compute node.
+red:
+  command: null
+  exit_code: null
+  evidence_path: null
+green:
+  command: null
+  evidence_path: null
+harden:
+  commands: []
+  evidence_paths: []
+nine_node_gate:
+  required: false
+  run_id: null
+  topology_gate: not_applicable_before_S1-13
+  loss_gate: not_applicable
+  runtime_gate: not_applicable
+checker:
+  verdict: null
+  report_path: null
+persist:
+  evidence_index: null
+  raw_evidence_root: /work/xg24i002/x10041/fsbdd/evidence/raw/S0C-01
+  acceptance_traceability_updated: false
+  next_gap: S0C-02 consumption and outer-optimizer reference transitions
+blocker: null

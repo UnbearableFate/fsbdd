@@ -1,0 +1,105 @@
+#!/bin/bash
+#PBS -q debug-g
+#PBS -l select=1
+#PBS -l walltime=00:10:00
+#PBS -W group_list=xg24i002
+#PBS -N fsbdd-s0-cpu
+
+set -eEuo pipefail
+trap 'echo "[ERROR] line=$LINENO command=$BASH_COMMAND" >&2' ERR
+
+export PAGER=cat MODULES_PAGER=cat LMOD_PAGER=cat
+
+: "${PROJECT_ROOT:=/work/xg24i002/x10041/fsbdd}"
+: "${LOOP_ID:?LOOP_ID is required}"
+: "${RUN_ID:?RUN_ID is required}"
+: "${TEST_TARGETS:?TEST_TARGETS is required}"
+: "${EXPECTED_TEST_RESULT:=pass}"
+: "${EVIDENCE_ROOT:=$PROJECT_ROOT/evidence/raw}"
+
+HOST="$(hostname)"
+if [[ ! "$HOST" =~ ^mg[0-9]+$ ]] || [[ -z "${PBS_JOBID:-}" ]] || [[ -z "${PBS_NODEFILE:-}" ]]; then
+  echo "Refusing runtime tests outside a confirmed Miyabi PBS compute allocation" >&2
+  exit 70
+fi
+
+RUN_DIR="$EVIDENCE_ROOT/$LOOP_ID/$RUN_ID"
+if [[ -e "$RUN_DIR" ]]; then
+  echo "Evidence directory already exists: $RUN_DIR" >&2
+  exit 73
+fi
+mkdir -p "$RUN_DIR"/{stdout,stderr,env,tests,configs,analysis,checker}
+exec > >(tee "$RUN_DIR/stdout/job.log") 2> >(tee "$RUN_DIR/stderr/job.log" >&2)
+
+cd "$PROJECT_ROOT"
+PYTHON="$PROJECT_ROOT/.venv/bin/python"
+if [[ ! -x "$PYTHON" ]]; then
+  echo "Missing project Python: $PYTHON" >&2
+  exit 69
+fi
+export PYTHONPATH="$PROJECT_ROOT/src${PYTHONPATH:+:$PYTHONPATH}"
+
+module list 2>&1 | cat > "$RUN_DIR/env/modules.txt"
+hostname > "$RUN_DIR/env/hostname.txt"
+cp "$PBS_NODEFILE" "$RUN_DIR/env/pbs_nodefile.txt"
+git status --short --branch > "$RUN_DIR/env/git_status.txt"
+git rev-parse HEAD > "$RUN_DIR/env/git_commit.txt"
+"$PYTHON" --version > "$RUN_DIR/env/python_version.txt" 2>&1
+sha256sum \
+  plans/FS_DILOCO_CODEX_EXECUTION_PLAN/source/RESEARCH_PLAN.md \
+  plans/FS_DILOCO_CODEX_EXECUTION_PLAN/source/STAGE0-4_SPEC.md \
+  > "$RUN_DIR/env/source_hashes.txt"
+
+{
+  echo "schema_version: 1"
+  echo "loop_id: $LOOP_ID"
+  echo "run_id: $RUN_ID"
+  echo "initial_hostname: miyabi-g1"
+  echo "compute_hostname: $HOST"
+  echo "pbs_job_id: $PBS_JOBID"
+  echo "queue: ${PBS_QUEUE:-debug-g}"
+  echo "group: xg24i002"
+  echo "node_count: $(sort -u "$PBS_NODEFILE" | wc -l)"
+  echo "test_targets: $TEST_TARGETS"
+  echo "expected_test_result: $EXPECTED_TEST_RESULT"
+  echo "miyabi_skill_repository: https://github.com/UnbearableFate/miyabi-development"
+  echo "miyabi_skill_commit: ad1fd34a9de976b4fb26ba47d9a1770430884765"
+  echo "raw_evidence_root: $RUN_DIR"
+} > "$RUN_DIR/manifest.yaml"
+
+read -r -a TEST_ARRAY <<< "$TEST_TARGETS"
+printf '%q -m unittest -v' "$PYTHON" > "$RUN_DIR/commands.log"
+printf ' %q' "${TEST_ARRAY[@]}" >> "$RUN_DIR/commands.log"
+printf '\n' >> "$RUN_DIR/commands.log"
+
+set +e
+PYTHONHASHSEED=0 "$PYTHON" -m unittest -v "${TEST_ARRAY[@]}" \
+  > "$RUN_DIR/tests/unittest.stdout" \
+  2> "$RUN_DIR/tests/unittest.stderr"
+TEST_EXIT=$?
+set -e
+echo "$TEST_EXIT" > "$RUN_DIR/tests/exit_code.txt"
+cat "$RUN_DIR/tests/unittest.stdout"
+cat "$RUN_DIR/tests/unittest.stderr" >&2
+
+case "$EXPECTED_TEST_RESULT" in
+  pass)
+    [[ "$TEST_EXIT" -eq 0 ]] || exit "$TEST_EXIT"
+    ;;
+  fail)
+    if [[ "$TEST_EXIT" -eq 0 ]]; then
+      echo "RED test unexpectedly passed" >&2
+      exit 65
+    fi
+    ;;
+  *)
+    echo "Unknown EXPECTED_TEST_RESULT=$EXPECTED_TEST_RESULT" >&2
+    exit 64
+    ;;
+esac
+
+find "$RUN_DIR" -type f ! -name checksums.sha256 -print0 \
+  | sort -z \
+  | xargs -0 sha256sum \
+  > "$RUN_DIR/checksums.sha256"
+echo "stage0 CPU test evidence complete: $RUN_DIR"
