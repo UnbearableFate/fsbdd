@@ -6,6 +6,8 @@ from itertools import combinations
 import pytest
 
 from fsbdd.fragment_map import (
+    BalanceSummary,
+    Fragment,
     FragmentMapError,
     build_fragment_map,
     partition_layer_bytes,
@@ -153,6 +155,63 @@ def test_map_layer_summary_cannot_diverge_from_registry() -> None:
     tampered = dataclasses.replace(fragment_map, layers=(changed_layer, *fragment_map.layers[1:]))
     tampered = dataclasses.replace(tampered, digest=canonical_digest(tampered._body()))
     with pytest.raises(FragmentMapError, match="layer summaries"):
+        validate_fragment_map(tampered, registry)
+
+
+def test_nonoptimal_actual_cuts_cannot_carry_optimal_decoy_objective() -> None:
+    registry = registry_from_bytes((1, 5, 1, 4))
+    fragment_map = build_fragment_map(registry, 3)
+    layers = fragment_map.layers
+    nonoptimal_fragments = (
+        fragment_map.fragments[0],
+        Fragment(
+            index=1,
+            start_layer=1,
+            end_layer_exclusive=3,
+            layer_indices=(1, 2),
+            layer_names=(layers[1].name, layers[2].name),
+            parameter_identities=layers[1].parameter_identities + layers[2].parameter_identities,
+            parameter_count=6,
+            sync_bytes=6,
+        ),
+        Fragment(
+            index=2,
+            start_layer=3,
+            end_layer_exclusive=4,
+            layer_indices=(3,),
+            layer_names=(layers[3].name,),
+            parameter_identities=layers[3].parameter_identities,
+            parameter_count=4,
+            sync_bytes=4,
+        ),
+    )
+    nonoptimal_balance = BalanceSummary(
+        total_sync_bytes=11,
+        minimum_sync_bytes=1,
+        maximum_sync_bytes=6,
+        average_sync_bytes=11 / 3,
+        maximum_to_average_ratio=18 / 11,
+        average_exact_numerator=11,
+        average_exact_denominator=3,
+        ratio_exact_numerator=18,
+        ratio_exact_denominator=11,
+    )
+    tampered = dataclasses.replace(
+        fragment_map,
+        fragments=nonoptimal_fragments,
+        balance=nonoptimal_balance,
+    )
+    tampered = dataclasses.replace(tampered, digest=canonical_digest(tampered._body()))
+    with pytest.raises(FragmentMapError, match="objective|cuts"):
+        validate_fragment_map(tampered, registry)
+
+
+def test_map_sync_dtype_must_match_bound_registry() -> None:
+    registry = registry_from_bytes((3, 4, 5, 6))
+    fragment_map = build_fragment_map(registry, 2)
+    tampered = dataclasses.replace(fragment_map, sync_dtype_bytes=8)
+    tampered = dataclasses.replace(tampered, digest=canonical_digest(tampered._body()))
+    with pytest.raises(FragmentMapError, match="sync_dtype_bytes"):
         validate_fragment_map(tampered, registry)
 
 
