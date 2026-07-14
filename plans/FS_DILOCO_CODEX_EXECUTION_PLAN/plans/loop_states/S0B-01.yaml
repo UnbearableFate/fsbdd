@@ -2,7 +2,7 @@ schema_version: 1
 loop_id: S0B-01
 title: Miyabi 与目标共享 FS 能力发现/Benchmark Harness
 stage: stage0
-status: oriented
+status: pass
 source_hashes:
   research_plan: 2c0db3148110da10ea62f445c189d2d53b405527d8da264b9af9817f5ca9d835
   stage0_4_spec: fad26a8add51e70ddf50d0130b61d80fe06e1c3945221c29508412a5bcab2feb
@@ -10,7 +10,7 @@ git:
   integration_branch: master
   branch: codex/S0B-01-storage-harness
   base_commit: 5a8b78c9765c1b13c5b21006a5243a32e2afc19d
-  result_commit: null
+  result_commit: 49cbf0e385411997f0fc5167b84752ec83e50533
   dirty_at_start: false
 dependencies: []
 requirements:
@@ -44,15 +44,21 @@ orient:
   initial_hostname: miyabi-g1
   workflow: miyabi-g1 is control plane only; every harness execution fails closed unless hostname and PBS context identify a compute allocation.
 red:
-  command: null
-  exit_code: null
-  evidence_path: null
+  command: qsub debug-g unsafe storage surrogate under verified current skill checkout
+  exit_code: 1
+  evidence_path: evidence/raw/S0B-01/20260714T154100Z-red-provenance-n4e2a-99cd2ed9f546
+  additional_evidence_paths:
+    - evidence/raw/S0B-01/20260714T151400Z-red-n3d6a-d6b0d27e3bb2
 green:
-  command: null
-  evidence_path: null
+  command: qsub debug-g two-node shared Lustre writer/reader smoke with canonical manifest
+  evidence_path: evidence/raw/S0B-01/20260714T154103Z-green-provenance-n1b7e-2018e813ad8e
 harden:
-  commands: []
-  evidence_paths: []
+  commands:
+    - qsub debug-g full 41-test Stage 0 regression with verified skill provenance
+    - qsub debug-g two-node node-local visibility negative control
+  evidence_paths:
+    - evidence/raw/S0B-01/20260714T154101Z-harden-provenance-n6c3f-5a1a87a340ce
+    - evidence/raw/S0B-01/20260714T154102Z-red2-provenance-n8a5d-2018e813ad8e
 nine_node_gate:
   required: false
   run_id: null
@@ -60,11 +66,11 @@ nine_node_gate:
   loss_gate: not_applicable
   runtime_gate: not_applicable
 checker:
-  verdict: null
-  report_path: null
+  verdict: PASS
+  report_path: reports/checkers/S0B-01.md
 persist:
-  evidence_index: null
+  evidence_index: evidence/indexes/S0B-01.md
   raw_evidence_root: /work/xg24i002/x10041/fsbdd/evidence/raw/S0B-01
-  acceptance_traceability_updated: false
+  acceptance_traceability_updated: true
   next_gap: S0B-02 cross-node visibility latency and 100000 atomic replacements
 blocker: null

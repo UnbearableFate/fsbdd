@@ -12,7 +12,7 @@ capabilities:
     status: inactive
     established_by: S1-13
     baseline_9n_run_id: null
-current_loop: S0B-01
+current_loop: S0B-02
 loops:
 - id: S0C-01
   stage: stage0
@@ -78,14 +78,14 @@ loops:
   stage: stage0
   title: Miyabi 与目标共享 FS 能力发现/Benchmark Harness
   depends_on: []
-  status: not_started
+  status: pass
   nine_node_gate_required: false
   acceptance_ids: []
-  branch: null
-  base_commit: null
-  result_commit: null
-  evidence_index: null
-  checker_verdict: null
+  branch: codex/S0B-01-storage-harness
+  base_commit: 5a8b78c9765c1b13c5b21006a5243a32e2afc19d
+  result_commit: 49cbf0e385411997f0fc5167b84752ec83e50533
+  evidence_index: evidence/indexes/S0B-01.md
+  checker_verdict: PASS
   blocker: null
 - id: S0B-02
   stage: stage0

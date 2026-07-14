@@ -2,10 +2,10 @@ stage,acceptance_id,primary_loop,supporting_loops,required_evidence,status,evide
 0-A,A-SIM-01,S0A-01,,共享decision vectors全部通过,passed,evidence/indexes/S0A-01.md,PASS,7/7 shared vectors plus deterministic event and bounded-state evidence
 0-A,A-SIM-02,S0A-02,,完整SIM-03矩阵与原始manifest,passed,evidence/indexes/S0A-02.md,PASS,7776 rows with verified partial-run resume and three seeds
 0-A,A-SIM-03,S0A-02,,默认profile与stale挽回预测,passed,evidence/indexes/S0A-02.md,PASS,Stage1/4 profiles and Stage5 delay points frozen; Stage4 remains mandatory
-0-B,A-BENCH-01,S0B-02,,跨节点visibility p50/p99，满足阈值,not_started,,,
-0-B,A-BENCH-02,S0B-02,,≥10^5原子替换，0 violation,not_started,,,
-0-B,A-BENCH-03,S0B-03,,metadata throughput ≥10× steady demand,not_started,,,
-0-B,A-BENCH-04,S0B-03,,M并发fragment一轮≤10%H,not_started,,,
+0-B,A-BENCH-01,S0B-02,S0B-01,跨节点visibility p50/p99，满足阈值,not_started,,,
+0-B,A-BENCH-02,S0B-02,S0B-01,≥10^5原子替换，0 violation,not_started,,,
+0-B,A-BENCH-03,S0B-03,S0B-01,metadata throughput ≥10× steady demand,not_started,,,
+0-B,A-BENCH-04,S0B-03,S0B-01,M并发fragment一轮≤10%H,not_started,,,
 0-C,A-ALG-00,S0C-02,S0C-01,错误stale公式被拒绝；全部golden通过,passed,evidence/indexes/S0C-02.md,PASS,S0C-01 and S0C-02 oracle evidence complete
 1,A-FRAG-01,S1-02,S1-01,parameter identity全覆盖恰好一次,not_started,,,
 1,A-FRAG-02,S1-02,,连续非空fragments,not_started,,,

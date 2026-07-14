@@ -8,6 +8,8 @@ STALE-01,S0A-01,tests/simulation/test_a_sim_01__event_semantics.py,passed
 STALE-07,S0A-01,tests/fixtures/stage0_decision_vectors.json,passed
 STALE-08,S0A-01,tests/fixtures/stage0_decision_vectors.json,passed
 STALE-09,S0A-01,tests/simulation/test_a_sim_01__event_semantics.py,passed
+FS-08,S0B-01,evidence/indexes/S0B-01.md,passed
+STOR-01,S0B-01,evidence/indexes/S0B-01.md,supporting
 BENCH-01,S0B-02,evidence/indexes/S0B-02.md,planned
 BENCH-02,S0B-02,evidence/indexes/S0B-02.md,planned
 BENCH-03,S0B-03,evidence/indexes/S0B-03.md,planned
