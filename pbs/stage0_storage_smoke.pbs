@@ -177,7 +177,8 @@ RESULT_ROOT="$RUN_DIR/results"
 mkdir -p "$RESULT_ROOT"
 
 printf '%q ' mpirun -np 2 --map-by ppr:1:node --hostfile "$PBS_NODEFILE" \
-  -x PYTHONPATH "$PYTHON" -m fsbdd_stage0.storage_bench smoke-role \
+  /usr/bin/env "PYTHONPATH=$PYTHONPATH" "$PYTHON" \
+  -m fsbdd_stage0.storage_bench smoke-role \
   --config "$STORAGE_CONFIG" --test-root "$TEST_ROOT" \
   --result-root "$RESULT_ROOT" --run-id "$RUN_ID" --path-mode "$SMOKE_PATH_MODE" \
   > "$RUN_DIR/commands.log"
@@ -185,7 +186,7 @@ printf '\n' >> "$RUN_DIR/commands.log"
 
 set +e
 mpirun -np 2 --map-by ppr:1:node --hostfile "$PBS_NODEFILE" \
-  -x PYTHONPATH \
+  /usr/bin/env "PYTHONPATH=$PYTHONPATH" \
   "$PYTHON" -m fsbdd_stage0.storage_bench smoke-role \
   --config "$STORAGE_CONFIG" \
   --test-root "$TEST_ROOT" \
