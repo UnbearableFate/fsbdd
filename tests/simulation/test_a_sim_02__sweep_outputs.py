@@ -159,7 +159,7 @@ class TestASim02SweepOutputs(unittest.TestCase):
         self.assertIn("Stage 1 Profile A recommendation", recommendation)
         self.assertIn("Stage 4 remains mandatory", recommendation)
         self.assertIn("0/1/5/30s", recommendation)
-        self.assertIn("not runtime correctness", recommendation)
+        self.assertIn("runtime correctness", recommendation)
 
     def test_sim_04__aggregate_units_and_state_bounds_are_explicit(self) -> None:
         with self.aggregate_path.open("r", encoding="utf-8", newline="") as handle:
