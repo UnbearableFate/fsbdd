@@ -31,6 +31,8 @@ class TestStorageHarnessContracts(unittest.TestCase):
         self.assertEqual(config["miyabi"]["compute_nodes"], 2)
         self.assertEqual(config["miyabi"]["target_shared_run_root"], str(PROJECT_ROOT / "runtime_runs"))
         self.assertEqual(config["miyabi"]["required_skill_commit"], SKILL_COMMIT)
+        self.assertEqual(config["thresholds"]["visibility_p99_seconds"], 2.5)
+        self.assertEqual(config["thresholds"]["metadata_required_ops_per_second"], 5120.0)
 
     def test_bench_01__login_host_fails_closed(self) -> None:
         environment = {"PBS_JOBID": "123.miyabi", "PBS_NODEFILE": "/tmp/nodes"}
@@ -65,6 +67,8 @@ class TestStorageHarnessContracts(unittest.TestCase):
 
     def test_fs_08__environment_manifest_requires_compute_and_fs_identity(self) -> None:
         complete = {
+            "schema_version": 1,
+            "skill_repository": "https://github.com/UnbearableFate/miyabi-development",
             "skill_commit": SKILL_COMMIT,
             "initial_hostname": "miyabi-g1",
             "compute_hosts": ["mg0001", "mg0002"],
@@ -94,8 +98,8 @@ class TestStorageHarnessContracts(unittest.TestCase):
                 "payload_bytes": 4096,
                 "payload_sha256": "a" * 64,
             }
-            atomic_write_json(root / "smoke-rank-0.json", {**common, "rank": 0, "role": "writer", "hostname": "mg0001"})
-            atomic_write_json(root / "smoke-rank-1.json", {**common, "rank": 1, "role": "reader", "hostname": "mg0001"})
+            atomic_write_json(root / "smoke-rank-0.json", {**common, "rank": 0, "role": "writer", "hostname": "mg0001", "reader_host": "mg0001"})
+            atomic_write_json(root / "smoke-rank-1.json", {**common, "rank": 1, "role": "reader", "hostname": "mg0001", "writer_host": "mg0001"})
             with self.assertRaisesRegex(StorageHarnessError, "distinct hosts"):
                 summarize_smoke(
                     result_root=root,
@@ -104,7 +108,8 @@ class TestStorageHarnessContracts(unittest.TestCase):
                     expected="pass",
                     required_distinct_hosts=2,
                 )
-            atomic_write_json(root / "smoke-rank-1.json", {**common, "rank": 1, "role": "reader", "hostname": "mg0002"})
+            atomic_write_json(root / "smoke-rank-0.json", {**common, "rank": 0, "role": "writer", "hostname": "mg0001", "reader_host": "mg0002"})
+            atomic_write_json(root / "smoke-rank-1.json", {**common, "rank": 1, "role": "reader", "hostname": "mg0002", "writer_host": "mg0001"})
             summary = summarize_smoke(
                 result_root=root,
                 run_id="run-a",

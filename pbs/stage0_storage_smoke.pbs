@@ -31,12 +31,15 @@ if [[ "$RUN_ID" != *"$SUBMISSION_NONCE"* ]] || [[ "$RUN_ID" != *"$CONFIG_DIGEST_
 fi
 case "$PATH_MODE:$EXPECTED_SMOKE_RESULT" in
   shared:pass|local-negative:failure) ;;
-  *) echo "unsupported PATH_MODE/EXPECTED_SMOKE_RESULT pair" >&2; exit 64 ;;
+  *)
+    echo "Supported smoke contracts are shared/pass and local/fail" >&2
+    exit 64
+    ;;
 esac
 
-HOST="$(hostname)"
+HOST="$(hostname -s)"
 if [[ ! "$HOST" =~ ^mg[0-9]+$ ]] || [[ -z "${PBS_JOBID:-}" ]] || [[ -z "${PBS_NODEFILE:-}" ]]; then
-  echo "Refusing storage execution outside a confirmed Miyabi PBS compute allocation" >&2
+  echo "Refusing storage benchmark outside a confirmed Miyabi PBS compute allocation" >&2
   exit 70
 fi
 
@@ -47,6 +50,7 @@ if [[ ! -x "$PYTHON" ]]; then
   exit 69
 fi
 export PYTHONPATH="$PROJECT_ROOT/src${PYTHONPATH:+:$PYTHONPATH}"
+module load "$MODULE_NAME"
 
 read -r -a CONFIG_ARRAY <<< "$CONFIG_PATHS"
 if [[ "${#CONFIG_ARRAY[@]}" -eq 0 ]]; then
@@ -64,27 +68,22 @@ if [[ -e "$RUN_DIR" ]]; then
   echo "Evidence directory already exists: $RUN_DIR" >&2
   exit 73
 fi
-mkdir -p "$RUN_DIR"/{stdout,stderr,env,configs,results,tests,fs_probe}
+mkdir -p "$RUN_DIR"/{stdout,stderr,env,configs,results,tests,probes}
 exec > "$RUN_DIR/stdout/job.log" 2> "$RUN_DIR/stderr/job.log"
 
-module load "$MODULE_NAME"
-module list 2>&1 | cat > "$RUN_DIR/env/modules.txt"
-hostname > "$RUN_DIR/env/hostname.txt"
-cp "$PBS_NODEFILE" "$RUN_DIR/env/pbs_nodefile.txt"
-sort -u "$PBS_NODEFILE" > "$RUN_DIR/env/distinct_hosts.txt"
-if [[ "$(wc -l < "$RUN_DIR/env/distinct_hosts.txt")" -lt 2 ]]; then
-  echo "The storage smoke requires two distinct compute hosts" >&2
+sort -u "$PBS_NODEFILE" > "$RUN_DIR/env/compute_hosts.txt"
+HOST_COUNT="$(wc -l < "$RUN_DIR/env/compute_hosts.txt")"
+if [[ "$HOST_COUNT" -ne 2 ]]; then
+  echo "Storage smoke requires two distinct allocated hosts; observed=$HOST_COUNT" >&2
   exit 66
 fi
-git status --short --branch > "$RUN_DIR/env/git_status.txt"
+cp "$PBS_NODEFILE" "$RUN_DIR/env/pbs_nodefile.txt"
+hostname > "$RUN_DIR/env/hostname.txt"
 git rev-parse HEAD > "$RUN_DIR/env/git_commit.txt"
+git status --short --branch > "$RUN_DIR/env/git_status.txt"
 "$PYTHON" --version > "$RUN_DIR/env/python_version.txt" 2>&1
+module list 2>&1 | sed '/^[[:space:]]*$/d' > "$RUN_DIR/env/modules.txt"
 mpirun --version > "$RUN_DIR/env/mpirun_version.txt" 2>&1
-sha256sum \
-  plans/FS_DILOCO_CODEX_EXECUTION_PLAN/source/RESEARCH_PLAN.md \
-  plans/FS_DILOCO_CODEX_EXECUTION_PLAN/source/STAGE0-4_SPEC.md \
-  > "$RUN_DIR/env/source_hashes.txt"
-
 sha256sum "${CONFIG_ARRAY[@]}" > "$RUN_DIR/configs/config_digest_inputs.sha256"
 printf '%s\n' "${CONFIG_ARRAY[@]}" > "$RUN_DIR/configs/config_paths.txt"
 for index in "${!CONFIG_ARRAY[@]}"; do
@@ -92,37 +91,44 @@ for index in "${!CONFIG_ARRAY[@]}"; do
   printf -v snapshot_name 'input-%03d-%s' "$index" "$(basename "$source_path")"
   cp -- "$source_path" "$RUN_DIR/configs/$snapshot_name"
 done
+sha256sum \
+  plans/FS_DILOCO_CODEX_EXECUTION_PLAN/source/RESEARCH_PLAN.md \
+  plans/FS_DILOCO_CODEX_EXECUTION_PLAN/source/STAGE0-4_SPEC.md \
+  > "$RUN_DIR/env/source_hashes.txt"
 
 mkdir -p "$TARGET_RUN_ROOT"
-findmnt -T "$TARGET_RUN_ROOT" -o SOURCE,FSTYPE,TARGET > "$RUN_DIR/fs_probe/findmnt.txt"
-df -T "$TARGET_RUN_ROOT" > "$RUN_DIR/fs_probe/df.txt"
-stat -f "$TARGET_RUN_ROOT" > "$RUN_DIR/fs_probe/statfs.txt"
-stat "$TARGET_RUN_ROOT" > "$RUN_DIR/fs_probe/stat.txt"
-if command -v lfs >/dev/null 2>&1; then
-  lfs getstripe "$TARGET_RUN_ROOT" > "$RUN_DIR/fs_probe/lfs_getstripe.txt" 2>&1 || true
-  lfs quota -g xg24i002 "$TARGET_RUN_ROOT" > "$RUN_DIR/fs_probe/lfs_quota.txt" 2>&1 || true
-else
-  echo "lfs command unavailable" > "$RUN_DIR/fs_probe/lfs_getstripe.txt"
-  echo "lfs command unavailable" > "$RUN_DIR/fs_probe/lfs_quota.txt"
-fi
-PROBE_PATH="$TARGET_RUN_ROOT/.fsbdd-permission-probe-$RUN_ID"
-printf '%s\n' "$RUN_ID" > "$PROBE_PATH"
-PROBE_DIGEST="$(sha256sum "$PROBE_PATH" | awk '{print $1}')"
-rm -f "$PROBE_PATH"
-printf '{"create":true,"read":true,"delete":true,"probe_sha256":"%s"}\n' \
-  "$PROBE_DIGEST" > "$RUN_DIR/fs_probe/permission_probe.json"
-
-read -r FILESYSTEM_SOURCE FILESYSTEM_TYPE _ < <(findmnt -T "$TARGET_RUN_ROOT" -n -o SOURCE,FSTYPE,TARGET)
-if [[ "$FILESYSTEM_TYPE" != "lustre" ]]; then
-  echo "Target RUN_ROOT is not Lustre: $FILESYSTEM_TYPE" >&2
+FILESYSTEM_TYPE="$(findmnt -n -o FSTYPE -T "$TARGET_RUN_ROOT")"
+FILESYSTEM_SOURCE="$(findmnt -n -o SOURCE -T "$TARGET_RUN_ROOT")"
+if [[ "${FILESYSTEM_TYPE,,}" != "lustre" ]]; then
+  echo "Frozen target RUN_ROOT is not Lustre: type=$FILESYSTEM_TYPE path=$TARGET_RUN_ROOT" >&2
   exit 67
 fi
+findmnt -T "$TARGET_RUN_ROOT" > "$RUN_DIR/probes/findmnt.txt"
+df -T "$TARGET_RUN_ROOT" > "$RUN_DIR/probes/df.txt"
+stat -f "$TARGET_RUN_ROOT" > "$RUN_DIR/probes/statfs.txt"
+stat "$TARGET_RUN_ROOT" > "$RUN_DIR/probes/stat.txt"
 
-printf '%q -m fsbdd_stage0.storage_bench manifest --config %q --run-id %q --initial-hostname %q --compute-hostname %q --pbs-job-id %q --pbs-nodefile %q --filesystem-type %q --filesystem-source %q --module-list %q --permission-probe %q --output %q\n' \
-  "$PYTHON" "$STORAGE_CONFIG" "$RUN_ID" "$INITIAL_HOSTNAME" "$HOST" "$PBS_JOBID" \
-  "$RUN_DIR/env/pbs_nodefile.txt" "$FILESYSTEM_TYPE" "$FILESYSTEM_SOURCE" \
-  "$RUN_DIR/env/modules.txt" "$RUN_DIR/fs_probe/permission_probe.json" "$RUN_DIR/manifest.json" \
-  > "$RUN_DIR/commands.log"
+PERMISSION_FILE="$TARGET_RUN_ROOT/.fsbdd-s0-permission-${RUN_ID}"
+printf '%s\n' "$RUN_ID" > "$PERMISSION_FILE"
+PERMISSION_MODE="$(stat -c '%a' "$PERMISSION_FILE")"
+PERMISSION_UID="$(stat -c '%u' "$PERMISSION_FILE")"
+PERMISSION_GID="$(stat -c '%g' "$PERMISSION_FILE")"
+rm -f "$PERMISSION_FILE"
+printf '{"schema_version":1,"create":true,"read":true,"delete":true,"probe_removed":true,"mode":"%s","uid":%s,"gid":%s}\n' \
+  "$PERMISSION_MODE" "$PERMISSION_UID" "$PERMISSION_GID" \
+  > "$RUN_DIR/probes/permissions.json"
+
+set +e
+lfs getstripe "$TARGET_RUN_ROOT" > "$RUN_DIR/probes/lfs_getstripe.stdout" 2> "$RUN_DIR/probes/lfs_getstripe.stderr"
+STRIPE_EXIT=$?
+lfs quota -g xg24i002 "$TARGET_RUN_ROOT" > "$RUN_DIR/probes/lfs_quota.stdout" 2> "$RUN_DIR/probes/lfs_quota.stderr"
+QUOTA_EXIT=$?
+set -e
+printf '{"schema_version":1,"command":"lfs getstripe","exit_code":%s,"stdout":"probes/lfs_getstripe.stdout","stderr":"probes/lfs_getstripe.stderr"}\n' \
+  "$STRIPE_EXIT" > "$RUN_DIR/probes/stripe.json"
+printf '{"schema_version":1,"command":"lfs quota -g xg24i002","exit_code":%s,"stdout":"probes/lfs_quota.stdout","stderr":"probes/lfs_quota.stderr"}\n' \
+  "$QUOTA_EXIT" > "$RUN_DIR/probes/quota.json"
+
 "$PYTHON" -m fsbdd_stage0.storage_bench manifest \
   --config "$STORAGE_CONFIG" \
   --run-id "$RUN_ID" \
@@ -133,73 +139,102 @@ printf '%q -m fsbdd_stage0.storage_bench manifest --config %q --run-id %q --init
   --filesystem-type "$FILESYSTEM_TYPE" \
   --filesystem-source "$FILESYSTEM_SOURCE" \
   --module-list "$RUN_DIR/env/modules.txt" \
-  --permission-probe "$RUN_DIR/fs_probe/permission_probe.json" \
+  --permission-probe "$RUN_DIR/probes/permissions.json" \
   --output "$RUN_DIR/manifest.json"
 
+{
+  echo "schema_version: 1"
+  echo "loop_id: $LOOP_ID"
+  echo "run_id: $RUN_ID"
+  echo "initial_hostname: miyabi-g1"
+  echo "compute_hostname: $HOST"
+  echo "compute_hosts_file: $RUN_DIR/env/compute_hosts.txt"
+  echo "pbs_job_id: $PBS_JOBID"
+  echo "pbs_nodefile: $PBS_NODEFILE"
+  echo "queue: ${PBS_QUEUE:-debug-g}"
+  echo "group: xg24i002"
+  echo "node_count: $HOST_COUNT"
+  echo "target_run_root: $TARGET_RUN_ROOT"
+  echo "filesystem_type: $FILESYSTEM_TYPE"
+  echo "filesystem_source: $FILESYSTEM_SOURCE"
+  echo "module_list_file: $RUN_DIR/env/modules.txt"
+  echo "smoke_path_mode: $PATH_MODE"
+  echo "expected_smoke_result: $EXPECTED_SMOKE_RESULT"
+  echo "submission_nonce: $SUBMISSION_NONCE"
+  echo "config_digest: $CONFIG_DIGEST"
+  echo "config_paths: $CONFIG_PATHS"
+  echo "miyabi_skill_repository: https://github.com/UnbearableFate/miyabi-development"
+  echo "miyabi_skill_commit: ad1fd34a9de976b4fb26ba47d9a1770430884765"
+  echo "raw_evidence_root: $RUN_DIR"
+} > "$RUN_DIR/manifest.yaml"
+
 if [[ "$PATH_MODE" == "shared" ]]; then
-  TEST_ROOT="$TARGET_RUN_ROOT/stage0-benchmarks/$RUN_ID"
+  TEST_ROOT="$TARGET_RUN_ROOT/stage0-storage-smoke/$RUN_ID"
 else
-  TEST_ROOT="/tmp/fsbdd-stage0-storage/$RUN_ID"
+  TEST_ROOT="/tmp/fsbdd-stage0-storage-smoke/$RUN_ID"
 fi
-ROLE_COMMAND=(
-  "$PYTHON" -m fsbdd_stage0.storage_bench smoke-role
-  --config "$STORAGE_CONFIG"
-  --run-id "$RUN_ID"
-  --test-root "$TEST_ROOT"
-  --result-root "$RUN_DIR/results"
-  --path-mode "$PATH_MODE"
-)
-printf 'mpirun -np 2 --hostfile %q --map-by ppr:1:node' "$RUN_DIR/env/distinct_hosts.txt" >> "$RUN_DIR/commands.log"
-printf ' %q' "${ROLE_COMMAND[@]}" >> "$RUN_DIR/commands.log"
+RESULT_ROOT="$RUN_DIR/results"
+mkdir -p "$RESULT_ROOT"
+
+printf '%q ' mpirun -np 2 --map-by ppr:1:node --hostfile "$PBS_NODEFILE" \
+  -x PYTHONPATH "$PYTHON" -m fsbdd_stage0.storage_bench smoke-role \
+  --config "$STORAGE_CONFIG" --test-root "$TEST_ROOT" \
+  --result-root "$RESULT_ROOT" --run-id "$RUN_ID" --path-mode "$PATH_MODE" \
+  > "$RUN_DIR/commands.log"
 printf '\n' >> "$RUN_DIR/commands.log"
 
 set +e
-mpirun -np 2 \
-  --hostfile "$RUN_DIR/env/distinct_hosts.txt" \
-  --map-by ppr:1:node \
-  "${ROLE_COMMAND[@]}" \
+mpirun -np 2 --map-by ppr:1:node --hostfile "$PBS_NODEFILE" \
+  -x PYTHONPATH \
+  "$PYTHON" -m fsbdd_stage0.storage_bench smoke-role \
+  --config "$STORAGE_CONFIG" \
+  --test-root "$TEST_ROOT" \
+  --result-root "$RESULT_ROOT" \
+  --run-id "$RUN_ID" \
+  --path-mode "$PATH_MODE" \
   > "$RUN_DIR/results/mpirun.stdout" \
   2> "$RUN_DIR/results/mpirun.stderr"
 MPI_EXIT=$?
 set -e
 printf '%s\n' "$MPI_EXIT" > "$RUN_DIR/results/mpirun_exit_code.txt"
 
-if [[ "$EXPECTED_SMOKE_RESULT" == "pass" && "$MPI_EXIT" -ne 0 ]]; then
-  cat "$RUN_DIR/results/mpirun.stderr" >&2
-  exit "$MPI_EXIT"
-fi
-if [[ "$EXPECTED_SMOKE_RESULT" == "failure" && "$MPI_EXIT" -eq 0 ]]; then
-  echo "Node-local negative control unexpectedly passed" >&2
-  exit 65
-fi
+case "$EXPECTED_SMOKE_RESULT" in
+  pass)
+    if [[ "$MPI_EXIT" -ne 0 ]]; then
+      cat "$RUN_DIR/results/mpirun.stderr" >&2
+      exit "$MPI_EXIT"
+    fi
+    ;;
+  failure)
+    if [[ "$MPI_EXIT" -eq 0 ]]; then
+      echo "Node-local negative smoke unexpectedly succeeded" >&2
+      exit 65
+    fi
+    ;;
+esac
 
-printf '%q -m fsbdd_stage0.storage_bench summarize-smoke --config %q --run-id %q --result-root %q --path-mode %q --expected %q\n' \
-  "$PYTHON" "$STORAGE_CONFIG" "$RUN_ID" "$RUN_DIR/results" "$PATH_MODE" "$EXPECTED_SMOKE_RESULT" \
-  >> "$RUN_DIR/commands.log"
 "$PYTHON" -m fsbdd_stage0.storage_bench summarize-smoke \
   --config "$STORAGE_CONFIG" \
+  --result-root "$RESULT_ROOT" \
   --run-id "$RUN_ID" \
-  --result-root "$RUN_DIR/results" \
   --path-mode "$PATH_MODE" \
   --expected "$EXPECTED_SMOKE_RESULT" \
   > "$RUN_DIR/results/summarize.stdout"
 
 {
   echo "schema_version: 1"
-  echo "loop_id: $LOOP_ID"
+  echo "status: complete"
   echo "run_id: $RUN_ID"
-  echo "path_mode: $PATH_MODE"
-  echo "expected_smoke_result: $EXPECTED_SMOKE_RESULT"
-  echo "smoke_path: $TEST_ROOT"
-  echo "target_run_root: $TARGET_RUN_ROOT"
-  echo "config_digest: $CONFIG_DIGEST"
-  echo "submission_nonce: $SUBMISSION_NONCE"
-  echo "code_commit: $(cat "$RUN_DIR/env/git_commit.txt")"
-  echo "raw_evidence_root: $RUN_DIR"
-} > "$RUN_DIR/run_identity.yaml"
+  echo "smoke_path_mode: $PATH_MODE"
+  echo "expected_result: $EXPECTED_SMOKE_RESULT"
+  echo "mpirun_exit_code: $MPI_EXIT"
+  echo "test_root: $TEST_ROOT"
+  echo "application_coordination: filesystem_only"
+  echo "mpi_usage: launcher_only"
+} > "$RUN_DIR/results/completion.yaml"
 
 find "$RUN_DIR" -type f ! -name checksums.sha256 -print0 \
   | sort -z \
   | xargs -0 sha256sum \
   > "$RUN_DIR/checksums.sha256"
-echo "Stage 0 storage smoke evidence complete: $RUN_DIR"
+echo "stage0 storage smoke evidence complete: $RUN_DIR"

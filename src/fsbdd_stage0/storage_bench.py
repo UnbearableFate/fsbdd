@@ -22,6 +22,8 @@ SKILL_COMMIT = "ad1fd34a9de976b4fb26ba47d9a1770430884765"
 COMPUTE_HOST_PATTERN = re.compile(r"^mg[0-9]+$")
 REQUIRED_MANIFEST_FIELDS = frozenset(
     {
+        "schema_version",
+        "skill_repository",
         "skill_commit",
         "initial_hostname",
         "compute_hosts",
@@ -131,8 +133,22 @@ def validate_storage_config(config: Mapping[str, Any]) -> None:
         raise StorageHarnessError("the smoke topology must be two nodes and one role per node")
     if smoke.get("required_distinct_hosts") != 2:
         raise StorageHarnessError("the smoke must require two distinct hosts")
-    if smoke.get("payload_bytes", 0) <= 0 or smoke.get("timeout_seconds", 0) <= 0:
-        raise StorageHarnessError("smoke payload and timeout must be positive")
+    for field in ("payload_bytes", "poll_interval_seconds", "timeout_seconds"):
+        value = smoke.get(field)
+        if isinstance(value, bool) or not isinstance(value, (int, float)) or value <= 0:
+            raise StorageHarnessError(f"smoke.{field} must be positive")
+    thresholds = config.get("thresholds")
+    if not isinstance(thresholds, Mapping):
+        raise StorageHarnessError("resolved Stage 0 storage thresholds are required")
+    h_seconds = thresholds.get("planned_sync_period_seconds")
+    if h_seconds != 50.0:
+        raise StorageHarnessError("the frozen planned synchronization period must be H=50s")
+    if thresholds.get("visibility_p99_seconds") != min(5.0, 0.05 * float(h_seconds)):
+        raise StorageHarnessError("visibility p99 must resolve to min(5s, 5% of H)")
+    if thresholds.get("metadata_steady_demand_ops_per_second") != 512.0:
+        raise StorageHarnessError("M=16,F=32 metadata demand must resolve to 512 ops/s")
+    if thresholds.get("metadata_required_ops_per_second") != 5120.0:
+        raise StorageHarnessError("metadata capacity threshold must be 10x steady demand")
 
 
 def require_compute_context(
@@ -140,7 +156,7 @@ def require_compute_context(
     hostname: str | None = None,
     environ: Mapping[str, str] | None = None,
 ) -> tuple[str, str, str]:
-    host = hostname or socket.gethostname()
+    host = (hostname or socket.gethostname()).split(".", maxsplit=1)[0]
     environment = os.environ if environ is None else environ
     job_id = environment.get("PBS_JOBID", "")
     nodefile = environment.get("PBS_NODEFILE", "")
@@ -269,6 +285,9 @@ def run_smoke_role(
             if acknowledgement["payload_sha256"] != expected_digest:
                 result["failure_kind"] = "acknowledgement_mismatch"
                 raise StorageHarnessError("reader acknowledgement has a different digest")
+            if acknowledgement["reader_host"] == host:
+                result["failure_kind"] = "same_host_roles"
+                raise StorageHarnessError("writer and reader ran on the same host")
             result.update(
                 {
                     "reader_host": acknowledgement["reader_host"],
@@ -297,6 +316,9 @@ def run_smoke_role(
             if record["run_id"] != run_id:
                 result["failure_kind"] = "visible_record_mismatch"
                 raise StorageHarnessError("visible record has a different run_id")
+            if record["writer_host"] == host:
+                result["failure_kind"] = "same_host_roles"
+                raise StorageHarnessError("writer and reader ran on the same host")
             observed_size = payload_path.stat().st_size
             observed_digest = file_sha256(payload_path)
             if observed_size != record["payload_bytes"] or observed_digest != record["payload_sha256"]:
@@ -331,6 +353,10 @@ def validate_environment_manifest(manifest: Mapping[str, Any]) -> None:
     missing = REQUIRED_MANIFEST_FIELDS - set(manifest)
     if missing:
         raise StorageHarnessError(f"environment manifest is missing {sorted(missing)}")
+    if manifest["schema_version"] != 1:
+        raise StorageHarnessError("environment manifest schema_version must be 1")
+    if manifest["skill_repository"] != SKILL_REPOSITORY:
+        raise StorageHarnessError("environment manifest has the wrong skill repository")
     if manifest["skill_commit"] != SKILL_COMMIT:
         raise StorageHarnessError("environment manifest has the wrong skill commit")
     hosts = manifest["compute_hosts"]
@@ -342,10 +368,22 @@ def validate_environment_manifest(manifest: Mapping[str, Any]) -> None:
         raise StorageHarnessError("environment manifest requires two distinct compute hosts")
     if manifest["filesystem_type"] != "lustre":
         raise StorageHarnessError("target RUN_ROOT was not identified as Lustre")
+    if manifest["initial_hostname"] != "miyabi-g1":
+        raise StorageHarnessError("initial control-plane hostname was not recorded")
     if not str(manifest["target_run_root"]).startswith("/work/"):
         raise StorageHarnessError("target RUN_ROOT is not below /work")
-    if not manifest["pbs_nodefile"] or not manifest["module_list"]:
-        raise StorageHarnessError("nodefile and module list evidence cannot be empty")
+    if not str(manifest["filesystem_source"]).strip():
+        raise StorageHarnessError("filesystem source evidence cannot be empty")
+    if not str(manifest["pbs_job_id"]).strip():
+        raise StorageHarnessError("PBS job identity cannot be empty")
+    nodefile = manifest["pbs_nodefile"]
+    modules = manifest["module_list"]
+    if not isinstance(nodefile, list) or not nodefile:
+        raise StorageHarnessError("nodefile evidence must be a non-empty list")
+    if set(map(str, nodefile)) != set(map(str, hosts)):
+        raise StorageHarnessError("nodefile hosts differ from compute_hosts")
+    if not isinstance(modules, list) or not modules:
+        raise StorageHarnessError("module list evidence must be a non-empty list")
 
 
 def build_environment_manifest(
@@ -380,10 +418,16 @@ def build_environment_manifest(
         "filesystem_source": filesystem_source,
         "module_list": module_list_path.read_text(encoding="utf-8").splitlines(),
         "permission_probe": dict(permission_probe),
+        "path_classification": "shared_protocol_path",
         "launcher": config["miyabi"]["launcher"],
         "ranks_per_node": config["miyabi"]["ranks_per_node"],
         "claims_boundary": config["claims_boundary"],
     }
+    if not all(
+        permission_probe.get(operation) is True
+        for operation in ("create", "read", "delete")
+    ):
+        raise StorageHarnessError("target RUN_ROOT permission probe was incomplete")
     validate_environment_manifest(manifest)
     return manifest
 
@@ -410,6 +454,16 @@ def summarize_smoke(
     if expected == "pass":
         if path_mode != "shared" or statuses != ["passed", "passed"]:
             raise StorageHarnessError("shared-path smoke did not pass on both roles")
+        if {result.get("role") for result in role_results} != {"writer", "reader"}:
+            raise StorageHarnessError("shared-path smoke did not execute both roles")
+        if len({result.get("payload_sha256") for result in role_results}) != 1:
+            raise StorageHarnessError("shared-path roles reported different payload digests")
+        if len({result.get("payload_bytes") for result in role_results}) != 1:
+            raise StorageHarnessError("shared-path roles reported different payload sizes")
+        if role_results[0].get("reader_host") != role_results[1].get("hostname"):
+            raise StorageHarnessError("writer acknowledgement did not identify the reader host")
+        if role_results[1].get("writer_host") != role_results[0].get("hostname"):
+            raise StorageHarnessError("reader record did not identify the writer host")
         outcome = "shared_visibility_confirmed"
     elif expected == "failure":
         failure_kinds = {str(result.get("failure_kind", "")) for result in role_results}
