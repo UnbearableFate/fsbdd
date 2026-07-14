@@ -42,31 +42,46 @@ red:
   evidence_path: runtime_runs/S1-01/red-c3c62da/stderr/red.log
 green:
   command: PYTHONPATH=src .venv/bin/python -m pytest -q tests/stage1/test_s1_01_model_registry.py
-  evidence_path: runtime_runs/S1-01/harden2-a57a5cb-2384525/stdout/pytest.log
+  evidence_path: runtime_runs/S1-01/harden3-1130df4-2384543/stdout/pytest.log
 harden:
   commands:
   - PYTHONPATH=src python -m pytest -q tests/stage1
-  - PYTHONPATH=src python -m fsbdd.hf_registry_summary --model EleutherAI/pythia-160m --revision 50f5173d932e8e61f858120bcb800b97af589f46
-  - PYTHONPATH=src python -m fsbdd.cli evidence validate runtime_runs/S1-01/harden2-a57a5cb-2384525
+  - PYTHONPATH=src python -m fsbdd.hf_registry_summary --model EleutherAI/pythia-160m --revision 50f5173d932e8e61f858120bcb800b97af589f46 --output <new-path>
+  - PYTHONPATH=src python -m fsbdd.cli evidence validate runtime_runs/S1-01/harden3-1130df4-2384543
   evidence_paths:
-  - runtime_runs/S1-01/harden2-a57a5cb-2384525/stdout/pytest.log
-  - runtime_runs/S1-01/harden2-a57a5cb-2384525/analysis/pythia-160m-registry.json
-  - runtime_runs/S1-01/harden2-a57a5cb-2384525/validation-summary.json
+  - runtime_runs/S1-01/harden3-1130df4-2384543/stdout/pytest.log
+  - runtime_runs/S1-01/harden3-1130df4-2384543/analysis/pythia-160m-registry.json
+  - runtime_runs/S1-01/harden3-1130df4-2384543/validation-summary.json
 nine_node_gate: {required: false, run_id: null, topology_gate: null, loss_gate: null, runtime_gate: null}
-checker: {context_id: null, maker_chat_inherited: false, phase_a_verdict: null, verdict: null, report_path: null}
+checker:
+  context_id: /root/s1_01_checker
+  maker_chat_inherited: false
+  phase_a_verdict: not_required
+  verdict: BLOCKED
+  report_path: reports/checkers/S1-01.md
+  cycles:
+  - cycle: 1
+    checked_candidate: 76ded38167390150522d019a1fd54a4e0b4646f5
+    verdict: BLOCKED
+    gaps: [explicit mapping bypassed decoder-only scope, registered buffers were not classified]
+    corrective_red: runtime_runs/S1-01/red-checker-901d81a/stdout/pytest.log
 persist:
   evidence_index: evidence/indexes/S1-01.md
   raw_evidence_root: runtime_runs/S1-01
   acceptance_traceability_updated: false
   next_gap: null
-  handoff: {proven_facts: [], checked_commit: null, selected_evidence: [], next_command: null}
+  handoff:
+    proven_facts: [decoder-only scope is enforced before adapter selection, all registered buffers require exact reconstructable classification, selected real Pythia registry covers 148 parameters and 2 buffers]
+    checked_commit: 1130df4f8836458c293aedecdc40a1ff01a27239
+    selected_evidence: [runtime_runs/S1-01/harden3-1130df4-2384543]
+    next_command: Recheck corrected candidate in the existing independent Checker context.
   cost:
-    attempts_by_level: {L0: 1, L1: 3}
+    attempts_by_level: {L0: 2, L1: 4}
     queue_seconds: null
     active_seconds: 95
-    checker_cycles: 0
+    checker_cycles: 1
     goal_tokens_end: null
     agent_tokens_used: null
     phase_token_deltas: {}
-    rework_causes: [first HF summary found integer-key config canonicalization gap; preserved and corrected before rerun]
+    rework_causes: [first HF summary found integer-key config canonicalization gap; Checker cycle 1 found explicit scope bypass and missing buffer policy; both histories are preserved and corrected]
 blocker: null
