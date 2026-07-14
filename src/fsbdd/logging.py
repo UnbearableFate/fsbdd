@@ -16,6 +16,12 @@ class StructuredLogger:
         path.parent.mkdir(parents=True, exist_ok=True)
 
     def emit(self, event: str, **fields: Any) -> dict[str, Any]:
+        reserved = {"schema_version", "timestamp_utc", "monotonic_ns", "pid", "run_id", "role", "event"}
+        collisions = reserved & fields.keys()
+        if collisions:
+            raise ValueError(f"structured log fields use reserved names: {sorted(collisions)}")
+        if not event:
+            raise ValueError("structured log event must be non-empty")
         record = {
             "schema_version": 1,
             "timestamp_utc": dt.datetime.now(dt.UTC).isoformat(timespec="microseconds").replace("+00:00", "Z"),
@@ -24,8 +30,8 @@ class StructuredLogger:
             "run_id": self.run_id,
             "role": self.role,
             "event": event,
-            **fields,
         }
+        record.update(fields)
         with self.path.open("a", encoding="utf-8") as stream:
             stream.write(json.dumps(record, sort_keys=True, separators=(",", ":")) + "\n")
             stream.flush()

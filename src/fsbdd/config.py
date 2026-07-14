@@ -5,6 +5,7 @@ import json
 import os
 from pathlib import Path
 from types import MappingProxyType
+from collections.abc import Mapping
 from typing import Any
 
 from .identity import canonical_digest
@@ -12,6 +13,22 @@ from .identity import canonical_digest
 
 class ConfigError(ValueError):
     pass
+
+
+def _deep_freeze(value: Any) -> Any:
+    if isinstance(value, dict):
+        return MappingProxyType({key: _deep_freeze(item) for key, item in value.items()})
+    if isinstance(value, list):
+        return tuple(_deep_freeze(item) for item in value)
+    return value
+
+
+def _deep_thaw(value: Any) -> Any:
+    if isinstance(value, Mapping):
+        return {key: _deep_thaw(item) for key, item in value.items()}
+    if isinstance(value, tuple):
+        return [_deep_thaw(item) for item in value]
+    return value
 
 
 def _strict(raw: object, name: str, fields: set[str]) -> dict[str, Any]:
@@ -102,10 +119,10 @@ class ResolvedConfig:
     storage: StorageConfig
     stop: StopConfig
     digest: str
-    raw: MappingProxyType
+    raw: Mapping[str, Any]
 
     def to_dict(self) -> dict[str, Any]:
-        return json.loads(json.dumps(dict(self.raw)))
+        return _deep_thaw(self.raw)
 
 
 @dataclasses.dataclass(frozen=True, slots=True)
@@ -184,7 +201,7 @@ def load_config(path: Path, *, environ: dict[str, str] | None = None) -> Resolve
         storage=StorageConfig(_nonempty(storage["backend"], "storage.backend"), Path(_nonempty(storage["root"], "storage.root"))),
         stop=StopConfig(_positive_int(stop["target_global_cycles"], "stop.target_global_cycles"), _positive_int(stop["max_walltime_seconds"], "stop.max_walltime_seconds")),
         digest=canonical_digest(frozen_raw),
-        raw=MappingProxyType(frozen_raw),
+        raw=_deep_freeze(frozen_raw),
     )
 
 

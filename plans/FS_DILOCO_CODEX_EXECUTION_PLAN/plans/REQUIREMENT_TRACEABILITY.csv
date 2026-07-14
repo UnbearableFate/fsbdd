@@ -21,7 +21,7 @@ FS-03,planned,S1-03,S1-04;S1-11,
 FS-04,planned,S1-04,,
 FS-05,planned,S0B-03,,
 FS-06,planned,S0B-03,S1-04;S2-03;S4-01,
-FS-07,passed,S1-00,S1-03,S1-00 generic identity and package integrity contract; storage payload checks continue in S1-03
+FS-07,planned,S1-00,S1-03,S1-00 generic component evidence only; storage payload checks continue in S1-03
 FS-08,planned,S0B-01,,
 FS-09,planned,S2-03,S3-03;S4-01,
 FS-10,planned,S1-04,S3-02,
@@ -78,11 +78,11 @@ PERF-06,planned,S2-05,,
 PERF-07,planned,S2-05,,
 PROG-01,planned,S1-12,,
 PROG-02,planned,S1-12,S1-13,
-PROG-03,passed,S1-00,S1-12,Typed stop configuration established; runtime enforcement continues in S1-12
-PROG-04,passed,S1-00,S1-06;S1-12,Distinct progress dimensions established; runtime reporting continues later
+PROG-03,planned,S1-00,S1-12,S1-00 typed component evidence; runtime enforcement continues in S1-12
+PROG-04,planned,S1-00,S1-06;S1-12,S1-00 typed component evidence; runtime reporting continues later
 PROG-05,planned,S1-06,,
 PROG-06,planned,S1-07,,
-PROP-01,passed,S1-00,S1-05,Generic run/model/fragment/config identity established; proposal schema continues in S1-05
+PROP-01,planned,S1-00,S1-05,S1-00 generic identity component evidence; proposal schema continues in S1-05
 PROP-02,planned,S1-03,,
 PROP-03,planned,S1-05,,
 PROP-04,planned,S1-05,S3-01;S4-04,
