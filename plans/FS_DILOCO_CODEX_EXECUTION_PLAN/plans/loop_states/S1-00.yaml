@@ -1,0 +1,62 @@
+schema_version: 2
+loop_id: S1-00
+title: Project skeleton, typed config, identity, and run manifest
+stage: stage1
+status: oriented
+source_hashes:
+  research_plan: 2c0db3148110da10ea62f445c189d2d53b405527d8da264b9af9817f5ca9d835
+  stage0_4_spec: 1ea71fb6e34fef0d7b5558d8e7999dfdedeb82957f4331afcf6f80279d1f5a7d
+git:
+  integration_branch: master
+  branch: codex/S1-00-skeleton-identity
+  base_commit: 0e704d76da207119469857bd9660cae45a6351e4
+  result_commit: null
+  dirty_at_start: false
+dependencies: [S0A-02, S0B-03, S0C-02]
+requirements: [DISC-03, ORACLE-05, PROP-01, FS-07, PROG-03, PROG-04]
+acceptance_ids: []
+orient:
+  unique_failing_gap: Production code has no typed/frozen run identity or mechanically validatable evidence-package contract.
+  planned_files: [pyproject.toml, src/fsbdd, tests/stage1, reports/stage1, evidence/indexes/S1-00.md]
+  model_data_profile: No model or data load; identity fields only.
+  miyabi_skill_commit: c3ddfa47cadfd9132edf939d359b90b28ab5f8ed
+  initial_hostname: miyabi-g1
+  workflow: remote-login-static-plus-compute-tests
+  context_inputs: [plans/PROGRESS.yaml, loops/stage1/S1-00.md, reports/stage_checkpoints/STAGE_0.md, templates/RUN_MANIFEST.yaml, templates/EVIDENCE_INDEX.md]
+  raw_evidence_on_demand: [runtime_runs/S1-00]
+  resource_level: L1
+  attempt_budget: {red: 1, targeted: 2, full: 1}
+  goal_tokens_start: 0
+  soft_token_budget: 50000
+preflight:
+  requirement_matrix: reports/stage1/S1-00-requirement-matrix.csv
+  requirements_complete: true
+  measurement_contract: reports/stage1/S1-00-evidence-contract.json
+  package_contract: reports/stage1/S1-00-evidence-contract.json
+  package_validator_command: fsbdd evidence validate <package>
+  package_validator_result: pending_implementation
+  checker_phase_a: not_required
+red:
+  command: python tests/red_cases/s1_00_naive_identity_evidence_surrogate.py
+  exit_code: null
+  evidence_path: null
+green: {command: null, evidence_path: null}
+harden: {commands: [], evidence_paths: []}
+nine_node_gate: {required: false, run_id: null, topology_gate: null, loss_gate: null, runtime_gate: null}
+checker: {context_id: null, maker_chat_inherited: false, phase_a_verdict: null, verdict: null, report_path: null}
+persist:
+  evidence_index: null
+  raw_evidence_root: runtime_runs/S1-00
+  acceptance_traceability_updated: false
+  next_gap: null
+  handoff: {proven_facts: [], checked_commit: null, selected_evidence: [], next_command: null}
+  cost:
+    attempts_by_level: {L0: 1}
+    queue_seconds: null
+    active_seconds: null
+    checker_cycles: 0
+    goal_tokens_end: null
+    agent_tokens_used: null
+    phase_token_deltas: {}
+    rework_causes: []
+blocker: null

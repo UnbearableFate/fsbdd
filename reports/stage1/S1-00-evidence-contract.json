@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "profiles": {
+    "local": {"resource_levels": ["L0", "L1"], "scheduler_required": false},
+    "pbs": {"resource_levels": ["L2", "L3", "L4"], "scheduler_required": true}
+  },
+  "identity_required": ["code", "config", "source", "skill", "execution", "timestamp_source", "roles", "paths"],
+  "timestamp_rule": "timestamp_utc must equal scheduler.qtime_utc only when time_source is pbs_qtime",
+  "directory_rule": "create with fail_if_exists; finalized packages are immutable",
+  "inventory_rule": "manifest payload inventory must equal actual non-control files",
+  "finalization": ["freeze manifest inventory", "write checksums.sha256", "validate every identity and checksum"],
+  "mutation_fixtures": [
+    "placeholder", "dirty_commit", "missing_source_hash", "missing_skill_commit",
+    "wrong_role_map", "listed_actual_mismatch", "checksum_mismatch", "directory_reuse",
+    "resume_identity_mismatch", "qtime_mismatch", "extra_file"
+  ]
+}
