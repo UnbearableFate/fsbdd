@@ -165,12 +165,30 @@ class TestASim02SweepOutputs(unittest.TestCase):
         with self.aggregate_path.open("r", encoding="utf-8", newline="") as handle:
             aggregates = list(csv.DictReader(handle))
         self.assertEqual(len(aggregates), 2592)
+        self.assertTrue(all(int(row["seed_count"]) == 3 for row in aggregates))
         for row in self.raw_rows[::257]:
             learners = int(row["learners"])
             fragments = int(row["fragments"])
+            accepted_tokens = int(row["accepted_tokens"])
+            discarded_tokens = int(row["discarded_tokens"])
+            token_opportunities = int(row["token_opportunities"])
             self.assertAlmostEqual(
                 float(row["visibility_delay_over_h"]),
                 float(row["visibility_delay_seconds"]) / float(row["h_steps"]),
+            )
+            self.assertAlmostEqual(
+                float(row["accepted_token_efficiency"]),
+                accepted_tokens / token_opportunities,
+                delta=1e-15,
+            )
+            discard_denominator = accepted_tokens + discarded_tokens
+            expected_discard = (
+                discarded_tokens / discard_denominator if discard_denominator else 0.0
+            )
+            self.assertAlmostEqual(
+                float(row["token_weighted_discard_rate"]),
+                expected_discard,
+                delta=1e-15,
             )
             self.assertLessEqual(int(row["max_latest_slots"]), learners * fragments)
             self.assertLessEqual(int(row["max_frontier_slots"]), learners * fragments)
@@ -184,6 +202,29 @@ class TestASim02SweepOutputs(unittest.TestCase):
             self.summary["recovery"]["unit"],
             "accepted-token efficiency fraction; multiply by 100 for percentage points",
         )
+
+    def test_sim_04__lognormal_default_region_records_seed_sensitivity(self) -> None:
+        rows = [
+            row
+            for row in self.raw_rows
+            if int(row["learners"]) == 8
+            and float(row["quorum_fraction"]) == 0.5
+            and float(row["heterogeneity_ratio"]) == 2.0
+            and float(row["grace_fraction_of_h"]) == 0.1
+            and float(row["visibility_delay_seconds"]) == 1.0
+            and int(row["s_max"]) == 1
+            and row["speed_model"] == "lognormal_jitter"
+        ]
+        self.assertEqual({int(row["seed"]) for row in rows}, {17, 29, 43})
+        outcomes = {
+            (
+                float(row["accepted_token_efficiency"]),
+                float(row["stale_acceptance_rate"]),
+                float(row["update_interval_mean"]),
+            )
+            for row in rows
+        }
+        self.assertGreater(len(outcomes), 1)
 
 
 if __name__ == "__main__":
