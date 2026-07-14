@@ -147,12 +147,12 @@ loops:
   title: Hugging Face Model Logical-Layer Registry
   depends_on:
   - S1-00
-  status: not_started
+  status: in_progress
   nine_node_gate_required: false
   acceptance_ids:
   - A-FRAG-01
-  branch: null
-  base_commit: null
+  branch: codex/S1-01-hf-layer-registry
+  base_commit: e6c0eadf62b4d0452eabf39dad7d741e82c9ac6f
   result_commit: null
   evidence_index: null
   checker_verdict: null

@@ -1,0 +1,9 @@
+{
+  "schema_version": 1,
+  "resource_level": "L1",
+  "families": ["gpt_neox", "llama", "explicit_third_variation"],
+  "real_structure": {"repository": "EleutherAI/pythia-160m", "weights_required": false},
+  "observations": ["ordered_layers", "unique_parameter_owners", "tied_aliases", "misc_assignments", "sync_bytes", "coverage"],
+  "red_cases": ["naive_family_parser", "duplicate_tied_owner", "unowned_misc", "ambiguous_guess"],
+  "formal_package": "S1-00 builder/finalizer/validator with clean code/config/source/skill/execution/role/path identity"
+}
