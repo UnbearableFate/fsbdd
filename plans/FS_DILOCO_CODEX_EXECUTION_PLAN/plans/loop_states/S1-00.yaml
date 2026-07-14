@@ -2,7 +2,7 @@ schema_version: 2
 loop_id: S1-00
 title: Project skeleton, typed config, identity, and run manifest
 stage: stage1
-status: check_pending
+status: pass
 source_hashes:
   research_plan: 2c0db3148110da10ea62f445c189d2d53b405527d8da264b9af9817f5ca9d835
   stage0_4_spec: 1ea71fb6e34fef0d7b5558d8e7999dfdedeb82957f4331afcf6f80279d1f5a7d
@@ -10,7 +10,7 @@ git:
   integration_branch: master
   branch: codex/S1-00-skeleton-identity
   base_commit: 0e704d76da207119469857bd9660cae45a6351e4
-  result_commit: null
+  result_commit: b9658c5882e75c5ad72b5c828eb43f731c455f3c
   dirty_at_start: false
 dependencies: [S0A-02, S0B-03, S0C-02]
 requirements: [DISC-03, ORACLE-05, PROP-01, FS-07, PROG-03, PROG-04]
@@ -51,18 +51,28 @@ harden:
   - runtime_runs/S1-00/harden2-79fd3e7-2384525/stdout/pytest.log
   - runtime_runs/S1-00/harden2-79fd3e7-2384525/validation-summary.json
 nine_node_gate: {required: false, run_id: null, topology_gate: null, loss_gate: null, runtime_gate: null}
-checker: {context_id: /root/s1_00_checker, maker_chat_inherited: false, phase_a_verdict: null, verdict: BLOCKED, report_path: reports/checkers/S1-00.md}
+checker: {context_id: /root/s1_00_checker, maker_chat_inherited: false, phase_a_verdict: null, verdict: PASS, report_path: reports/checkers/S1-00.md}
 persist:
   evidence_index: evidence/indexes/S1-00.md
   raw_evidence_root: runtime_runs/S1-00
-  acceptance_traceability_updated: false
-  next_gap: null
-  handoff: {proven_facts: [], checked_commit: null, selected_evidence: [], next_command: null}
+  acceptance_traceability_updated: true
+  next_gap: S1-01 logical-layer registry is not implemented.
+  handoff:
+    proven_facts:
+    - Typed config is deeply immutable and canonical identity covers all run fields.
+    - Local/PBS manifest profiles and adversarial evidence validator close the frozen mutation matrix.
+    - Role CLIs and structured logging are lightweight and reserve authoritative envelope fields.
+    checked_commit: b9658c5882e75c5ad72b5c828eb43f731c455f3c
+    selected_evidence:
+    - runtime_runs/S1-00/harden2-79fd3e7-2384525
+    - evidence/indexes/S1-00.md
+    - reports/checkers/S1-00.md
+    next_command: Start S1-01 ORIENT from the S1-00 closure commit.
   cost:
     attempts_by_level: {L0: 2, L1: 5}
     queue_seconds: null
     active_seconds: 520
-    checker_cycles: 1
+    checker_cycles: 2
     goal_tokens_end: null
     agent_tokens_used: null
     phase_token_deltas: {}

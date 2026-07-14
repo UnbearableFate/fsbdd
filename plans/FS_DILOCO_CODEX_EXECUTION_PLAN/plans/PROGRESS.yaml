@@ -19,7 +19,7 @@ capabilities:
     status: inactive
     established_by: S1-13
     baseline_9n_run_id: null
-current_loop: S1-00
+current_loop: S1-01
 loops:
 - id: S0C-01
   stage: stage0
@@ -133,14 +133,14 @@ loops:
   - S0A-02
   - S0B-03
   - S0C-02
-  status: in_progress
+  status: pass
   nine_node_gate_required: false
   acceptance_ids: []
   branch: codex/S1-00-skeleton-identity
   base_commit: 0e704d76da207119469857bd9660cae45a6351e4
-  result_commit: null
+  result_commit: b9658c5882e75c5ad72b5c828eb43f731c455f3c
   evidence_index: evidence/indexes/S1-00.md
-  checker_verdict: null
+  checker_verdict: PASS
   blocker: null
 - id: S1-01
   stage: stage1
