@@ -107,7 +107,7 @@ compatibility key。
   - `TRANSFORMERS_OFFLINE=1`
   - `HF_DATASETS_OFFLINE=1`
 - 不在每个 learner 同时下载或预处理；
-- 不在 login 节点导入或 materialize 数据。
+- 数据导入/materialize 的执行位置按 `miyabi-development` skill 的 host routing。
 
 ## 4.8 Loss 口径
 

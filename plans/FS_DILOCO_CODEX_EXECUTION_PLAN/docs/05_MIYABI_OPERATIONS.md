@@ -2,60 +2,20 @@
 
 ## 5.1 必须使用的 Codex skill
 
-外部依赖：
-
-[UnbearableFate/miyabi-development](https://github.com/UnbearableFate/miyabi-development)
-
-Codex 在任何 Miyabi 操作前必须读取其 `SKILL.md`。该 skill 负责：
-
-- hostname 路由；
-- login 节点控制面限制；
-- PBS interactive/debug 与 batch 运行；
-- module/环境发现；
-- GitHub 分支同步；
-- PyTorch/Hugging Face/PBS launcher 模式；
-- 作业日志和 walltime 检查。
-
-本包不复制 skill 中可能变化的 queue、节点名或 module 常量。每次 run 记录实际 skill commit。
+在涉及到代码运行,测试时使用skill miyabi-development
 
 ## 5.2 安装与确认
 
-在允许 Git 操作的控制面：
-
-```bash
-mkdir -p "$HOME/.codex/skills"
-git clone https://github.com/UnbearableFate/miyabi-development \
-  "$HOME/.codex/skills/miyabi-development"
-```
-
-已存在时：
-
-```bash
-git -C "$HOME/.codex/skills/miyabi-development" status --short --branch
-git -C "$HOME/.codex/skills/miyabi-development" rev-parse HEAD
-```
-
-更新只能 `pull --ff-only`，并应在新的 Codex session 生效。对一个进行中的 loop，不在未评估差异时更新 skill。
+已经安装,直接使用
 
 ## 5.3 Host routing
 
-第一条命令：
-
-```bash
-hostname
-```
-
-随后遵守 skill 分类：
-
-- local：编辑、轻量测试、commit/push；
-- Miyabi login/control-plane：查看、编辑、Git、静态检查、qsub/qstat、日志；
-- PBS compute/debug：Torch/HF import、pytest、训练、CUDA、MPI、运行时验证。
-
-未知 host 按 login 节点处理，直到 `$PBS_JOBID/$PBS_NODEFILE` 和 hostname 证明有效 allocation。
+login/compute 节点的分工、host 分类与在哪类节点上执行什么操作，一律以
+`miyabi-development` skill 的 host routing 为准；本包不复制、不另行规定。
 
 ## 5.4 环境发现
 
-在 compute allocation 中记录：
+在 skill 允许运行时检查的 allocation 中记录：
 
 ```bash
 hostname
@@ -67,7 +27,7 @@ python --version
 nvidia-smi
 ```
 
-Python/Torch/HF 版本检查必须在 compute node：
+Python/Torch/HF 版本检查（执行位置按 skill host routing）：
 
 ```bash
 python - <<'PY'

@@ -22,3 +22,4 @@ plans/temp
 /fsbdd-*.o*
 /fsbdd-*.e*
 /runtime_runs/
+.claude/settings.local.json

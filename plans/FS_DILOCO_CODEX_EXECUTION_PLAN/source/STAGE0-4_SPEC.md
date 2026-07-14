@@ -5,7 +5,6 @@ date: 2026-07-14
 status: Review Draft
 governs: plans/01/RESEARCH_PLAN.md 的 Stage 0 至 Stage 4
 supersedes: plans/01/FS_BASED_DECOUPLED_DILOCO_V1_REQUIREMENTS_AND_DESIGN_SPEC.md
-repository: https://github.com/UnbearableFate/fs_based_decoupled_diloco
 ---
 
 # FS-Based Decoupled DiLoCo：Stage 0–4 需求与设计规格

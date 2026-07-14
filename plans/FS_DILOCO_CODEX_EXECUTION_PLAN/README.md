@@ -13,7 +13,7 @@
    `REPO_ROOT` 或 resolved 外部路径；不得写进 `PLAN_ROOT`。
 5. 按 `ORIENT → SPECIFY/RED → IMPLEMENT/GREEN → HARDEN → CHECK → PERSIST` 执行。
 6. 所有 Miyabi 操作必须使用并遵守 [UnbearableFate/miyabi-development](https://github.com/UnbearableFate/miyabi-development)。
-7. 基础训练系统在 `S1-13` 完成后，后续每个实现 loop 都必须以一次新的真实 Miyabi 9 节点门禁结束：8 learners + 1 syncer、每 learner 1 GPU/1 node、pretrained GPT-2 small + WikiText-2 raw packed-512、`H=50` local optimizer steps、`target_global_cycles=10`，loss 有限且呈下降趋势，运行时间在预先冻结的预算内。
+7. 基础训练系统在 `S1-13` 完成后，后续每个实现 loop 都必须以一次新的真实 Miyabi 9 节点门禁结束：8 learners + 1 syncer、每 learner 1 GPU/1 node、pretrained GPT-2 small + WikiText-2 raw packed-512、`H=50` local optimizer steps、`target_global_cycles=10`，loss 有限且呈下降趋势，运行时间在预先冻结的预算内。`PROGRESS.yaml` 预注册的 gate 单元（`AGENTS.md` §5.1）允许相邻两个 loop 由单元 gate loop 的一次 run 合并履行门禁义务。
 8. loop 通过后更新 `$PLAN_ROOT/plans/PROGRESS.yaml`、tracked evidence
    index 和 Checker 报告；raw evidence 不提交 Git，也不得只在聊天上下文中宣称完成。
 9. Stage 1 起执行 `docs/13_STAGE0_RETROSPECTIVE_AND_STAGE1_EXECUTION.md`：先冻结

@@ -1,12 +1,19 @@
 schema_version: 1
-plan_version: '1.1.0'
+plan_version: '1.2.0'
 repository:
   integration_branch: master
   repo_root_source: git-rev-parse-show-toplevel
   plan_root: plans/FS_DILOCO_CODEX_EXECUTION_PLAN
 source_hashes:
   RESEARCH_PLAN.md: 2c0db3148110da10ea62f445c189d2d53b405527d8da264b9af9817f5ca9d835
-  STAGE0-4_SPEC.md: fad26a8add51e70ddf50d0130b61d80fe06e1c3945221c29508412a5bcab2feb
+  # 2026-07-15: SPEC frontmatter 移除 repository 行（无算法/协议语义变化，见 CHANGELOG v1.2.0）
+  STAGE0-4_SPEC.md: 1ea71fb6e34fef0d7b5558d8e7999dfdedeb82957f4331afcf6f80279d1f5a7d
+gate_units:
+  # 语义见 AGENTS.md §5.1：先行 loop 以 ≤L2 证据 + Checker PASS 关闭，
+  # 9N 义务由单元最后一个 loop 的一次 run 合并履行。
+  GU-S2-ASYNC: [S2-01, S2-02]
+  GU-S3-CRASH: [S3-02, S3-03]
+  GU-S4-STALE-SELECT: [S4-03, S4-04]
 capabilities:
   CAP_BASE_TRAINING:
     status: inactive
@@ -366,6 +373,7 @@ loops:
   - S1-13
   status: not_started
   nine_node_gate_required: true
+  gate_unit: GU-S2-ASYNC
   acceptance_ids: []
   branch: null
   base_commit: null
@@ -380,6 +388,7 @@ loops:
   - S2-01
   status: not_started
   nine_node_gate_required: true
+  gate_unit: GU-S2-ASYNC
   acceptance_ids: []
   branch: null
   base_commit: null
@@ -457,6 +466,7 @@ loops:
   - S3-01
   status: not_started
   nine_node_gate_required: true
+  gate_unit: GU-S3-CRASH
   acceptance_ids:
   - A-REC-01
   branch: null
@@ -472,6 +482,7 @@ loops:
   - S3-02
   status: not_started
   nine_node_gate_required: true
+  gate_unit: GU-S3-CRASH
   acceptance_ids:
   - A-REC-03
   branch: null
@@ -534,6 +545,7 @@ loops:
   - S4-02
   status: not_started
   nine_node_gate_required: true
+  gate_unit: GU-S4-STALE-SELECT
   acceptance_ids:
   - A-STALE-06
   branch: null
@@ -549,6 +561,7 @@ loops:
   - S4-03
   status: not_started
   nine_node_gate_required: true
+  gate_unit: GU-S4-STALE-SELECT
   acceptance_ids:
   - A-STALE-05
   - A-PROP-04

@@ -18,7 +18,22 @@
 | S2-04 | TEL-01..03 与 latency decomposition | 完整结构化 metrics |
 | S2-05 | goodput 优化与阶段关闭 | 95%/2% 等正式阈值 |
 
-每个 loop 都需要新的 8+1、H=50、global_cycle=10 run；不得只在 S2-05 跑一次。
+每个 loop 都需要 8+1、H=50、global_cycle=10 门禁，但 `GU-S2-ASYNC`（S2-01+S2-02）
+为预注册 gate 单元：S2-01 以 2-node overlap 证据先关闭，S2-02 的一次单元 run 同时
+断言 upload overlap 与 adoption pause，履行两个 loop 的 9N 义务（`AGENTS.md` §5.1）。
+其余 loop 各自一次新 run；不得把全部门禁推迟到 S2-05。
+
+## 执行与成本约束
+
+- S2-03 的 ≥2h slow-FS run 若以 9 节点 8+1 拓扑、1/10 限速 overlay 完成 50×10 且提交
+  前预注册双重用途，可同时充当该 loop 的 gate run。
+- goodput/pause 的正式测量定义（GPU busy 时间来源、共同区间、聚合公式）在 S2-04
+  冻结；S2-05 的 95%/2% 阈值只按该定义计算，不得合成非同步 rank-local rates。
+- 0.5–1B 系统 workload identity（模型/数据/tokenizer/预处理 revision）在 S2-05 任何
+  L4 run 前以 ADR 冻结。
+- 性能优化逐项开关、每项一个 profile 对照；无 profile 证据不得批量重构。
+- Checker 按 package validator summary 与 analyzer JSON 优先复核 gate；raw 仅在校验
+  失败时展开。每 loop 一个 Checker context（Phase A/B）。
 
 ## 验收覆盖
 

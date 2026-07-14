@@ -1,5 +1,13 @@
 # Codex 开始执行
 
+## 入口选择
+
+- **恢复已进行中的 loop**（常态）：只读 `$PLAN_ROOT/plans/PROGRESS.yaml`、当前 loop 卡
+  及其末尾「启动指令」的「恢复只读」清单（loop state、handoff、指定 evidence index）。
+  不重放聊天历史，不重读全部权威文档；仅当 source hash 与 PROGRESS 记录不符或
+  校验失败时才展开下面的完整首次流程。
+- **首次进入仓库或权威文档 hash 变化**：执行下节完整静态检查。
+
 ## 首次进入仓库
 
 从仓库内任意目录执行以下静态检查，不导入重型运行库：
@@ -43,7 +51,8 @@ loop。source、执行包和实现必须是 Git tracked，并能由 Miyabi 通�
 6. 完成最小 GREEN；按 static→targeted→1-node→2-node 阶梯 HARDEN。focused 迭代
    优先复用有效 1-node interactive/debug allocation。
 7. L2/L3/L4 前由唯一 Checker context 做 Phase A precheck，并运行 package validator。
-8. 若处于 `S1-13` 或之后，执行新的 Miyabi 8+1/50×10 门禁。
+8. 若处于 `S1-13` 或之后，执行新的 Miyabi 8+1/50×10 门禁；属于预注册 gate 单元的
+   loop 按 `AGENTS.md` §5.1 由单元 gate loop 的一次 run 合并履行。
 9. 由同一独立 Checker context 做 Phase B final check，使用
    `$PLAN_ROOT/templates/CHECKER_REPORT.md`。
 10. 更新 `$PLAN_ROOT/plans/PROGRESS.yaml`、
@@ -58,14 +67,13 @@ loop 默认最多一个 Checker context，blocked 修复通过 follow-up 继续�
 
 ## Miyabi 前置
 
-```bash
-hostname
-test -f "$HOME/.codex/skills/miyabi-development/SKILL.md"
-git -C "$HOME/.codex/skills/miyabi-development" rev-parse HEAD
-sed -n '1,260p' "$HOME/.codex/skills/miyabi-development/SKILL.md"
-```
+`miyabi-development` skill 已安装，涉及 Miyabi 的代码运行/测试直接使用它；
+login/compute 分工与执行位置一律按 skill 的 host routing，本包不另行规定。
+每个正式 run 仍须把当前 skill commit 记入 run manifest：
 
-若 skill 不存在，按其 GitHub 仓库安装后启动新的 Codex session。安装或更新动作必须记录；不在 login 节点运行 Torch/HF 导入或测试。
+```bash
+git -C "$HOME/.codex/skills/miyabi-development" rev-parse HEAD
+```
 
 ## 当前计划起点
 

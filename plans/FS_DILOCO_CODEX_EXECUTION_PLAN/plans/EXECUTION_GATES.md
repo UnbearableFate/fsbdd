@@ -11,13 +11,15 @@
 | X-PACKAGE-01 | 所有正式runtime run | 提交前与finalization后通用package validator通过 |
 | X-MEASURE-01 | 性能/并发 | 共同观察区间与聚合公式预先冻结，不合成非同步local rates |
 | X-COST-01 | L2–L4 | 低层阶梯和Checker Phase A通过；失败后先降级复现 |
-| X-9N-TOPOLOGY | S1-13及后续每loop | 8 learners +1 syncer，9 distinct compute nodes |
-| X-50X10 | S1-13及后续每loop | H=50 local optimizer steps，global_cycle≥10 |
-| X-LOSS | S1-13及后续每loop | finite且冻结的稳健趋势门禁通过 |
-| X-RUNTIME | S1-13及后续每loop | active runtime在预注册/兼容baseline范围 |
+| X-9N-TOPOLOGY | S1-13及后续每loop（或其gate单元） | 8 learners +1 syncer，9 distinct compute nodes |
+| X-50X10 | S1-13及后续每loop（或其gate单元） | H=50 local optimizer steps，global_cycle≥10 |
+| X-LOSS | S1-13及后续每loop（或其gate单元） | finite且冻结的稳健趋势门禁通过 |
+| X-RUNTIME | S1-13及后续每loop（或其gate单元） | active runtime在预注册/兼容baseline范围 |
 | X-EVIDENCE | 全部 | raw evidence+hash+Checker可复算 |
 
-`plans/PROGRESS.yaml` 中 `nine_node_gate_required: true` 的每个loop都必须有新的run ID。
+`plans/PROGRESS.yaml` 中 `nine_node_gate_required: true` 的每个 loop 都必须有新的
+run ID，或其 `gate_unit` 指向的单元 run ID（单元 run 的 analyzer 必须同时断言该
+loop 的 overlay 判据；见 `AGENTS.md` §5.1）。
 
 Checker 独立性默认通过每 loop 一个无 Maker 聊天继承的 Checker context 实现。L2–L4
 由该 context 先做 Phase A precheck、后做 Phase B final；不得用多个重复 final Checker

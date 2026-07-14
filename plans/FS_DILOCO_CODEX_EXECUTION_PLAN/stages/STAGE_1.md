@@ -56,6 +56,13 @@
   Phase A、运行后做 Phase B；普通工作不使用 subagent。
 - Agent 从 checkpoint/state/index 逐层读取，raw evidence on demand；大日志/CSV 先生成
   deterministic summary，以降低重复上下文和 token。
+- 正式 160M profile（Pythia 风格 ~160M + FineWeb-Edu/C4 独立 shard）的
+  model/tokenizer/dataset identity 必须在 `S1-06` 内以 ADR 冻结（不迟于其 HARDEN）；
+  `S1-13` 的 M=4/≥1B-token long run 直接使用该 identity，不得在 S1-13 才开始选型。
+- `S1-13` 起 loss/runtime/topology/protocol analyzer 输出 machine-readable JSON；
+  Checker 按 validator summary + analyzer JSON 优先复核，raw 仅在校验失败时展开。
+- 每张 loop 卡末尾的「启动指令」是 session 恢复入口；恢复时只加载卡内「恢复只读」
+  清单，不重读全部 stage 文档。
 
 ## 验收覆盖
 

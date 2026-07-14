@@ -8,7 +8,7 @@
 - Update: 只在 loop 边界评估并 `pull --ff-only`；更新后至少重跑环境/launcher smoke。
 - Conflict: 当前站点规则与 skill 的更新版本优先于本包中的示例。
 
-该 skill 的工作流把 login nodes 作为控制面，将 Torch/HF、训练、CUDA、MPI等运行时工作放到PBS compute nodes。本项目额外收窄：其 torchrun/Accelerate例子只能作为环境/launcher参考，不能建立跨learner数据面；FS协议仍是唯一算法通信介质。
+login/compute 分工与 host routing 一律以该 skill 为准，本包不复制其规则。本项目额外收窄：其 torchrun/Accelerate例子只能作为环境/launcher参考，不能建立跨learner数据面；FS协议仍是唯一算法通信介质。
 
 ## Python/ML Dependencies
 

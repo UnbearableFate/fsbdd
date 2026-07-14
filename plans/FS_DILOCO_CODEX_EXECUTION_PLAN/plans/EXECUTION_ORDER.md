@@ -26,22 +26,25 @@ Stage 0 的 0-A/0-B/0-C 可并行。下面是单一 Codex 会话的默认串行�
 19. S1-11  Atomic Global Commit 与 Consumed Frontier
 20. S1-12  Profile A 数值端到端与 Frozen Evaluation Snapshot
 21. S1-13  基础训练系统关闭与首个 Miyabi 8+1/50×10 Baseline
-22. S2-01  异步 GPU→CPU→FS Publication Pipeline
-23. S2-02  异步 FS→CPU→GPU Adoption Pipeline
-24. S2-03  Bounded Backpressure、Slow FS 与 GC
+22. S2-01  异步 GPU→CPU→FS Publication Pipeline          [GU-S2-ASYNC 先行]
+23. S2-02  异步 FS→CPU→GPU Adoption Pipeline              [GU-S2-ASYNC 单元 gate]
+24. S2-03  Bounded Backpressure、Slow FS 与 GC             [2h run 可双重用途]
 25. S2-04  Telemetry、Latency Decomposition 与 Gate Analyzer
 26. S2-05  Goodput 优化与 Stage 2 关闭
 27. S3-01  Learner Kill-Restart Recovery
-28. S3-02  Syncer Kill-Restart from Per-fragment Authority
-29. S3-03  Global Publication Crash Matrix
+28. S3-02  Syncer Kill-Restart from Per-fragment Authority [GU-S3-CRASH 先行]
+29. S3-03  Global Publication Crash Matrix                 [GU-S3-CRASH 单元 gate]
 30. S3-04  Quorum Availability Boundary、Automatic Resume 与 Stage 3 关闭
 31. S4-01  `S_max=1` Base History Window 与 Bounded GC
 32. S4-02  Old-base Displacement 与 Staleness Boundary/Rejections
-33. S4-03  Fresh Anchor、Readiness 与 Deterministic Candidate Selection
-34. S4-04  Inverse-staleness Weighting、Same-base Consumption 与 Latest Reorder
+33. S4-03  Fresh Anchor、Readiness 与 Deterministic Candidate Selection [GU-S4-STALE-SELECT 先行]
+34. S4-04  Inverse-staleness Weighting、Same-base Consumption 与 Latest Reorder [GU-S4-STALE-SELECT 单元 gate]
 35. S4-05  Profile B 实跑、Simulator 对齐与 Stale Acceptance Gate
 36. S4-06  Matched-token H3、多种子与 Stage 4 关闭
 ```
+
+gate 单元语义见 `AGENTS.md` §5.1：单元先行 loop 以 ≤L2 证据 + Checker PASS 关闭，
+9N 义务由单元 gate loop 的一次 run 合并履行；单元内不得插入其他实现 loop。
 
 ## Ready 判定
 
@@ -81,3 +84,23 @@ Stage 1 不新增 loop，但按以下里程碑升级资源：
 
 每个里程碑从 `PROGRESS.yaml`、loop state 和 evidence index 恢复；不要求重读全部历史
 Checker 或 raw logs。
+
+## Stage 2–4 成本里程碑
+
+1. Stage 2：`GU-S2-ASYNC`（S2-01+S2-02）共用一次 9N gate；S2-03 的 2h slow-FS run
+   预注册双重用途；S2-04 冻结 goodput/pause 正式测量定义（权威观察点、共同区间、
+   聚合公式），S2-05 的 95%/2% 阈值只按该定义计算；0.5–1B workload identity 在
+   S2-05 任何 L4 run 前以 ADR 冻结。
+2. Stage 3：`GU-S3-CRASH`（S3-02+S3-03）共用一次 fault-tape 9N run；restart/interval
+   的起止事件定义与 kill-point 矩阵全部提交前预注册；kill 场景先在 2-node 缩小复现，
+   再上 independent-jobs 9N。
+3. Stage 4：`GU-S4-STALE-SELECT`（S4-03+S4-04）共用一次异构 overlay 9N run；异构注入
+   profile 按 Stage 0 预测预注册且不得事后调参；S4-05 的 acceptance-rate 口径与
+   simulator 对齐公式提交前冻结；S4-06 的实验注册表（matched tokens、≥3 seeds、H3
+   检验、允许配置轴）在任何 research run 前冻结，9N 短 gate 不当质量实验。
+
+## Session 恢复入口
+
+每张 loop 卡末尾的「启动指令」是新 session 的标准入口：先读 `PROGRESS.yaml` 与该卡，
+再按卡内「恢复只读」清单加载最小上下文；不重放聊天历史，不重读整个 stage 文档集。
+Stage/协议文档仅在卡片引用处或校验失败时展开。

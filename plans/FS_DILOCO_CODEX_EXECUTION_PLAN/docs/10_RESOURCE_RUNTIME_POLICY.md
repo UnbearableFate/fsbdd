@@ -23,7 +23,7 @@
 
 L1 focused 迭代优先在一个有效的 1-node interactive/debug allocation 内批量完成；不要
 为每个小测试单独提交 batch。L2 以上、长时和需要 scheduler 作为正式证据的 run 使用
-batch。login 节点仍然只做 control-plane/static 工作。
+batch。执行位置（login/compute 分工）按 `miyabi-development` skill 的 host routing。
 
 每个 loop state 预登记 `attempt_budget`。L2/L3/L4 第一次失败后停止同级重试，先在最低
 可复现等级定位；只有 checked commit、resolved config 或环境修复发生可记录变化且低层
@@ -31,7 +31,9 @@ batch。login 节点仍然只做 control-plane/static 工作。
 
 ## 10.3 9 节点消耗控制
 
-基础系统后约有 15 个实现 loops。每个 loop 至少一次 9N gate。计划时记录：
+基础系统后约有 15 个实现 loops。每个 loop 一次 9N gate，或由预注册 gate 单元
+（`AGENTS.md` §5.1）合并履行；三个单元加上双重用途 run 后，标准路径约 12 次
+9N run。计划时记录：
 
 ```text
 node_hours = 9 × active_runtime_hours

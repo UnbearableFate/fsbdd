@@ -4,14 +4,12 @@
 
 强制步骤：
 
-1. 先读取当前 `~/.codex/skills/miyabi-development/SKILL.md` 及相关 references；
-2. `hostname` 路由；
-3. 从当前账户/项目发现 queue、literal `group_list`、modules、node shape、walltime；
-4. 填充所有 `<...>`，包括已验证的 1 CPU + 8 GPU coallocated resource string 与
+1. 使用 `miyabi-development` skill；login/compute 分工与执行位置一律按 skill 的
+   host routing，本包不另行规定；
+2. 从当前账户/项目发现 queue、literal `group_list`、modules、node shape、walltime；
+3. 填充所有 `<...>`，包括已验证的 1 CPU + 8 GPU coallocated resource string 与
    independent exclusive-host placement；
-5. login 节点只运行 `bash -n`、查看和 `qsub/qstat`；
-6. runtime 在 PBS compute nodes；
-7. 记录 script SHA、skill commit和module list。
+4. 记录 script SHA、skill commit和module list。
 
 文件：
 

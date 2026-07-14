@@ -118,7 +118,7 @@ HARDEN 不扩大算法范围，只证明当前实现不脆弱。
 
 1. 静态检查与纯 Python 无重依赖检查；
 2. 本地 unit/oracle/property；
-3. Miyabi login 节点静态检查；
+3. Miyabi 侧静态检查（执行位置按 `miyabi-development` skill 的 host routing）；
 4. 1-node compute targeted runtime；
 5. 1-node real Torch/HF model/data 10-step smoke；
 6. 2-node cross-node FS/launcher smoke（行为需要时）；

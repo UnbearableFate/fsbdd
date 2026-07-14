@@ -17,7 +17,20 @@ Stage 2 通过。
 | S3-03 | global publication interruption matrix | payload/visibility 前后 kill |
 | S3-04 | quorum shortage、other-fragment progress、automatic resume | independent jobs 为主 |
 
-每个 loop 需新的 8+1/50×10 run。Stage 3 优先使用 independent jobs，使角色能单独 kill/restart；coallocated run 只能作为补充。
+每个 loop 需 8+1/50×10 门禁，但 `GU-S3-CRASH`（S3-02+S3-03）为预注册 gate 单元：
+S3-02 以 2-node 缩小复现证据先关闭，S3-03 的一次 fault-tape run（含 syncer
+kill+restart 与 publication kill 点）履行两个 loop 的 9N 义务（`AGENTS.md` §5.1）。
+Stage 3 优先使用 independent jobs，使角色能单独 kill/restart；coallocated run 只能作为补充。
+
+## 执行与成本约束
+
+- restart 时间（≤5min）与恢复 interval（≤2× 正常 update interval）的起止事件定义、
+  kill-point 矩阵与每点重复次数全部在提交前预注册；不得作业后定义口径。
+- kill 场景先在进程内注入与 2-node 缩小复现通过后再消耗 9N；fault gate 首次失败
+  立即保存证据并降级复现。
+- Stage 3 全矩阵（10 次 syncer kill、learner ≤5min、publication matrix）的汇总口径
+  在 S3-04 冻结，并显式引用各 loop 已有证据，不重复重跑。
+- Checker 按 validator summary 与 analyzer JSON 优先复核；raw 仅在校验失败时展开。
 
 ## 验收覆盖
 

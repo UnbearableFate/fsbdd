@@ -4,7 +4,7 @@
 
 - Python 为主；shell 只负责环境、PBS 和轻量编排。
 - Python 版本由 Miyabi 上 PyTorch/CUDA/HF 实测兼容性决定，写入 `.python-version`、`pyproject.toml` 与 `uv.lock`。
-- 使用 `uv` 管理项目环境；重型依赖解析/安装不在 login 节点执行。
+- 使用 `uv` 管理项目环境；执行位置按 `miyabi-development` skill 的 host routing。
 - 推荐 `ruff format`、`ruff check`、`pytest`、`hypothesis`；类型检查选用项目已验证工具。
 - 所有 public protocol dataclass/schema 有类型、版本和显式验证。
 - 不捕获并吞掉异常；后台线程/进程错误必须传播到 role 状态与日志。
@@ -86,7 +86,7 @@ test_<requirement-or-acceptance-id>__<behavior>.py
 
 ## 2.8 禁止快捷方式
 
-- 不在 login 节点跑 Python runtime 测试；
+- 不违反 `miyabi-development` skill host routing 运行 runtime 工作；
 - 不用完整模型 checkpoint 交换假装 fragment 协议；
 - 不把 learner 进程组成 DDP world；
 - 不用 telemetry/目录历史推断 authority；

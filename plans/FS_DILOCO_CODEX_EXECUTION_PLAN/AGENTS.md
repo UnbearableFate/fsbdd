@@ -34,16 +34,9 @@
 
 ## 2. Miyabi 强制规则
 
-任何涉及筑波大学 Miyabi 的操作前：
-
-1. 确认并读取 [UnbearableFate/miyabi-development](https://github.com/UnbearableFate/miyabi-development) 的 `SKILL.md`。
-2. 若未安装，安装到 `~/.codex/skills/miyabi-development`；若已安装，记录当前 commit，不得无记录地更新。
-3. 执行 `hostname`，按 skill 的 host routing 选择本地、Miyabi login/control-plane 或 PBS compute-node 工作流。
-4. login 节点只做查看、编辑、Git、静态 shell 检查、`qsub/qstat` 与日志检查。不得在 login 节点运行 `pytest`、导入 `torch/transformers/datasets/accelerate`、训练、推理、预处理、CUDA、MPI 或分布式 launcher。
-5. 运行时检查只能在有效 PBS interactive/debug 或 batch compute allocation 中执行。
-6. 读取 skill 中与任务相关的 references；本项目通常至少涉及 Python environment 与 PBS/launcher 指南。
-7. 每个 run manifest 记录 skill 仓库 URL、commit、初始 hostname、节点类型、PBS job ID、queue、group、module list 和实际角色映射。
-8. skill 示例中的 queue、Python 版本、module、路径和 walltime 不是项目常量；先发现并验证，再冻结入项目配置。
+1. 使用miyabi-development skill
+2. 每个 run manifest 记录 skill 仓库 URL、commit、初始 hostname、节点类型、PBS job ID、queue、group、module list 和实际角色映射。
+3. skill 示例中的 queue、Python 版本、module、路径和 walltime 不是项目常量；先发现并验证，再冻结入项目配置。
 
 ## 3. Torch/Hugging Face 基线
 
@@ -130,6 +123,21 @@ diff、evidence index 和 manifest。subagent 不用于普通检索、总结或�
 - 生成完整证据包与独立 Checker 结论。
 
 低层检查未通过时不得消耗 9 节点。9 节点失败后先缩小复现和修复，再提交新的完整门禁 run；不得反复用集群试错。
+
+### 5.1 Gate 单元与双重用途 run
+
+`PROGRESS.yaml` 中预注册的相邻 loop 对构成 gate 单元（当前：`GU-S2-ASYNC` =
+S2-01+S2-02、`GU-S3-CRASH` = S3-02+S3-03、`GU-S4-STALE-SELECT` = S4-03+S4-04）。
+单元规则：
+
+- 单元内最后一个 loop 的一次门禁 run 履行两个 loop 的 9N 义务；该 run 的 analyzer
+  必须同时断言单元内每个 loop 的 overlay 判据；
+- 先行 loop 仍须完成其最高资源级别（≤L2）的全部证据并取得 Checker PASS 才能关闭；
+- 单元 run 失败且根因涉及先行 loop 时，两个 loop 一并重开；
+- 单元内不得插入其他实现 loop；新增或更改单元需用户批准并写 ADR。
+
+一次 run 可在提交前预注册为双重用途（loop gate + stage-level experiment），前提是
+overlay 同时满足两者判据且证据包分别可复算；事后不得追加用途。
 
 ## 6. Git 与变更权限
 
