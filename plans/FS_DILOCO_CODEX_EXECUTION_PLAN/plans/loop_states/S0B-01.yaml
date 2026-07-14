@@ -10,7 +10,7 @@ git:
   integration_branch: master
   branch: codex/S0B-01-storage-harness
   base_commit: 5a8b78c9765c1b13c5b21006a5243a32e2afc19d
-  result_commit: 49cbf0e385411997f0fc5167b84752ec83e50533
+  result_commit: 7681510482548c1f1c8c58f50b2510f72bcbeb43
   dirty_at_start: false
 dependencies: []
 requirements:
@@ -46,19 +46,20 @@ orient:
 red:
   command: qsub debug-g unsafe storage surrogate under verified current skill checkout
   exit_code: 1
-  evidence_path: evidence/raw/S0B-01/20260714T154100Z-red-provenance-n4e2a-99cd2ed9f546
+  evidence_path: evidence/raw/S0B-01/20260714T154749Z-red-provenance2-n8c5f-c41187a90807
   additional_evidence_paths:
     - evidence/raw/S0B-01/20260714T151400Z-red-n3d6a-d6b0d27e3bb2
 green:
   command: qsub debug-g two-node shared Lustre writer/reader smoke with canonical manifest
-  evidence_path: evidence/raw/S0B-01/20260714T154103Z-green-provenance-n1b7e-2018e813ad8e
+  evidence_path: evidence/raw/S0B-01/20260714T154053Z-green10-shared-n4c8e-2018e813ad8e
 harden:
   commands:
     - qsub debug-g full 41-test Stage 0 regression with verified skill provenance
     - qsub debug-g two-node node-local visibility negative control
   evidence_paths:
-    - evidence/raw/S0B-01/20260714T154101Z-harden-provenance-n6c3f-5a1a87a340ce
-    - evidence/raw/S0B-01/20260714T154102Z-red2-provenance-n8a5d-2018e813ad8e
+    - evidence/raw/S0B-01/20260714T154201Z-harden10-all-n9b4d-5a1a87a340ce
+    - evidence/raw/S0B-01/20260714T154111Z-harden9-local-n7e2a-2018e813ad8e
+    - evidence/raw/S0B-01/20260714T154217Z-harden11-repeat-n5a1f-2018e813ad8e
 nine_node_gate:
   required: false
   run_id: null

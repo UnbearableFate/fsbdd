@@ -83,7 +83,7 @@ loops:
   acceptance_ids: []
   branch: codex/S0B-01-storage-harness
   base_commit: 5a8b78c9765c1b13c5b21006a5243a32e2afc19d
-  result_commit: 49cbf0e385411997f0fc5167b84752ec83e50533
+  result_commit: 7681510482548c1f1c8c58f50b2510f72bcbeb43
   evidence_index: evidence/indexes/S0B-01.md
   checker_verdict: PASS
   blocker: null
