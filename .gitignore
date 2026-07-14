@@ -1,14 +1,29 @@
+# macOS metadata
+.DS_Store
+._*
+
 # Python-generated files
 __pycache__/
 *.py[oc]
 build/
 dist/
 wheels/
-*.egg-info
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
 
 # Virtual environments
-.venv
-plans/temp
+.venv/
+venv/
+
+# Local temporary planning work
+/plans/temp/
+
+# Generated execution-plan release archives
+/plans/FS_DILOCO_CODEX_EXECUTION_PLAN_v*.zip
 
 # Raw run evidence is durable outside Git. Commit only human-readable indexes.
 /evidence/*
