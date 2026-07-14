@@ -39,7 +39,8 @@ orient:
   model_data_profile: Fixed deterministic 4KiB smoke payload and small JSON visibility record; no model, dataset, training, GPU, or quality claim.
   resource_profile: One-node compute validation plus two distinct Miyabi CPU compute nodes; debug-g walltime 10 minutes; mpirun is launcher only and application data flows through target RUN_ROOT.
   miyabi_skill_repository: https://github.com/UnbearableFate/miyabi-development
-  miyabi_skill_commit: ad1fd34a9de976b4fb26ba47d9a1770430884765
+  miyabi_skill_commit: c3ddfa47cadfd9132edf939d359b90b28ab5f8ed
+  provenance_correction: The first Checker proved ad1fd34 was stale before ORIENT; corrected closure packages bind and snapshot the installed c3ddfa47 checkout. The first attempt remains immutable blocked history.
   initial_hostname: miyabi-g1
   workflow: miyabi-g1 is control plane only; every harness execution fails closed unless hostname and PBS context identify a compute allocation.
 red:

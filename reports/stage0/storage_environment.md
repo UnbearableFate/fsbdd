@@ -50,6 +50,7 @@ uses `time.monotonic_ns`; MPI only launches the two roles.
 | full HARDEN | `20260714T154101Z-harden-provenance-n6c3f-5a1a87a340ce` / `2383212.opbs` | all 41 Stage 0 tests passed | `6d18a86ed1ffb6f2285e2249b361279218823dead900ba8c26b58ca3aff3d8c4` |
 | node-local negative | `20260714T154102Z-red2-provenance-n8a5d-2018e813ad8e` / `2383214.opbs` | reader visibility and writer acknowledgement timed out on distinct hosts | `790573e68b933acf1d96659bba416f5344ff9c62cbe12713ee0a8aeffa018f8c` |
 | shared GREEN | `20260714T154103Z-green-provenance-n1b7e-2018e813ad8e` / `2383216.opbs` | both roles passed on the frozen Lustre root | `a531439f278a579bba13e22581855e9b3b1cf4d20c036730d820fd4130506b9f` |
+| independent shared repeat | `20260714T154217Z-harden11-repeat-n5a1f-2018e813ad8e` / `2383231.opbs` | a new immutable run again passed on two distinct hosts | `49f40dea4e0cad779462213a10d157ae4196031f2792a8bfc7e90f61cad3ec60` |
 
 The shared writer on `mg0031` and reader on `mg0032` agreed on 4096 bytes and
 SHA-256 `08274e65c07292386ed706ac8fb2824dd934bff2e6c25e5604c8033bf5400a39`.
@@ -79,7 +80,7 @@ provenance rather than replacing the original RED ordering.
 - Readers validate JSON schema, run identity, peer host, byte count and digest;
   summaries validate both ranks, distinct hosts and reciprocal role identity.
 - A run ID contains a fresh nonce and short config digest, and the wrapper
-  refuses an existing evidence directory. All four corrected packages pass
+  refuses an existing evidence directory. All five corrected packages pass
   their complete checksum manifests.
 - No Torch version, model, dataset, GPU, training-quality, protocol-correctness
   or nine-node-baseline claim is made.
