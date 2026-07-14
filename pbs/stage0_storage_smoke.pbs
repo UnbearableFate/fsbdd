@@ -236,8 +236,8 @@ esac
   echo "mpi_usage: launcher_only"
 } > "$RUN_DIR/results/completion.yaml"
 
+echo "stage0 storage smoke evidence complete: $RUN_DIR"
 find "$RUN_DIR" -type f ! -name checksums.sha256 -print0 \
   | sort -z \
   | xargs -0 sha256sum \
   > "$RUN_DIR/checksums.sha256"
-echo "stage0 storage smoke evidence complete: $RUN_DIR"
