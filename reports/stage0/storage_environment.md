@@ -4,84 +4,90 @@
 
 S0B-01 confirms that `/work/xg24i002/x10041/fsbdd/runtime_runs` is a writable
 Lustre path with cross-node visibility and is the frozen target `RUN_ROOT` for
-the later protocol and storage benchmarks.  Node-local `/tmp` is explicitly
-rejected for protocol coordination.  This is a harness-readiness decision, not
-a final filesystem qualification: visibility latency and atomic replacement
-remain S0B-02, and metadata/bandwidth capacity remain S0B-03.
+the later protocol and storage benchmarks. Node-local `/tmp` is explicitly
+rejected for protocol coordination. This is a harness-readiness decision, not
+a final filesystem qualification: visibility/atomicity remain S0B-02 and
+metadata/bandwidth capacity remain S0B-03.
 
-## Environment identity
+## Corrected environment identity
 
-| Field | Observed value |
+The first independent Checker found that the installed `miyabi-development`
+checkout had already advanced before S0B-01 ORIENT, while the initial packages
+recorded its parent. Those packages remain immutable as blocked history. The
+corrected closure binds the installed checkout, snapshots `SKILL.md`, and
+rejects a mismatch before any project runtime starts.
+
+| Field | Corrected observed value |
 |---|---|
 | Initial/control-plane host | `miyabi-g1` (submission and inspection only) |
-| Compute allocation | PBS `2383147.opbs`, `debug-g`, hosts `mg0031`, `mg0032` |
+| Compute allocation | PBS `2383216.opbs`, `debug-g`, hosts `mg0031`, `mg0032` |
 | Loaded modules | `nvidia/25.9`, `nv-hpcx/25.9` |
-| Launcher | `mpirun`, one Python role per node; MPI is launcher-only |
-| miyabi-development | `https://github.com/UnbearableFate/miyabi-development` at `ad1fd34a9de976b4fb26ba47d9a1770430884765` |
+| Launcher | Open MPI `4.1.9a1`, one Python role per node; launcher-only |
+| miyabi-development | `https://github.com/UnbearableFate/miyabi-development@c3ddfa47cadfd9132edf939d359b90b28ab5f8ed` |
 | Target path | `/work/xg24i002/x10041/fsbdd/runtime_runs` |
-| Filesystem | `lustre` mounted at `/work` |
+| Filesystem | `lustre` mounted read/write at `/work` |
 | Filesystem source | `172.16.20.201@o2ib200:172.16.20.202@o2ib200:172.16.20.211@o2ib200:172.16.20.212@o2ib200:/lustre/work` |
 | Default stripe observed | count `1`, size `1048576`, offset `-1` |
-| Permission probe | create/read/delete all passed; probe removed; mode `640`, uid `30041`, gid `34002` |
-| Group quota observation | gid `34002`; `26427034500` kbytes used, block hard limit `28991029248`; `12173887` files, inode hard limit `56623104` |
+| Permission probe | create/read/delete passed; probe removed; mode `640`, uid `30041`, gid `34002` |
 
-The structured manifest, PBS nodefile, module list, `findmnt`, `df`, `statfs`,
-Lustre stripe/quota output, and permission record are preserved under the
-shared-smoke evidence package.
+The JSON and YAML canonical manifests are byte-identical. They include node
+type, queue/group, full code/config identities, frozen config paths, PBS
+nodefile, filesystem and module identity, permission probe, and the actual
+rank/role/host/test-root mapping. The positive run is bound to code commit
+`dce034a684993cfd84858ebd09126b4f17863ba1` and config digest
+`2018e813ad8e7b5bca742b8e1f51f94e9ed784acad83b6aea1a3965b0f017b39`.
 
-## Cross-node smoke result
+## Corrected cross-node evidence
 
-The fixed 4096-byte deterministic payload was published visibility-last on the
-target `RUN_ROOT` by `mg0031` and read and hash-validated by `mg0032`.  Both
-roles reported SHA-256
-`ff1590d0f858164e49e922c9bdb5ed5a63396550ee276752b11a974bc7dd5f71`.
-The reader observed the publication after `1,420,167 ns`; the writer observed
-the filesystem acknowledgement after `148,357,277 ns`.  These timings prove
-the smoke handshake only and are not substituted for the S0B-02 latency
-distribution.
+The payload is a deterministic 4096-byte sequence. Payload and control records
+are written to same-directory exclusive temporary files, flushed and fsynced,
+published with `os.replace`, and followed by directory fsync. Reader polling
+uses `time.monotonic_ns`; MPI only launches the two roles.
 
-Evidence:
+| Phase | Evidence / PBS job | Result | Checksum-manifest SHA-256 |
+|---|---|---|---|
+| RED provenance repair | `20260714T154100Z-red-provenance-n4e2a-99cd2ed9f546` / `2383210.opbs` | all three unsafe assumptions failed specifically | `b971dcfe55deb0f2f1e863a55bbcb53d4f035149aad6eeb6f136400e70b10d55` |
+| full HARDEN | `20260714T154101Z-harden-provenance-n6c3f-5a1a87a340ce` / `2383212.opbs` | all 41 Stage 0 tests passed | `6d18a86ed1ffb6f2285e2249b361279218823dead900ba8c26b58ca3aff3d8c4` |
+| node-local negative | `20260714T154102Z-red2-provenance-n8a5d-2018e813ad8e` / `2383214.opbs` | reader visibility and writer acknowledgement timed out on distinct hosts | `790573e68b933acf1d96659bba416f5344ff9c62cbe12713ee0a8aeffa018f8c` |
+| shared GREEN | `20260714T154103Z-green-provenance-n1b7e-2018e813ad8e` / `2383216.opbs` | both roles passed on the frozen Lustre root | `a531439f278a579bba13e22581855e9b3b1cf4d20c036730d820fd4130506b9f` |
 
-- Shared positive: `evidence/raw/S0B-01/20260714T152721Z-harden3-n8d4e-d27938bf5c40`, checksum-manifest SHA-256 `6c13d30b9a61f29ce94daaaa36f14f158f8108cf8ebab92edfaad940093a1e90`.
-- Node-local negative control: `evidence/raw/S0B-01/20260714T152720Z-red5-n3c9a-d27938bf5c40`, checksum-manifest SHA-256 `0bf86b712a451fc75265a4ef30b3b502d06f46f6e0d58607535cc6df76d4f1b6`.
-- Storage unit/static hardening: `evidence/raw/S0B-01/20260714T152628Z-harden-n6e1c-39928d85f6ae`, 8/8 tests passed, checksum-manifest SHA-256 `d058b3f8a64301cdb4ce360c93e791b47210c7088f3ce04bd4cad7b44e601a4e`.
-- Full Stage 0 regression hardening: `evidence/raw/S0B-01/20260715T004500Z-harden5-all-n2c7f-81d651352a02`, 41/41 tests passed, checksum-manifest SHA-256 `fede5ba64c82e590ba148cf80680d5acf940d7e4eb6566dbb39b774d778135f4`.
+The shared writer on `mg0031` and reader on `mg0032` agreed on 4096 bytes and
+SHA-256 `08274e65c07292386ed706ac8fb2824dd934bff2e6c25e5604c8033bf5400a39`.
+The reader-local visibility wait was `1.935ms`; writer-side publication through
+acknowledgement was `143.803ms`. These are smoke-handshake durations, not the
+S0B-02 latency distribution or a cross-host clock claim.
 
-The node-local control placed the same absolute `/tmp` path on `mg0017` and
-`mg0018`.  The reader timed out waiting for the writer's visibility record and
-the writer timed out waiting for the reader acknowledgement, so the harness
-classified the path as `node_local_visibility_rejected` for the intended
-reason.
+The node-local control used the same absolute `/tmp` name on writer `mg0018`
+and reader `mg0030`. The reader could not see the visibility record and the
+writer could not see an acknowledgement. The two-rank MPI command exited `2`,
+and the enclosing expected-negative contract recorded
+`node_local_visibility_rejected` without an error-trap false alarm.
+
+The original pre-implementation RED remains at
+`20260714T151400Z-red-n3d6a-d6b0d27e3bb2`. The corrected RED repeats its exact
+three failures under the actual skill checkout; it repairs environment
+provenance rather than replacing the original RED ordering.
 
 ## Safety and reproducibility
 
-- Every runtime entry point fails closed unless the short hostname matches a
-  Miyabi compute host and both `PBS_JOBID` and `PBS_NODEFILE` are present.
-- The structured environment manifest requires the skill commit, initial and
-  compute hosts, PBS identity/nodefile, target path, filesystem type/source,
-  module list, and successful permission probe.
-- Payload publication and all handshake records use same-directory temporary
-  files, `fsync`, and `os.replace`; readers validate record schema, byte count,
-  digest, run identity, and distinct host identity.
-- Run directories are immutable by construction: the PBS wrapper refuses an
-  existing evidence path, and each submission identity includes a nonce and
-  resolved config digest.
-- Application payload and coordination use only the path under test.  MPI is
-  not an application-data transport.
-
-## RED provenance
-
-Before the harness existed, the deliberately unsafe surrogate admitted a
-login-host benchmark, omitted required environment/FS identity, and assumed an
-absolute `/tmp` path was shared.  All three contracts failed in
-`evidence/raw/S0B-01/20260714T151400Z-red-n3d6a-d6b0d27e3bb2`;
-checksum-manifest SHA-256
-`0fb47c4af76a9af9caf404bc3f9e5724b33534ee86377ae468bdfaebd74c720f`.
+- Every entrypoint fails closed outside an `mg<number>` PBS allocation.
+- Runtime wrappers compare the requested skill commit to the installed Git
+  checkout, preserve its clean-status output and `SKILL.md`, and record the
+  observed commit in the canonical evidence.
+- Shared mode is confined below the frozen target root; local-negative mode is
+  confined below `/tmp`.
+- Readers validate JSON schema, run identity, peer host, byte count and digest;
+  summaries validate both ranks, distinct hosts and reciprocal role identity.
+- A run ID contains a fresh nonce and short config digest, and the wrapper
+  refuses an existing evidence directory. All four corrected packages pass
+  their complete checksum manifests.
+- No Torch version, model, dataset, GPU, training-quality, protocol-correctness
+  or nine-node-baseline claim is made.
 
 ## Next measurement gap
 
-S0B-02 must measure empty and loaded cross-node visibility distributions,
-report p50/p95/p99/max with a conservative cross-host timing method, and run at
-least 100000 atomic replacements with multiple readers and zero torn records.
-The frozen visibility threshold is `p99 <= 2.5 s` from
-`min(5 s, 0.05 * H)` with `H=50 s`.
+S0B-02 must report empty and loaded p50/p95/p99/max using a conservative
+single-clock acknowledgement method and must execute at least 100000 atomic
+record replacements with multiple readers and zero torn records. The frozen
+visibility threshold is `p99 <= 2.5s`, derived from `min(5s, 0.05 * H)` with
+`H=50s`. S0B-03 must separately decide metadata and bandwidth capacity.
