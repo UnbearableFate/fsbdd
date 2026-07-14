@@ -17,6 +17,7 @@ export PAGER=cat MODULES_PAGER=cat LMOD_PAGER=cat
 : "${EXPECTED_TEST_RESULT:=pass}"
 : "${SUBMISSION_NONCE:?SUBMISSION_NONCE is required}"
 : "${CONFIG_DIGEST:?CONFIG_DIGEST is required}"
+: "${CONFIG_PATHS:?CONFIG_PATHS is required}"
 : "${EVIDENCE_ROOT:=$PROJECT_ROOT/evidence/raw}"
 
 CONFIG_DIGEST_SHORT="${CONFIG_DIGEST:0:12}"
@@ -58,6 +59,24 @@ sha256sum \
   plans/FS_DILOCO_CODEX_EXECUTION_PLAN/source/STAGE0-4_SPEC.md \
   > "$RUN_DIR/env/source_hashes.txt"
 
+read -r -a CONFIG_ARRAY <<< "$CONFIG_PATHS"
+if [[ "${#CONFIG_ARRAY[@]}" -eq 0 ]]; then
+  echo "CONFIG_PATHS must name at least one tracked input" >&2
+  exit 64
+fi
+sha256sum "${CONFIG_ARRAY[@]}" > "$RUN_DIR/configs/config_digest_inputs.sha256"
+ACTUAL_CONFIG_DIGEST="$(sha256sum "$RUN_DIR/configs/config_digest_inputs.sha256" | awk '{print $1}')"
+if [[ "$ACTUAL_CONFIG_DIGEST" != "$CONFIG_DIGEST" ]]; then
+  echo "CONFIG_DIGEST mismatch: expected=$CONFIG_DIGEST actual=$ACTUAL_CONFIG_DIGEST" >&2
+  exit 65
+fi
+printf '%s\n' "${CONFIG_ARRAY[@]}" > "$RUN_DIR/configs/config_paths.txt"
+for index in "${!CONFIG_ARRAY[@]}"; do
+  source_path="${CONFIG_ARRAY[$index]}"
+  printf -v snapshot_name 'input-%03d-%s' "$index" "$(basename "$source_path")"
+  cp -- "$source_path" "$RUN_DIR/configs/$snapshot_name"
+done
+
 {
   echo "schema_version: 1"
   echo "loop_id: $LOOP_ID"
@@ -72,6 +91,7 @@ sha256sum \
   echo "expected_test_result: $EXPECTED_TEST_RESULT"
   echo "submission_nonce: $SUBMISSION_NONCE"
   echo "config_digest: $CONFIG_DIGEST"
+  echo "config_paths: $CONFIG_PATHS"
   echo "miyabi_skill_repository: https://github.com/UnbearableFate/miyabi-development"
   echo "miyabi_skill_commit: ad1fd34a9de976b4fb26ba47d9a1770430884765"
   echo "raw_evidence_root: $RUN_DIR"

@@ -143,6 +143,14 @@ class TestASim01EventSemantics(unittest.TestCase):
         result = simulate(config)
         self.assertLessEqual(result.max_latest_slots, config.learners * config.fragments)
         self.assertLessEqual(result.max_frontier_slots, config.learners * config.fragments)
+        self.assertLessEqual(
+            result.max_rejection_tracking_slots,
+            config.learners * config.fragments,
+        )
+        self.assertLessEqual(
+            result.max_accepted_tracking_slots,
+            config.learners * config.fragments,
+        )
         self.assertLessEqual(len(result.trace), config.max_trace_events)
         self.assertLessEqual(result.max_event_queue, config.learners * config.fragments * 4)
         json.dumps(result.as_dict(), sort_keys=True, allow_nan=False)
@@ -178,6 +186,45 @@ class TestASim01EventSemantics(unittest.TestCase):
             with self.subTest(replacement=replacement):
                 with self.assertRaises(ValueError):
                     SimulationConfig(**{**valid, **replacement})
+
+    def test_inv_08__identity_accounting_is_fixed_size_as_duration_scales(self) -> None:
+        base = dict(
+            learners=1,
+            fragments=1,
+            q=1,
+            q_fresh=1,
+            s_max=1,
+            lambda_s=1.0,
+            h_steps=4,
+            grace_fraction_of_h=0.1,
+            upload_delay_seconds=0.5,
+            visibility_delay_seconds=2.0,
+            heterogeneity_ratio=1.0,
+            tokens_per_step=8,
+            seed=41,
+            max_trace_events=0,
+        )
+        for speed_model in ("constant_ratio", "lognormal_jitter"):
+            with self.subTest(speed_model=speed_model):
+                short = simulate(
+                    SimulationConfig(
+                        duration_seconds=80.0,
+                        speed_model=speed_model,
+                        **base,
+                    )
+                )
+                long = simulate(
+                    SimulationConfig(
+                        duration_seconds=2_000.0,
+                        speed_model=speed_model,
+                        **base,
+                    )
+                )
+                self.assertGreater(long.accepted_proposals, short.accepted_proposals)
+                self.assertEqual(short.max_accepted_tracking_slots, 1)
+                self.assertEqual(long.max_accepted_tracking_slots, 1)
+                self.assertLessEqual(short.max_rejection_tracking_slots, 1)
+                self.assertLessEqual(long.max_rejection_tracking_slots, 1)
 
 
 if __name__ == "__main__":

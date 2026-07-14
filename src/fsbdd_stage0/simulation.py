@@ -190,6 +190,8 @@ class SimulationResult:
     max_event_queue: int
     max_latest_slots: int
     max_frontier_slots: int
+    max_rejection_tracking_slots: int
+    max_accepted_tracking_slots: int
     trace: tuple[dict[str, Any], ...]
 
     def as_dict(self) -> dict[str, Any]:
@@ -212,6 +214,8 @@ class SimulationResult:
             "max_event_queue": self.max_event_queue,
             "max_latest_slots": self.max_latest_slots,
             "max_frontier_slots": self.max_frontier_slots,
+            "max_rejection_tracking_slots": self.max_rejection_tracking_slots,
+            "max_accepted_tracking_slots": self.max_accepted_tracking_slots,
             "trace": list(self.trace),
         }
 
@@ -280,8 +284,8 @@ class _Simulator:
         self.accepted_proposals = 0
         self.stale_accepted_proposals = 0
         self.stale_accepted_tokens = 0
-        self.accepted_ids: set[str] = set()
-        self.counted_rejections: set[str] = set()
+        self.last_accepted_by_slot: dict[tuple[int, int], str] = {}
+        self.last_counted_rejection_by_slot: dict[tuple[int, int], str] = {}
         self.rejection_counts: dict[str, int] = {}
         self.trace: list[dict[str, Any]] = []
         self.max_event_queue = 0
@@ -397,18 +401,23 @@ class _Simulator:
         return select_proposals(proposals, self.frontiers[fragment], policy)
 
     def _count_rejections(self, result) -> None:
-        visible_by_id = {proposal.proposal_id: proposal for proposal in self.latest.values()}
+        visible_by_id = {
+            proposal.proposal_id: (slot, proposal)
+            for slot, proposal in self.latest.items()
+        }
         for proposal_id, reason in result.rejections.items():
-            self.rejection_counts[reason] = self.rejection_counts.get(reason, 0) + (
-                0 if proposal_id in self.counted_rejections else 1
-            )
-            if proposal_id in self.counted_rejections:
+            visible = visible_by_id.get(proposal_id)
+            if visible is None:
                 continue
-            self.counted_rejections.add(proposal_id)
-            if proposal_id in self.accepted_ids or reason == "duplicate_learner":
+            slot, proposal = visible
+            if self.last_counted_rejection_by_slot.get(slot) == proposal_id:
                 continue
-            proposal = visible_by_id.get(proposal_id)
-            if proposal is not None:
+            self.last_counted_rejection_by_slot[slot] = proposal_id
+            self.rejection_counts[reason] = self.rejection_counts.get(reason, 0) + 1
+            if (
+                self.last_accepted_by_slot.get(slot) != proposal_id
+                and reason != "duplicate_learner"
+            ):
                 self.discarded_tokens += proposal.tokens
 
     def _evaluate_new_visibility(self, time_value: float, fragment: int) -> None:
@@ -436,7 +445,10 @@ class _Simulator:
         self.accepted_proposals += len(selected)
         self.stale_accepted_proposals += len(stale)
         self.stale_accepted_tokens += sum(proposal.tokens for proposal in stale)
-        self.accepted_ids.update(proposal.proposal_id for proposal in selected)
+        selected_ids = {proposal.proposal_id for proposal in selected}
+        for slot, proposal in self.latest.items():
+            if slot[1] == fragment and proposal.proposal_id in selected_ids:
+                self.last_accepted_by_slot[slot] = proposal.proposal_id
         self.current_versions[fragment] += 1
         self.update_counts[fragment] += 1
         previous_time = self.last_update_times[fragment]
@@ -546,6 +558,8 @@ class _Simulator:
             max_event_queue=self.max_event_queue,
             max_latest_slots=self.max_latest_slots,
             max_frontier_slots=self.max_frontier_slots,
+            max_rejection_tracking_slots=len(self.last_counted_rejection_by_slot),
+            max_accepted_tracking_slots=len(self.last_accepted_by_slot),
             trace=tuple(self.trace),
         )
 
