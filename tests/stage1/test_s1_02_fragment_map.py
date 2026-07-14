@@ -215,6 +215,17 @@ def test_map_sync_dtype_must_match_bound_registry() -> None:
         validate_fragment_map(tampered, registry)
 
 
+def test_registry_parameter_bytes_must_match_sync_dtype() -> None:
+    registry = registry_from_bytes((3, 4, 5, 6))
+    changed = dataclasses.replace(registry.parameters[0], sync_bytes=99)
+    parameters = (changed, *registry.parameters[1:])
+    layer = dataclasses.replace(registry.layers[0], sync_bytes=99)
+    tampered = dataclasses.replace(registry, parameters=parameters, layers=(layer, *registry.layers[1:]))
+    tampered = dataclasses.replace(tampered, digest=canonical_digest(tampered._body()))
+    with pytest.raises(FragmentMapError, match="parameter synchronization bytes"):
+        build_fragment_map(tampered, 2)
+
+
 def test_report_contains_exact_ownership_and_balance_summary(tmp_path) -> None:
     from fsbdd.fragment_map import write_fragment_map_report
 

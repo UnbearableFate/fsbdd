@@ -205,6 +205,12 @@ def partition_layer_bytes(weights: tuple[int, ...], fragment_count: int) -> Frag
 def _validate_registry(registry: LogicalLayerRegistry) -> None:
     if registry.digest != canonical_digest(registry._body()):
         raise FragmentMapError("logical-layer registry digest mismatch")
+    if (
+        not isinstance(registry.sync_dtype_bytes, int)
+        or isinstance(registry.sync_dtype_bytes, bool)
+        or registry.sync_dtype_bytes <= 0
+    ):
+        raise FragmentMapError("registry sync_dtype_bytes must be a positive integer")
     layers = registry.layers
     if tuple(layer.index for layer in layers) != tuple(range(len(layers))):
         raise FragmentMapError("logical-layer indices must be contiguous and ordered")
@@ -221,6 +227,9 @@ def _validate_registry(registry: LogicalLayerRegistry) -> None:
         or registry.coverage.unowned != 0
     ):
         raise FragmentMapError("registry trainable-parameter coverage is incomplete")
+    for record in registry.parameters:
+        if record.numel < 0 or record.sync_bytes != record.numel * registry.sync_dtype_bytes:
+            raise FragmentMapError(f"registry parameter synchronization bytes mismatch: {record.owner_name}")
     for layer in layers:
         records = [parameter_records[identity] for identity in layer.parameter_identities]
         if layer.parameter_count != sum(record.numel for record in records):
@@ -337,10 +346,14 @@ def build_fragment_map(
 
 def validate_fragment_map(fragment_map: FragmentMap, registry: LogicalLayerRegistry) -> None:
     _validate_registry(registry)
+    if fragment_map.schema_version != 1:
+        raise FragmentMapError("unsupported fragment map schema_version")
     if fragment_map.digest != canonical_digest(fragment_map._body()):
         raise FragmentMapError("fragment map digest mismatch")
     if fragment_map.registry_digest != registry.digest:
         raise FragmentMapError("fragment map references a different logical-layer registry")
+    if fragment_map.sync_dtype_bytes != registry.sync_dtype_bytes:
+        raise FragmentMapError("fragment map sync_dtype_bytes differs from its registry")
     if fragment_map.layer_count != len(registry.layers):
         raise FragmentMapError("fragment map layer count mismatch")
     expected_layers = tuple(
@@ -396,8 +409,18 @@ def validate_fragment_map(fragment_map: FragmentMap, registry: LogicalLayerRegis
     expected_objective = partition_layer_bytes(
         tuple(layer.sync_bytes for layer in fragment_map.layers), fragment_map.fragment_count
     )
-    if fragment_map.objective != expected_objective:
-        raise FragmentMapError("fragment map does not satisfy the frozen optimal objective")
+    actual_cuts = tuple(fragment.end_layer_exclusive for fragment in fragment_map.fragments[:-1])
+    actual_objective = FragmentObjective(
+        maximum_sync_bytes=max(fragment_bytes),
+        total_deviation_scaled=sum(
+            abs(fragment_map.fragment_count * size - sum(fragment_bytes)) for size in fragment_bytes
+        ),
+        cut_indices=actual_cuts,
+    )
+    if fragment_map.objective != actual_objective:
+        raise FragmentMapError("fragment map objective does not describe its actual cuts and bytes")
+    if actual_objective != expected_objective:
+        raise FragmentMapError("fragment map actual cuts do not satisfy the frozen optimal objective")
     if max(fragment_bytes) != fragment_map.balance.maximum_sync_bytes:
         raise FragmentMapError("fragment balance maximum mismatch")
     if min(fragment_bytes) != fragment_map.balance.minimum_sync_bytes:
