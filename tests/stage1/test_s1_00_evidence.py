@@ -75,7 +75,7 @@ def test_dirty_placeholder_role_and_resume_identity_rejected(tmp_path: Path) -> 
 def test_validator_rechecks_builder_only_manifest_rules() -> None:
     scheduler = {"job_id": "1.pbs", "qtime_utc": "2026-07-15T00:00:00Z", "queue": "q", "group": "g", "nodefile_sha256": "f" * 64, "modules": []}
     manifest = build_manifest("S1-00", "L2", "2026-07-15T00:00:00Z", "pbs_qtime", identities(), scheduler=scheduler)
-    manifest["evidence"] = {"files": [], "inventory_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e1ad0f16d3b5f1f1c6f0f0a"}
+    manifest["evidence"] = {"files": [], "inventory_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"}
     manifest["status"] = "finalized"
     for mutation in ("invalid_time_source", "empty_scheduler"):
         broken = json.loads(json.dumps(manifest))
