@@ -37,9 +37,9 @@ preflight:
   package_validator_result: pending
   checker_phase_a: required
 red:
-  command: python -m unittest tests.red_cases.s0b02_unsafe_visibility_surrogate && python tests/red_cases/s1_03_naive_storage_contract_surrogate.py
-  exit_code: null
-  evidence_path: null
+  command: two expected-failure commands recorded under runtime_runs/S1-03/red-474182d
+  exit_code: 1
+  evidence_path: runtime_runs/S1-03/red-474182d
 green: {command: null, evidence_path: null}
 harden: {commands: [], evidence_paths: []}
 nine_node_gate: {required: false, run_id: null, topology_gate: null, loss_gate: null, runtime_gate: null}
