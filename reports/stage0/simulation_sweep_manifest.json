@@ -1,0 +1,121 @@
+{
+  "artifacts": {
+    "aggregate_csv": {
+      "path": "/work/xg24i002/x10041/fsbdd/evidence/raw/S0A-02/20260714T143800Z-green2-n8d3c-51edd8599de6/results/simulation_aggregates.csv",
+      "sha256": "31512582a204bf2d3090983d45c89a5fa0977e13346276138600348c39fb3d60"
+    },
+    "raw_csv": {
+      "path": "/work/xg24i002/x10041/fsbdd/evidence/raw/S0A-02/20260714T143800Z-green2-n8d3c-51edd8599de6/results/simulation_raw.csv",
+      "sha256": "ebc7f8d16c610c59023e2e9899e55b21e88c7bdfb36cc6048a3af22a1dd7fde6"
+    },
+    "recommendation": {
+      "path": "/work/xg24i002/x10041/fsbdd/evidence/raw/S0A-02/20260714T143800Z-green2-n8d3c-51edd8599de6/results/simulation_recommendation.md",
+      "sha256": "89e7aa5ed7dde688b06201eb220bdc6c4b85175fe1026b6463b9fa86528f55a9"
+    },
+    "selected_traces": {
+      "path": "/work/xg24i002/x10041/fsbdd/evidence/raw/S0A-02/20260714T143800Z-green2-n8d3c-51edd8599de6/results/selected_event_traces.json",
+      "sha256": "147a00e546c350b845fb81b87957f4afcd182a0d4ac9c92026fb7040fddddae3"
+    },
+    "summary": {
+      "path": "/work/xg24i002/x10041/fsbdd/evidence/raw/S0A-02/20260714T143800Z-green2-n8d3c-51edd8599de6/results/simulation_summary.json",
+      "sha256": "4eccc1725f5f85d249e5ad0d19cf5cef731c6d2c93e042185add0870d867952a"
+    }
+  },
+  "axes": {
+    "grace_fraction_of_h": [
+      0.0,
+      0.1,
+      0.25
+    ],
+    "heterogeneity_ratio": [
+      1.0,
+      1.5,
+      2.0,
+      3.0
+    ],
+    "learners": [
+      4,
+      8,
+      16
+    ],
+    "quorum_fraction": [
+      0.5,
+      0.75,
+      1.0
+    ],
+    "s_max": [
+      0,
+      1,
+      2
+    ],
+    "seed": [
+      17,
+      29,
+      43
+    ],
+    "speed_model": [
+      "constant_ratio",
+      "lognormal_jitter"
+    ],
+    "visibility_delay_seconds": [
+      0.0,
+      1.0,
+      5.0,
+      30.0
+    ]
+  },
+  "claims_boundary": "Simulation selects parameters and anchors later measurements; it is not runtime correctness or training-quality evidence.",
+  "code_commit": "178b38040da6ff6daa0aee3d3f45f50a5772845f",
+  "compute_hostname": "mg0016",
+  "config_canonical_sha256": "9e629a53ce144dc8f05b02f6266ea2910cc2ff88e699fa2964cb623feed7dc9a",
+  "config_file_sha256": "2722cdedce0b37de551b9a9fabed2e37338b35259030248bd725183e7b8f2723",
+  "config_path": "configs/stage0/simulation_sweep.json",
+  "evidence_config_digest": "51edd8599de6d74ff4869f1911b5cb9e46c156eb51ce60845eb0265843e8dc00",
+  "fixed": {
+    "duration_seconds": 2000.0,
+    "fragments": 4,
+    "h_steps": 50,
+    "lambda_s": 1.0,
+    "max_trace_events": 0,
+    "offsets": "evenly_staggered",
+    "one_per_learner": true,
+    "q_fresh": 1,
+    "same_base_once_only": true,
+    "tokens_per_step": 512,
+    "upload_delay_seconds": 0.05
+  },
+  "matrix": {
+    "actual_rows": 7776,
+    "aggregate_profile_rows": 2592,
+    "complete": true,
+    "expected_rows": 7776,
+    "paired_recovery_rows": 2592,
+    "seed_count": 3
+  },
+  "pbs_job_id": "2382794.opbs",
+  "profile_id": "stage0-sim-03-resolved",
+  "run_id": "20260714T143800Z-green2-n8d3c-51edd8599de6",
+  "schema_version": 1,
+  "shards": [
+    {
+      "path": "/work/xg24i002/x10041/fsbdd/evidence/raw/S0A-02/20260714T143800Z-green2-n8d3c-51edd8599de6/shards/shard-0.csv",
+      "rows": 1944,
+      "sha256": "913191aa6c13df6f31df207af5ddd6421aa3cf438ac075e786a5f2629633974a"
+    },
+    {
+      "path": "/work/xg24i002/x10041/fsbdd/evidence/raw/S0A-02/20260714T143800Z-green2-n8d3c-51edd8599de6/shards/shard-1.csv",
+      "rows": 1944,
+      "sha256": "3f03fa390b048a4d942d47c2ae97638a1bf90b2dcc89b47d667702d4e1d47db1"
+    },
+    {
+      "path": "/work/xg24i002/x10041/fsbdd/evidence/raw/S0A-02/20260714T143800Z-green2-n8d3c-51edd8599de6/shards/shard-2.csv",
+      "rows": 1944,
+      "sha256": "f3b96e8ab86769d1e2a4ba3e944b26648c7debd1db6cf6883de106c7099bc63f"
+    },
+    {
+      "path": "/work/xg24i002/x10041/fsbdd/evidence/raw/S0A-02/20260714T143800Z-green2-n8d3c-51edd8599de6/shards/shard-3.csv",
+      "rows": 1944,
+      "sha256": "4a9c754f99e55d0c72f0367425fd95a395fbb7d9d738435f2a2fa835f5f9b8e7"
+    }
+  ]
+}
