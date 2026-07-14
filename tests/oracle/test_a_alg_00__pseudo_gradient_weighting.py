@@ -82,6 +82,13 @@ class TestAAlg00PseudoGradientWeighting(unittest.TestCase):
             raw = [100.0 / (1.0 + lambda_s * stale) for stale in range(8)]
             self.assertTrue(all(left >= right for left, right in zip(raw, raw[1:])))
 
+    def test_oracle_02__single_extreme_and_lambda_zero_boundaries(self) -> None:
+        self.assert_vector_close(inverse_staleness_weights([17.0], [7], 2.0), [1.0])
+        no_decay = inverse_staleness_weights([1.0, 1_000_000.0], [0, 99], 0.0)
+        self.assertAlmostEqual(no_decay[1] / no_decay[0], 1_000_000.0, delta=1.0)
+        mixed = inverse_staleness_weights([1.0, 1_000_000.0], [0, 1], 1.0)
+        self.assertTrue(0.0 < mixed[0] < mixed[1] < 1.0)
+
     def test_oracle_01__invalid_identity_future_and_too_stale_are_rejected(self) -> None:
         common = {
             "base": [2.0],
