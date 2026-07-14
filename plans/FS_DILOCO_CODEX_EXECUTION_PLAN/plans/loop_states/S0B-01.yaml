@@ -1,0 +1,69 @@
+schema_version: 1
+loop_id: S0B-01
+title: Miyabi 与目标共享 FS 能力发现/Benchmark Harness
+stage: stage0
+status: oriented
+source_hashes:
+  research_plan: 2c0db3148110da10ea62f445c189d2d53b405527d8da264b9af9817f5ca9d835
+  stage0_4_spec: fad26a8add51e70ddf50d0130b61d80fe06e1c3945221c29508412a5bcab2feb
+git:
+  integration_branch: master
+  branch: codex/S0B-01-storage-harness
+  base_commit: 5a8b78c9765c1b13c5b21006a5243a32e2afc19d
+  result_commit: null
+  dirty_at_start: false
+dependencies: []
+requirements:
+  - BENCH-01
+  - BENCH-02
+  - BENCH-03
+  - BENCH-04
+  - FS-08
+  - STOR-01
+acceptance_ids: []
+orient:
+  unique_failing_gap: No compute-only multi-host harness proves the frozen protocol RUN_ROOT is shared Lustre or records Miyabi/PBS/module/filesystem identity for later benchmarks.
+  planned_files:
+    - configs/stage0/storage_benchmark.json
+    - src/fsbdd_stage0/storage_bench.py
+    - pbs/stage0_storage_smoke.pbs
+    - tests/storage/test_stage0_storage_harness.py
+    - tests/red_cases/s0b01_naive_storage_harness_surrogate.py
+    - reports/stage0/storage_environment.md
+  protected_interfaces:
+    - src/fsbdd_stage0/oracle.py
+    - src/fsbdd_stage0/simulation.py
+    - all future learner/syncer production runtime paths
+  target_shared_run_root: /work/xg24i002/x10041/fsbdd/runtime_runs
+  observed_login_fs: /work is Lustre from 172.16.20.201/202/211/212 o2ib200 endpoints; this is orientation only and not benchmark evidence.
+  model_data_profile: Fixed deterministic 4KiB smoke payload and small JSON visibility record; no model, dataset, training, GPU, or quality claim.
+  resource_profile: One-node compute validation plus two distinct Miyabi CPU compute nodes; debug-g walltime 10 minutes; mpirun is launcher only and application data flows through target RUN_ROOT.
+  miyabi_skill_repository: https://github.com/UnbearableFate/miyabi-development
+  miyabi_skill_commit: ad1fd34a9de976b4fb26ba47d9a1770430884765
+  initial_hostname: miyabi-g1
+  workflow: miyabi-g1 is control plane only; every harness execution fails closed unless hostname and PBS context identify a compute allocation.
+red:
+  command: null
+  exit_code: null
+  evidence_path: null
+green:
+  command: null
+  evidence_path: null
+harden:
+  commands: []
+  evidence_paths: []
+nine_node_gate:
+  required: false
+  run_id: null
+  topology_gate: not_applicable_before_S1-13
+  loss_gate: not_applicable
+  runtime_gate: not_applicable
+checker:
+  verdict: null
+  report_path: null
+persist:
+  evidence_index: null
+  raw_evidence_root: /work/xg24i002/x10041/fsbdd/evidence/raw/S0B-01
+  acceptance_traceability_updated: false
+  next_gap: S0B-02 cross-node visibility latency and 100000 atomic replacements
+blocker: null
