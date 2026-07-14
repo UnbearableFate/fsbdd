@@ -6,7 +6,7 @@ stage,acceptance_id,primary_loop,supporting_loops,required_evidence,status,evide
 0-B,A-BENCH-02,S0B-02,,≥10^5原子替换，0 violation,not_started,,,
 0-B,A-BENCH-03,S0B-03,,metadata throughput ≥10× steady demand,not_started,,,
 0-B,A-BENCH-04,S0B-03,,M并发fragment一轮≤10%H,not_started,,,
-0-C,A-ALG-00,S0C-02,S0C-01,错误stale公式被拒绝；全部golden通过,not_started,,,
+0-C,A-ALG-00,S0C-02,S0C-01,错误stale公式被拒绝；全部golden通过,in_progress,evidence/indexes/S0C-01.md,PASS,S0C-01 supporting math/weighting passed; primary closure remains S0C-02
 1,A-FRAG-01,S1-02,S1-01,parameter identity全覆盖恰好一次,not_started,,,
 1,A-FRAG-02,S1-02,,连续非空fragments,not_started,,,
 1,A-FRAG-03,S1-02,,小模型exhaustive+大模型摘要,not_started,,,

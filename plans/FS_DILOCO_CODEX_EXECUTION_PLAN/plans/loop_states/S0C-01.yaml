@@ -2,7 +2,7 @@ schema_version: 1
 loop_id: S0C-01
 title: Fresh/Stale 数学 oracle 与 weighting
 stage: stage0
-status: oriented
+status: pass
 source_hashes:
   research_plan: 2c0db3148110da10ea62f445c189d2d53b405527d8da264b9af9817f5ca9d835
   stage0_4_spec: fad26a8add51e70ddf50d0130b61d80fe06e1c3945221c29508412a5bcab2feb
@@ -10,7 +10,7 @@ git:
   integration_branch: master
   branch: codex/S0C-01-oracle-weighting
   base_commit: cd4ae9defa2688184077e09725175eb91d28b692
-  result_commit: null
+  result_commit: ed9c49246976d31b604b8a79f88c61e137448d9b
   dirty_at_start: false
 dependencies: []
 requirements:
@@ -33,15 +33,17 @@ orient:
   initial_hostname: miyabi-g1
   workflow: Miyabi control plane; runtime tests are submitted to one PBS compute node.
 red:
-  command: null
-  exit_code: null
-  evidence_path: null
+  command: qsub short-g stage0_cpu_tests.pbs with tests.red_cases.s0c01_wrong_formula_surrogate and EXPECTED_TEST_RESULT=fail
+  exit_code: 1
+  evidence_path: evidence/raw/S0C-01/20260714T223500Z-red2-n7f3a-905cf345193c
 green:
-  command: null
-  evidence_path: null
+  command: qsub short-g stage0_cpu_tests.pbs with tests.oracle.test_a_alg_00__pseudo_gradient_weighting
+  evidence_path: evidence/raw/S0C-01/20260714T224000Z-green2-n8c2b-64f3b51d3094
 harden:
-  commands: []
-  evidence_paths: []
+  commands:
+    - qsub short-g full S0C-01 oracle boundary and randomized property suite
+  evidence_paths:
+    - evidence/raw/S0C-01/20260714T224200Z-harden2-n4d9e-64f3b51d3094
 nine_node_gate:
   required: false
   run_id: null
@@ -49,11 +51,11 @@ nine_node_gate:
   loss_gate: not_applicable
   runtime_gate: not_applicable
 checker:
-  verdict: null
-  report_path: null
+  verdict: PASS
+  report_path: reports/checkers/S0C-01.md
 persist:
-  evidence_index: null
+  evidence_index: evidence/indexes/S0C-01.md
   raw_evidence_root: /work/xg24i002/x10041/fsbdd/evidence/raw/S0C-01
-  acceptance_traceability_updated: false
+  acceptance_traceability_updated: true
   next_gap: S0C-02 consumption and outer-optimizer reference transitions
 blocker: null

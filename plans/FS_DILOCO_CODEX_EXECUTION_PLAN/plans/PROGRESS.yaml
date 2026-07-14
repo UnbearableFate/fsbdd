@@ -12,21 +12,21 @@ capabilities:
     status: inactive
     established_by: S1-13
     baseline_9n_run_id: null
-current_loop: S0C-01
+current_loop: S0C-02
 loops:
 - id: S0C-01
   stage: stage0
   title: Fresh/Stale 数学 oracle 与 weighting
   depends_on: []
-  status: not_started
+  status: pass
   nine_node_gate_required: false
   acceptance_ids:
   - A-ALG-00
-  branch: null
-  base_commit: null
-  result_commit: null
-  evidence_index: null
-  checker_verdict: null
+  branch: codex/S0C-01-oracle-weighting
+  base_commit: cd4ae9defa2688184077e09725175eb91d28b692
+  result_commit: ed9c49246976d31b604b8a79f88c61e137448d9b
+  evidence_index: evidence/indexes/S0C-01.md
+  checker_verdict: PASS
   blocker: null
 - id: S0C-02
   stage: stage0
