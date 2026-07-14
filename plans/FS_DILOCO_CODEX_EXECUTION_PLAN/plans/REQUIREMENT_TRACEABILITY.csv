@@ -7,14 +7,14 @@ BENCH-05,planned,S0B-03,,
 DISC-01,planned,S1-05,,
 DISC-02,planned,S1-05,,
 DISC-03,passed,S1-00,S4-06,S1-00 typed frozen config and digest evidence
-FRAG-01,check_pending,S1-02,,Complete logical layers only with exact parameter partition validation
-FRAG-02,check_pending,S1-02,,Ordered contiguous nonempty intervals cover every logical layer
-FRAG-03,check_pending,S1-02,,Production 1 less than F less than L and labeled oracle F equals 1
-FRAG-04,check_pending,S1-02,,Synchronization-byte weights from the frozen registry
-FRAG-05,check_pending,S1-02,,Exact minimax deviation and front-cut objective
-FRAG-06,check_pending,S1-02,,Oversized logical layer remains whole
-FRAG-07,check_pending,S1-02,,Frozen map and deterministic canonical digest
-FRAG-08,check_pending,S1-02,,Complete ownership interval byte objective and balance report
+FRAG-01,passed,S1-02,,Complete logical layers only with exact parameter partition validation
+FRAG-02,passed,S1-02,,Ordered contiguous nonempty intervals cover every logical layer
+FRAG-03,passed,S1-02,,Production 1 less than F less than L and labeled oracle F equals 1
+FRAG-04,passed,S1-02,,Synchronization-byte weights from the frozen registry
+FRAG-05,passed,S1-02,,Exact minimax deviation and front-cut objective
+FRAG-06,passed,S1-02,,Oversized logical layer remains whole
+FRAG-07,passed,S1-02,,Frozen map and deterministic canonical digest
+FRAG-08,passed,S1-02,,Complete ownership interval byte objective and balance report
 FS-01,planned,S1-03,,
 FS-02,planned,S0B-02,S1-03,
 FS-03,planned,S1-03,S1-04;S1-11,

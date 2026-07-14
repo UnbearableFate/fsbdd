@@ -2,7 +2,7 @@ schema_version: 2
 loop_id: S1-02
 title: Layer-aligned contiguous balanced fragment map
 stage: stage1
-status: in_progress
+status: pass
 source_hashes:
   research_plan: 2c0db3148110da10ea62f445c189d2d53b405527d8da264b9af9817f5ca9d835
   stage0_4_spec: 1ea71fb6e34fef0d7b5558d8e7999dfdedeb82957f4331afcf6f80279d1f5a7d
@@ -10,7 +10,7 @@ git:
   integration_branch: master
   branch: codex/S1-02-fragment-map
   base_commit: 1aa520632a9eb378b9a859307b5a9b707e255485
-  result_commit: null
+  result_commit: 46ed2cc60928368aca33ff764ec0da4910971d70
   dirty_at_start: true
 dependencies: [S1-01]
 requirements: [FRAG-01, FRAG-02, FRAG-03, FRAG-04, FRAG-05, FRAG-06, FRAG-07, FRAG-08]
@@ -60,7 +60,7 @@ checker:
   context_id: /root/s1_02_checker
   maker_chat_inherited: false
   phase_a_verdict: not_required
-  verdict: BLOCKED
+  verdict: PASS
   report_path: reports/checkers/S1-02.md
   cycles:
   - cycle: 1
@@ -68,21 +68,25 @@ checker:
     verdict: BLOCKED
     gaps: [actual fragment cuts were not bound to the optimal objective, map sync dtype was not bound to the registry, matrix evidence paths did not resolve]
     corrective_red: runtime_runs/S1-02/red-checker-32e9c24/stdout/pytest.log
+  - cycle: 2
+    checked_candidate: 46ed2cc60928368aca33ff764ec0da4910971d70
+    verdict: PASS
+    report_sha256: 5ab530c5f89fc00c44fb33685e45a96d2fce666c955530de677331bef9bcdb42
 persist:
   evidence_index: evidence/indexes/S1-02.md
   raw_evidence_root: runtime_runs/S1-02
-  acceptance_traceability_updated: false
-  next_gap: null
+  acceptance_traceability_updated: true
+  next_gap: S1-03 must implement STOR-01 payload-first visibility-last atomic publication.
   handoff:
     proven_facts: [integer DP matches 212750 exhaustive and 500 random brute-force cases, four process hash seeds produce one digest, real Pythia F=4 map covers 148 parameter identities exactly once]
     checked_commit: 17939767c68366fdfb3e7eae29548dd763dc87b5
     selected_evidence: [runtime_runs/S1-02/harden2-1793976-2384543]
-    next_command: Recheck the corrected candidate in the existing independent S1-02 Checker context.
+    next_command: Create codex/S1-03-atomic-publication from the S1-02 closure and begin S1-03 ORIENT.
   cost:
     attempts_by_level: {L0: 2, L1: 2}
     queue_seconds: null
     active_seconds: 55
-    checker_cycles: 1
+    checker_cycles: 2
     goal_tokens_end: null
     agent_tokens_used: null
     phase_token_deltas: {}
