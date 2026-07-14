@@ -136,10 +136,11 @@
     }
   },
   "red": {
-    "run_id": "20260714T155627Z-red-n3f8c-3c37e0b38ef2",
-    "pbs_job_id": "2383353.opbs",
+    "run_id": "20260714T164222Z-red-clock-n5a7d-3c37e0b38ef2",
+    "pbs_job_id": "2383657.opbs",
     "expected_failures": 4,
-    "checksum_manifest_sha256": "0fdfecc3db78a56dcaa9a32a509b5abdc56e6371a6e395c44a94cf70ba1203da"
+    "checksum_manifest_sha256": "97e41b32b0a8c86d162b62c0b3acdb62a78105ac4ae9ac98a8e4bab6149d8196",
+    "provenance_repair": "The immutable pre-implementation RED proves ordering but its run prefix precedes scheduler qtime by seven seconds. This repeat preserves the same four exact failures and has a prefix equal to scheduler UTC qtime."
   },
   "acceptance": {
     "A-BENCH-01": "pass_candidate",

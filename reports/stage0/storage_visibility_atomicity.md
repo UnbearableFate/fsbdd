@@ -72,7 +72,7 @@ GREEN result is not caused by a scanner that accepts partial records.
 
 | Phase | Run ID / PBS job | Result | Checksum-manifest SHA-256 |
 |---|---|---|---|
-| RED | `20260714T155627Z-red-n3f8c-3c37e0b38ef2` / `2383353.opbs` | four unsafe/missing contracts fail | `0fdfecc3db78a56dcaa9a32a509b5abdc56e6371a6e395c44a94cf70ba1203da` |
+| corrected RED provenance | `20260714T164222Z-red-clock-n5a7d-3c37e0b38ef2` / `2383657.opbs` | the same four unsafe/missing contracts fail | `97e41b32b0a8c86d162b62c0b3acdb62a78105ac4ae9ac98a8e4bab6149d8196` |
 | focused tests | `20260714T161902Z-unitfix-unitfix-n3b7e-d8d57a0d6aa0` / `2383535.opbs` | 8 tests pass | `bb49d63d9d9906af109ad9ae488b7e503d571f6df552e1cb0f395c6402c9d2bf` |
 | full GREEN | `20260714T161909Z-fullfix-fullfix-n6c9a-006abf2a3b43` / `2383537.opbs` | visibility, atomicity, load, and kill matrix pass | `b0da24c0ad6c1d7ad09046143123852aa9fa2fbaf33acf35828b21c2ad891280` |
 | independent repeat | `20260714T161927Z-green-startup-n2e9a-006abf2a3b43` / `2383540.opbs` | second full visibility/atomicity matrix passes | `21d3de9427f016df272d89ec3f124d76a3c2365ca5476934f08890f49b6a0794` |
@@ -84,6 +84,13 @@ history reports exit `0` and a run-ID prefix exactly matching UTC `qtime` for
 each package. The full GREEN package also binds both actual rank/role/host
 mappings, the target filesystem, config preimage, clean skill checkout, and
 input snapshots.
+
+The original pre-implementation RED package
+`20260714T155627Z-red-n3f8c-3c37e0b38ef2` remains immutable evidence that the
+four contracts failed before implementation, but its prefix is seven seconds
+earlier than scheduler UTC `qtime`; it is not part of the closure set. Job
+`2383657.opbs` repeats the same four exact failures with a prefix equal to
+scheduler UTC `qtime` and repairs that provenance defect.
 
 The independent full repeat used writer `mg0027` and reader `mg0032`. Its
 empty/loaded p99 values were `7.497ms` and `7.951ms`; it again completed
