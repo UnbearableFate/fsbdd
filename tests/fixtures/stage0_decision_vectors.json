@@ -1,0 +1,98 @@
+{
+  "schema_version": 1,
+  "selection_policy": "lower_staleness_then_effective_tokens_then_sequence_then_learner_id",
+  "lambda_s": 1.0,
+  "decision_cases": [
+    {
+      "id": "duplicate-learners-do-not-form-quorum",
+      "current_version": 3,
+      "s_max": 1,
+      "q": 3,
+      "q_fresh": 1,
+      "max_contributors": 3,
+      "frontiers": {},
+      "proposals": [
+        {"proposal_id": "a-seq3", "learner_id": "a", "sequence": 3, "base_version": 2, "tokens": 50, "local_steps": 5, "base_identity_matches": true},
+        {"proposal_id": "a-seq4", "learner_id": "a", "sequence": 4, "base_version": 2, "tokens": 40, "local_steps": 4, "base_identity_matches": true},
+        {"proposal_id": "b-seq1", "learner_id": "b", "sequence": 1, "base_version": 3, "tokens": 20, "local_steps": 2, "base_identity_matches": true}
+      ],
+      "expected_ready": false,
+      "expected_selected": [],
+      "expected_rejections": {"a-seq4": "duplicate_learner"}
+    },
+    {
+      "id": "one-per-learner-prefers-fresh-before-token-mass",
+      "current_version": 3,
+      "s_max": 1,
+      "q": 2,
+      "q_fresh": 1,
+      "max_contributors": 2,
+      "frontiers": {},
+      "proposals": [
+        {"proposal_id": "a-stale", "learner_id": "a", "sequence": 3, "base_version": 2, "tokens": 100, "local_steps": 10, "base_identity_matches": true},
+        {"proposal_id": "a-fresh", "learner_id": "a", "sequence": 4, "base_version": 3, "tokens": 10, "local_steps": 1, "base_identity_matches": true},
+        {"proposal_id": "b-fresh", "learner_id": "b", "sequence": 2, "base_version": 3, "tokens": 20, "local_steps": 2, "base_identity_matches": true}
+      ],
+      "expected_ready": true,
+      "expected_selected": ["b-fresh", "a-fresh"],
+      "expected_rejections": {"a-stale": "duplicate_learner"}
+    },
+    {
+      "id": "updated-sequence-on-consumed-base-is-rejected",
+      "current_version": 3,
+      "s_max": 1,
+      "q": 1,
+      "q_fresh": 0,
+      "max_contributors": 1,
+      "frontiers": {"a": {"last_sequence": 2, "last_base_version": 2}},
+      "proposals": [
+        {"proposal_id": "a-seq3-base2", "learner_id": "a", "sequence": 3, "base_version": 2, "tokens": 30, "local_steps": 3, "base_identity_matches": true}
+      ],
+      "expected_ready": false,
+      "expected_selected": [],
+      "expected_rejections": {"a-seq3-base2": "consumed_base"}
+    },
+    {
+      "id": "repeated-polling-is-once-only",
+      "current_version": 3,
+      "s_max": 0,
+      "q": 1,
+      "q_fresh": 1,
+      "max_contributors": 1,
+      "frontiers": {"a": {"last_sequence": 5, "last_base_version": 3}},
+      "proposals": [
+        {"proposal_id": "a-seq5-base3", "learner_id": "a", "sequence": 5, "base_version": 3, "tokens": 10, "local_steps": 1, "base_identity_matches": true}
+      ],
+      "expected_ready": false,
+      "expected_selected": [],
+      "expected_rejections": {"a-seq5-base3": "consumed_sequence"}
+    },
+    {
+      "id": "sequence-jump-with-new-base-is-eligible",
+      "current_version": 4,
+      "s_max": 0,
+      "q": 1,
+      "q_fresh": 1,
+      "max_contributors": 1,
+      "frontiers": {"a": {"last_sequence": 5, "last_base_version": 3}},
+      "proposals": [
+        {"proposal_id": "a-seq9-base4", "learner_id": "a", "sequence": 9, "base_version": 4, "tokens": 10, "local_steps": 1, "base_identity_matches": true}
+      ],
+      "expected_ready": true,
+      "expected_selected": ["a-seq9-base4"],
+      "expected_rejections": {}
+    }
+  ],
+  "outer_transition_cases": [
+    {
+      "id": "nesterov-two-step",
+      "initial_parameters": [10.0, -5.0],
+      "learning_rate": 0.1,
+      "momentum": 0.9,
+      "nesterov": true,
+      "gradients": [[2.0, -4.0], [-1.0, 3.0]],
+      "expected_parameters": [[9.62, -4.24], [9.648, -4.486]],
+      "expected_buffers": [[2.0, -4.0], [0.8, -0.6]]
+    }
+  ]
+}

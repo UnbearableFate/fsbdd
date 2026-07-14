@@ -1,0 +1,62 @@
+schema_version: 1
+loop_id: S0C-02
+title: Consumption 语义、Outer Optimizer reference transitions 与证据映射
+stage: stage0
+status: oriented
+source_hashes:
+  research_plan: 2c0db3148110da10ea62f445c189d2d53b405527d8da264b9af9817f5ca9d835
+  stage0_4_spec: fad26a8add51e70ddf50d0130b61d80fe06e1c3945221c29508412a5bcab2feb
+git:
+  integration_branch: master
+  branch: codex/S0C-02-consumption-transitions
+  base_commit: 1c41a9025a125d6b8140ddb048c49a6d9dea7028
+  result_commit: null
+  dirty_at_start: false
+dependencies:
+  - S0C-01
+requirements:
+  - ORACLE-03
+  - ORACLE-04
+  - ORACLE-05
+  - INV-05
+  - PROP-06
+  - OPT-04
+acceptance_ids:
+  - A-ALG-00
+orient:
+  unique_failing_gap: The oracle lacks distinct-learner/same-base consumption decisions, publication-conditional frontier commits, outer SGD/Nesterov transitions, and an executable requirement-to-evidence map.
+  planned_files:
+    - src/fsbdd_stage0/oracle.py
+    - tests/fixtures/stage0_decision_vectors.json
+    - tests/oracle/test_a_alg_00__consumption_outer_transitions.py
+    - tests/red_cases/s0c02_naive_consumption_transition_surrogate.py
+    - reports/stage0/requirement_to_evidence.csv
+  model_data_profile: Pure serializable proposal fixtures and fp32 small-vector transitions; no model or dataset.
+  miyabi_skill_commit: ad1fd34a9de976b4fb26ba47d9a1770430884765
+  initial_hostname: miyabi-g1
+  workflow: Miyabi control plane; runtime tests are submitted to one PBS compute node.
+red:
+  command: null
+  exit_code: null
+  evidence_path: null
+green:
+  command: null
+  evidence_path: null
+harden:
+  commands: []
+  evidence_paths: []
+nine_node_gate:
+  required: false
+  run_id: null
+  topology_gate: not_applicable_before_S1-13
+  loss_gate: not_applicable
+  runtime_gate: not_applicable
+checker:
+  verdict: null
+  report_path: null
+persist:
+  evidence_index: null
+  raw_evidence_root: /work/xg24i002/x10041/fsbdd/evidence/raw/S0C-02
+  acceptance_traceability_updated: false
+  next_gap: S0A-01 simulator kernel using the shared decision vectors
+blocker: null
