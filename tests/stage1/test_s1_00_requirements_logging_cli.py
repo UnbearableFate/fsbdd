@@ -32,6 +32,9 @@ def test_structured_logging_and_dry_run_roles(tmp_path: Path, capsys: pytest.Cap
         assert main([role, "--dry-run"]) == 0
         assert json.loads(capsys.readouterr().out)["role"] == role
 
+    with pytest.raises(ValueError, match="reserved"):
+        logger.emit("spoof", role="syncer", timestamp_utc="invalid")
+
 
 def test_evidence_init_cli_is_fail_if_exists(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     root = tmp_path / "package"

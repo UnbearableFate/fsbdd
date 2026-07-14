@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 
 from fsbdd.evidence import EvidenceError, EvidencePackage, validate_package
-from fsbdd.manifest import ManifestError, build_manifest
+from fsbdd.manifest import ManifestError, build_manifest, validate_manifest
 
 
 def identities() -> dict[str, object]:
@@ -70,3 +70,36 @@ def test_dirty_placeholder_role_and_resume_identity_rejected(tmp_path: Path) -> 
     package.bind_resume_identity({"code": "a", "config": "b", "generator": "c"})
     with pytest.raises(EvidenceError, match="resume"):
         package.verify_resume_identity({"code": "a", "config": "changed", "generator": "c"})
+
+
+def test_validator_rechecks_builder_only_manifest_rules() -> None:
+    scheduler = {"job_id": "1.pbs", "qtime_utc": "2026-07-15T00:00:00Z", "queue": "q", "group": "g", "nodefile_sha256": "f" * 64, "modules": []}
+    manifest = build_manifest("S1-00", "L2", "2026-07-15T00:00:00Z", "pbs_qtime", identities(), scheduler=scheduler)
+    manifest["evidence"] = {"files": [], "inventory_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e1ad0f16d3b5f1f1c6f0f0a"}
+    manifest["status"] = "finalized"
+    for mutation in ("invalid_time_source", "empty_scheduler"):
+        broken = json.loads(json.dumps(manifest))
+        if mutation == "invalid_time_source":
+            broken["run_identity"]["time_source"] = "invalid"
+        else:
+            broken["scheduler"] = {}
+        with pytest.raises(ManifestError):
+            validate_manifest(broken)
+
+
+@pytest.mark.parametrize(
+    ("section", "mutation"),
+    [
+        ("roles", {"declared": {}, "actual": {}}),
+        ("paths", {}),
+        ("code", {"commit": "a" * 40, "dirty": False}),
+        ("skill", {"commit": "e" * 40}),
+        ("source", {"research_plan_sha256": "c" * 64}),
+        ("config", {}),
+    ],
+)
+def test_identity_shape_mutations_rejected(section: str, mutation: dict[str, object]) -> None:
+    bad = identities()
+    bad[section] = mutation
+    with pytest.raises(ManifestError):
+        build_manifest("S1-00", "L1", "2026-07-15T00:00:00Z", "submission_utc", bad)

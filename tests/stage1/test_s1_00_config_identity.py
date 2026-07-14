@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 
 from fsbdd.config import ConfigError, ProgressSnapshot, load_config
-from fsbdd.identity import canonical_digest
+from fsbdd.identity import canonical_digest, file_digest
 
 
 def valid_config() -> dict[str, object]:
@@ -76,3 +76,17 @@ def test_progress_dimensions_are_not_collapsed() -> None:
     )
     assert "global_step" not in snapshot.to_dict()
     assert snapshot.to_dict()["global_cycle"] == 2
+
+
+def test_resolved_config_is_deeply_frozen_and_freeze_digest_matches_bytes(tmp_path: Path) -> None:
+    from fsbdd.config import freeze_config
+
+    source = tmp_path / "source.json"
+    source.write_text(json.dumps(valid_config()), encoding="utf-8")
+    resolved = load_config(source)
+    with pytest.raises(TypeError):
+        resolved.raw["algorithm"]["S_max"] = 1
+    destination = tmp_path / "resolved.json"
+    returned = freeze_config(resolved, destination)
+    assert returned == canonical_digest(json.loads(destination.read_text(encoding="utf-8")))
+    assert file_digest(destination) != returned  # semantic digest is canonical JSON, not presentation bytes
