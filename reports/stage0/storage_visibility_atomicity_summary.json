@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "loop_id": "S0B-02",
-  "status": "pass_candidate",
+  "status": "pass",
   "runtime_commit": "78e5992383d3fc6900edeb80f6055451bb08933b",
   "source_hashes": {
     "RESEARCH_PLAN.md": "2c0db3148110da10ea62f445c189d2d53b405527d8da264b9af9817f5ca9d835",
@@ -143,8 +143,14 @@
     "provenance_repair": "The immutable pre-implementation RED proves ordering but its run prefix precedes scheduler qtime by seven seconds. This repeat preserves the same four exact failures and has a prefix equal to scheduler UTC qtime."
   },
   "acceptance": {
-    "A-BENCH-01": "pass_candidate",
-    "A-BENCH-02": "pass_candidate"
+    "A-BENCH-01": "pass",
+    "A-BENCH-02": "pass"
+  },
+  "checker": {
+    "checked_candidate": "725d7d6a48dc28b52fde509a548e3e6a34148318",
+    "verdict": "PASS",
+    "report": "reports/checkers/S0B-02.md",
+    "report_sha256": "a718af0425707968dd3bbe28e95e6634bf3fd606ae40d60c6c74d636804c518d"
   },
   "claims_boundary": "This report qualifies visibility and atomic replacement only on the frozen Miyabi Lustre RUN_ROOT. It makes no metadata, bandwidth, training, GPU, model, loss, or nine-node claim."
 }

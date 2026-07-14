@@ -12,7 +12,7 @@ capabilities:
     status: inactive
     established_by: S1-13
     baseline_9n_run_id: null
-current_loop: S0B-02
+current_loop: S0B-03
 loops:
 - id: S0C-01
   stage: stage0
@@ -92,16 +92,16 @@ loops:
   title: 跨节点可见性与 10^5 次原子发布验证
   depends_on:
   - S0B-01
-  status: checking
+  status: pass
   nine_node_gate_required: false
   acceptance_ids:
   - A-BENCH-01
   - A-BENCH-02
   branch: codex/S0B-02-visibility-atomicity
   base_commit: 5e00111228c7652d76e3ae2c2f05c5880bd0bcd5
-  result_commit: null
+  result_commit: 725d7d6a48dc28b52fde509a548e3e6a34148318
   evidence_index: evidence/indexes/S0B-02.md
-  checker_verdict: null
+  checker_verdict: PASS
   blocker: null
 - id: S0B-03
   stage: stage0
