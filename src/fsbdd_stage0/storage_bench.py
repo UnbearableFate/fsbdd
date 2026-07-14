@@ -26,13 +26,23 @@ REQUIRED_MANIFEST_FIELDS = frozenset(
         "skill_repository",
         "skill_commit",
         "initial_hostname",
+        "compute_hostname",
         "compute_hosts",
+        "node_type",
         "pbs_job_id",
         "pbs_nodefile",
+        "pbs_queue",
+        "pbs_group",
         "target_run_root",
         "filesystem_type",
         "filesystem_source",
         "module_list",
+        "loop_id",
+        "code_commit",
+        "submission_nonce",
+        "config_digest",
+        "config_paths",
+        "actual_role_mapping",
     }
 )
 
@@ -349,8 +359,15 @@ def run_smoke_role(
     return result
 
 
-def validate_environment_manifest(manifest: Mapping[str, Any]) -> None:
-    missing = REQUIRED_MANIFEST_FIELDS - set(manifest)
+def validate_environment_manifest(
+    manifest: Mapping[str, Any],
+    *,
+    require_role_mapping: bool = True,
+) -> None:
+    required = set(REQUIRED_MANIFEST_FIELDS)
+    if not require_role_mapping:
+        required.remove("actual_role_mapping")
+    missing = required - set(manifest)
     if missing:
         raise StorageHarnessError(f"environment manifest is missing {sorted(missing)}")
     if manifest["schema_version"] != 1:
@@ -366,6 +383,8 @@ def validate_environment_manifest(manifest: Mapping[str, Any]) -> None:
         or any(not COMPUTE_HOST_PATTERN.fullmatch(str(host)) for host in hosts)
     ):
         raise StorageHarnessError("environment manifest requires two distinct compute hosts")
+    if manifest["compute_hostname"] not in hosts:
+        raise StorageHarnessError("manifest compute_hostname is outside the allocation")
     if manifest["filesystem_type"] != "lustre":
         raise StorageHarnessError("target RUN_ROOT was not identified as Lustre")
     if manifest["initial_hostname"] != "miyabi-g1":
@@ -376,6 +395,21 @@ def validate_environment_manifest(manifest: Mapping[str, Any]) -> None:
         raise StorageHarnessError("filesystem source evidence cannot be empty")
     if not str(manifest["pbs_job_id"]).strip():
         raise StorageHarnessError("PBS job identity cannot be empty")
+    if manifest["node_type"] != "cpu_compute":
+        raise StorageHarnessError("storage smoke node_type must be cpu_compute")
+    if not str(manifest["pbs_queue"]).strip() or not str(manifest["pbs_group"]).strip():
+        raise StorageHarnessError("PBS queue and group identity cannot be empty")
+    if not re.fullmatch(r"[0-9a-f]{40}", str(manifest["code_commit"])):
+        raise StorageHarnessError("code_commit must be a full Git object identity")
+    config_digest = str(manifest["config_digest"])
+    if not re.fullmatch(r"[0-9a-f]{64}", config_digest):
+        raise StorageHarnessError("config_digest must be a SHA-256 identity")
+    if str(manifest["submission_nonce"]) not in str(manifest.get("run_id", "")):
+        raise StorageHarnessError("run_id does not contain its submission nonce")
+    if config_digest[:12] not in str(manifest.get("run_id", "")):
+        raise StorageHarnessError("run_id does not contain its short config digest")
+    if not isinstance(manifest["config_paths"], list) or not manifest["config_paths"]:
+        raise StorageHarnessError("config_paths must be a non-empty list")
     nodefile = manifest["pbs_nodefile"]
     modules = manifest["module_list"]
     if not isinstance(nodefile, list) or not nodefile:
@@ -384,6 +418,22 @@ def validate_environment_manifest(manifest: Mapping[str, Any]) -> None:
         raise StorageHarnessError("nodefile hosts differ from compute_hosts")
     if not isinstance(modules, list) or not modules:
         raise StorageHarnessError("module list evidence must be a non-empty list")
+    if require_role_mapping:
+        role_mapping = manifest["actual_role_mapping"]
+        if not isinstance(role_mapping, list) or len(role_mapping) != 2:
+            raise StorageHarnessError("actual role mapping must contain exactly two roles")
+        if {role.get("rank") for role in role_mapping} != {0, 1}:
+            raise StorageHarnessError("actual role mapping must contain ranks 0 and 1")
+        if {role.get("role") for role in role_mapping} != {"writer", "reader"}:
+            raise StorageHarnessError("actual role mapping must contain writer and reader")
+        if {role.get("hostname") for role in role_mapping} != set(hosts):
+            raise StorageHarnessError("actual role mapping hosts differ from the allocation")
+        if any(role.get("pbs_job_id") != manifest["pbs_job_id"] for role in role_mapping):
+            raise StorageHarnessError("actual role mapping PBS identity mismatch")
+        if any(role.get("status") not in {"passed", "failed"} for role in role_mapping):
+            raise StorageHarnessError("actual role mapping status is invalid")
+        if any(not str(role.get("test_root", "")).strip() for role in role_mapping):
+            raise StorageHarnessError("actual role mapping test_root is missing")
 
 
 def build_environment_manifest(
@@ -393,11 +443,19 @@ def build_environment_manifest(
     initial_hostname: str,
     compute_hostname: str,
     pbs_job_id: str,
+    node_type: str,
+    pbs_queue: str,
+    pbs_group: str,
     pbs_nodefile_path: Path,
     filesystem_type: str,
     filesystem_source: str,
     module_list_path: Path,
     permission_probe: Mapping[str, Any],
+    loop_id: str,
+    code_commit: str,
+    submission_nonce: str,
+    config_digest: str,
+    config_paths: Sequence[str],
 ) -> dict[str, Any]:
     compute_hosts = sorted(
         set(line.strip() for line in pbs_nodefile_path.read_text(encoding="utf-8").splitlines())
@@ -410,7 +468,10 @@ def build_environment_manifest(
         "initial_hostname": initial_hostname,
         "compute_hostname": compute_hostname,
         "compute_hosts": compute_hosts,
+        "node_type": node_type,
         "pbs_job_id": pbs_job_id,
+        "pbs_queue": pbs_queue,
+        "pbs_group": pbs_group,
         "pbs_nodefile_path": str(pbs_nodefile_path),
         "pbs_nodefile": pbs_nodefile_path.read_text(encoding="utf-8").splitlines(),
         "target_run_root": config["miyabi"]["target_shared_run_root"],
@@ -418,6 +479,11 @@ def build_environment_manifest(
         "filesystem_source": filesystem_source,
         "module_list": module_list_path.read_text(encoding="utf-8").splitlines(),
         "permission_probe": dict(permission_probe),
+        "loop_id": loop_id,
+        "code_commit": code_commit,
+        "submission_nonce": submission_nonce,
+        "config_digest": config_digest,
+        "config_paths": list(config_paths),
         "path_classification": "shared_protocol_path",
         "launcher": config["miyabi"]["launcher"],
         "ranks_per_node": config["miyabi"]["ranks_per_node"],
@@ -428,7 +494,45 @@ def build_environment_manifest(
         for operation in ("create", "read", "delete")
     ):
         raise StorageHarnessError("target RUN_ROOT permission probe was incomplete")
+    validate_environment_manifest(manifest, require_role_mapping=False)
+    return manifest
+
+
+def finalize_environment_manifest(
+    *,
+    manifest_path: Path,
+    smoke_summary_path: Path,
+    yaml_output_path: Path,
+) -> dict[str, Any]:
+    """Bind the completed role placement and result into both run manifests."""
+
+    manifest = read_json_record(manifest_path)
+    summary = read_json_record(
+        smoke_summary_path,
+        required_fields=("run_id", "path_mode", "outcome", "roles"),
+    )
+    if summary["run_id"] != manifest.get("run_id"):
+        raise StorageHarnessError("smoke summary and environment manifest run_id differ")
+    roles = summary["roles"]
+    if not isinstance(roles, list):
+        raise StorageHarnessError("smoke summary roles must be a list")
+    manifest["actual_role_mapping"] = [
+        {
+            "rank": role.get("rank"),
+            "role": role.get("role"),
+            "hostname": role.get("hostname"),
+            "pbs_job_id": role.get("pbs_job_id"),
+            "status": role.get("status"),
+            "test_root": role.get("test_root"),
+        }
+        for role in sorted(roles, key=lambda item: int(item.get("rank", -1)))
+    ]
+    manifest["smoke_path_mode"] = summary["path_mode"]
+    manifest["smoke_outcome"] = summary["outcome"]
     validate_environment_manifest(manifest)
+    atomic_write_json(manifest_path, manifest)
+    # JSON is a strict subset of YAML 1.2; keep the two named manifests identical.
+    atomic_write_json(yaml_output_path, manifest)
     return manifest
 
 
@@ -497,13 +601,30 @@ def _command_manifest(arguments: argparse.Namespace) -> int:
         initial_hostname=arguments.initial_hostname,
         compute_hostname=arguments.compute_hostname,
         pbs_job_id=arguments.pbs_job_id,
+        node_type=arguments.node_type,
+        pbs_queue=arguments.pbs_queue,
+        pbs_group=arguments.pbs_group,
         pbs_nodefile_path=arguments.pbs_nodefile,
         filesystem_type=arguments.filesystem_type,
         filesystem_source=arguments.filesystem_source,
         module_list_path=arguments.module_list,
         permission_probe=permission_probe,
+        loop_id=arguments.loop_id,
+        code_commit=arguments.code_commit,
+        submission_nonce=arguments.submission_nonce,
+        config_digest=arguments.config_digest,
+        config_paths=arguments.config_paths.split(),
     )
     atomic_write_json(arguments.output, manifest)
+    return 0
+
+
+def _command_finalize_manifest(arguments: argparse.Namespace) -> int:
+    finalize_environment_manifest(
+        manifest_path=arguments.manifest,
+        smoke_summary_path=arguments.smoke_summary,
+        yaml_output_path=arguments.yaml_output,
+    )
     return 0
 
 
@@ -542,13 +663,27 @@ def build_parser() -> argparse.ArgumentParser:
     manifest.add_argument("--initial-hostname", required=True)
     manifest.add_argument("--compute-hostname", required=True)
     manifest.add_argument("--pbs-job-id", required=True)
+    manifest.add_argument("--node-type", required=True)
+    manifest.add_argument("--pbs-queue", required=True)
+    manifest.add_argument("--pbs-group", required=True)
     manifest.add_argument("--pbs-nodefile", type=Path, required=True)
     manifest.add_argument("--filesystem-type", required=True)
     manifest.add_argument("--filesystem-source", required=True)
     manifest.add_argument("--module-list", type=Path, required=True)
     manifest.add_argument("--permission-probe", type=Path, required=True)
+    manifest.add_argument("--loop-id", required=True)
+    manifest.add_argument("--code-commit", required=True)
+    manifest.add_argument("--submission-nonce", required=True)
+    manifest.add_argument("--config-digest", required=True)
+    manifest.add_argument("--config-paths", required=True)
     manifest.add_argument("--output", type=Path, required=True)
     manifest.set_defaults(handler=_command_manifest)
+
+    finalize = subparsers.add_parser("finalize-manifest")
+    finalize.add_argument("--manifest", type=Path, required=True)
+    finalize.add_argument("--smoke-summary", type=Path, required=True)
+    finalize.add_argument("--yaml-output", type=Path, required=True)
+    finalize.set_defaults(handler=_command_finalize_manifest)
 
     role = subparsers.add_parser("smoke-role")
     role.add_argument("--config", type=Path, required=True)

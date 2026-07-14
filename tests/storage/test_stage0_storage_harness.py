@@ -82,13 +82,27 @@ class TestStorageHarnessContracts(unittest.TestCase):
             "skill_repository": "https://github.com/UnbearableFate/miyabi-development",
             "skill_commit": SKILL_COMMIT,
             "initial_hostname": "miyabi-g1",
+            "compute_hostname": "mg0001",
             "compute_hosts": ["mg0001", "mg0002"],
+            "node_type": "cpu_compute",
             "pbs_job_id": "123.miyabi",
             "pbs_nodefile": ["mg0001", "mg0002"],
+            "pbs_queue": "debug-g",
+            "pbs_group": "xg24i002",
             "target_run_root": str(PROJECT_ROOT / "runtime_runs"),
             "filesystem_type": "lustre",
             "filesystem_source": "example:/lustre/work",
             "module_list": ["nv-hpcx/25.9"],
+            "loop_id": "S0B-01",
+            "code_commit": "1" * 40,
+            "submission_nonce": "n1a2b",
+            "config_digest": "2" * 64,
+            "config_paths": ["configs/stage0/storage_benchmark.json"],
+            "run_id": f"run-n1a2b-{'2' * 12}",
+            "actual_role_mapping": [
+                {"rank": 0, "role": "writer", "hostname": "mg0001", "pbs_job_id": "123.miyabi", "status": "passed", "test_root": "/work/run"},
+                {"rank": 1, "role": "reader", "hostname": "mg0002", "pbs_job_id": "123.miyabi", "status": "passed", "test_root": "/work/run"},
+            ],
         }
         validate_environment_manifest(complete)
         for field in tuple(complete):

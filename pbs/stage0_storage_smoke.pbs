@@ -135,38 +135,20 @@ printf '{"schema_version":1,"command":"lfs quota -g xg24i002","exit_code":%s,"st
   --initial-hostname "$INITIAL_HOSTNAME" \
   --compute-hostname "$HOST" \
   --pbs-job-id "$PBS_JOBID" \
+  --node-type cpu_compute \
+  --pbs-queue "${PBS_QUEUE:-debug-g}" \
+  --pbs-group xg24i002 \
   --pbs-nodefile "$RUN_DIR/env/pbs_nodefile.txt" \
   --filesystem-type "$FILESYSTEM_TYPE" \
   --filesystem-source "$FILESYSTEM_SOURCE" \
   --module-list "$RUN_DIR/env/modules.txt" \
   --permission-probe "$RUN_DIR/probes/permissions.json" \
+  --loop-id "$LOOP_ID" \
+  --code-commit "$(cat "$RUN_DIR/env/git_commit.txt")" \
+  --submission-nonce "$SUBMISSION_NONCE" \
+  --config-digest "$CONFIG_DIGEST" \
+  --config-paths "$CONFIG_PATHS" \
   --output "$RUN_DIR/manifest.json"
-
-{
-  echo "schema_version: 1"
-  echo "loop_id: $LOOP_ID"
-  echo "run_id: $RUN_ID"
-  echo "initial_hostname: miyabi-g1"
-  echo "compute_hostname: $HOST"
-  echo "compute_hosts_file: $RUN_DIR/env/compute_hosts.txt"
-  echo "pbs_job_id: $PBS_JOBID"
-  echo "pbs_nodefile: $PBS_NODEFILE"
-  echo "queue: ${PBS_QUEUE:-debug-g}"
-  echo "group: xg24i002"
-  echo "node_count: $HOST_COUNT"
-  echo "target_run_root: $TARGET_RUN_ROOT"
-  echo "filesystem_type: $FILESYSTEM_TYPE"
-  echo "filesystem_source: $FILESYSTEM_SOURCE"
-  echo "module_list_file: $RUN_DIR/env/modules.txt"
-  echo "smoke_path_mode: $SMOKE_PATH_MODE"
-  echo "expected_smoke_result: $SMOKE_EXPECTED_RESULT"
-  echo "submission_nonce: $SUBMISSION_NONCE"
-  echo "config_digest: $CONFIG_DIGEST"
-  echo "config_paths: $CONFIG_PATHS"
-  echo "miyabi_skill_repository: https://github.com/UnbearableFate/miyabi-development"
-  echo "miyabi_skill_commit: ad1fd34a9de976b4fb26ba47d9a1770430884765"
-  echo "raw_evidence_root: $RUN_DIR"
-} > "$RUN_DIR/manifest.yaml"
 
 if [[ "$SMOKE_PATH_MODE" == "shared" ]]; then
   TEST_ROOT="$TARGET_RUN_ROOT/stage0-storage-smoke/$RUN_ID"
@@ -223,6 +205,11 @@ esac
   --path-mode "$SMOKE_PATH_MODE" \
   --expected "$SMOKE_EXPECTED_RESULT" \
   > "$RUN_DIR/results/summarize.stdout"
+
+"$PYTHON" -m fsbdd_stage0.storage_bench finalize-manifest \
+  --manifest "$RUN_DIR/manifest.json" \
+  --smoke-summary "$RUN_DIR/results/smoke-summary.json" \
+  --yaml-output "$RUN_DIR/manifest.yaml"
 
 {
   echo "schema_version: 1"
