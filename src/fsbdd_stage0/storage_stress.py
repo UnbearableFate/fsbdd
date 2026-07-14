@@ -564,7 +564,13 @@ def _run_atomic_writer(
                 transcript.flush()
                 os.fsync(transcript.fileno())
             transcript_name = f"atomic_publications_{record_size}.jsonl"
-            shutil.copyfile(local_transcript, result_root / transcript_name)
+            transcript_destination = result_root / transcript_name
+            shutil.copyfile(local_transcript, transcript_destination)
+            descriptor = os.open(transcript_destination, os.O_RDONLY)
+            try:
+                os.fsync(descriptor)
+            finally:
+                os.close(descriptor)
             _fsync_directory(result_root)
         finally:
             local_transcript.unlink(missing_ok=True)
