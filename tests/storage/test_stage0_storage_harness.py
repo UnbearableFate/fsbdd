@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -22,6 +23,7 @@ from fsbdd_stage0.storage_bench import (
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 CONFIG_PATH = PROJECT_ROOT / "configs/stage0/storage_benchmark.json"
+PBS_PATH = PROJECT_ROOT / "pbs/stage0_storage_smoke.pbs"
 
 
 class TestStorageHarnessContracts(unittest.TestCase):
@@ -64,6 +66,15 @@ class TestStorageHarnessContracts(unittest.TestCase):
             with self.assertRaisesRegex(StorageHarnessError, "missing"):
                 read_json_record(path, required_fields=("run_id", "payload_sha256"))
             self.assertEqual(read_json_record(path, required_fields=("run_id",))["run_id"], "run-a")
+
+    def test_bench_04__two_node_pbs_launcher_is_static_safe(self) -> None:
+        subprocess.run(["bash", "-n", str(PBS_PATH)], check=True)
+        script = PBS_PATH.read_text(encoding="utf-8")
+        self.assertIn("#PBS -l select=2", script)
+        self.assertIn("^mg[0-9]+$", script)
+        self.assertIn("--map-by ppr:1:node", script)
+        self.assertIn("application_coordination: filesystem_only", script)
+        self.assertNotIn("-x PYTHONPATH", script)
 
     def test_fs_08__environment_manifest_requires_compute_and_fs_identity(self) -> None:
         complete = {
