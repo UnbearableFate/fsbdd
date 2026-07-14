@@ -16,6 +16,9 @@
 7. 基础训练系统在 `S1-13` 完成后，后续每个实现 loop 都必须以一次新的真实 Miyabi 9 节点门禁结束：8 learners + 1 syncer、每 learner 1 GPU/1 node、pretrained GPT-2 small + WikiText-2 raw packed-512、`H=50` local optimizer steps、`target_global_cycles=10`，loss 有限且呈下降趋势，运行时间在预先冻结的预算内。
 8. loop 通过后更新 `$PLAN_ROOT/plans/PROGRESS.yaml`、tracked evidence
    index 和 Checker 报告；raw evidence 不提交 Git，也不得只在聊天上下文中宣称完成。
+9. Stage 1 起执行 `docs/13_STAGE0_RETROSPECTIVE_AND_STAGE1_EXECUTION.md`：先冻结
+   requirement/measurement/evidence contract，再升级 PBS 资源；每个 loop 最多一个
+   独立 Checker context，并使用索引优先、raw-on-demand 的低 token 工作流。
 
 ## 包结构
 

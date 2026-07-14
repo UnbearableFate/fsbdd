@@ -19,6 +19,7 @@ sed -n '1,240p' AGENTS.md
 sed -n '1,260p' "$PLAN_ROOT/AGENTS.md"
 sed -n '1,240p' "$PLAN_ROOT/docs/00_AUTHORITY_AND_SCOPE.md"
 sed -n '1,260p' "$PLAN_ROOT/docs/03_LOOP_ENGINEERING_PROTOCOL.md"
+sed -n '1,320p' "$PLAN_ROOT/docs/13_STAGE0_RETROSPECTIVE_AND_STAGE1_EXECUTION.md"
 sed -n '1,260p' "$PLAN_ROOT/plans/EXECUTION_ORDER.md"
 ```
 
@@ -36,17 +37,24 @@ loop。source、执行包和实现必须是 Git tracked，并能由 Miyabi 通�
 2. 创建 `$PLAN_ROOT/plans/loop_states/`，复制
    `$PLAN_ROOT/templates/LOOP_STATE.yaml` 为 `<loop-id>.yaml`。
 3. 执行当前 loop 卡的 ORIENT。
-4. 先提交或至少持久化 RED 测试与失败输出。
-5. 完成最小 GREEN；运行本地/CPU/单节点阶梯。
-6. HARDEN。
-7. 若处于 `S1-13` 或之后，执行新的 Miyabi 8+1/50×10 门禁。
-8. 切换到独立 Checker 上下文，使用
+4. 落盘完整 requirement/反例/观察点/聚合/evidence matrix 和 run-package contract；
+   RED 先证明目标语义失败，而不是仅证明 import 失败。
+5. 先提交或至少持久化 RED 测试与失败输出。
+6. 完成最小 GREEN；按 static→targeted→1-node→2-node 阶梯 HARDEN。focused 迭代
+   优先复用有效 1-node interactive/debug allocation。
+7. L2/L3/L4 前由唯一 Checker context 做 Phase A precheck，并运行 package validator。
+8. 若处于 `S1-13` 或之后，执行新的 Miyabi 8+1/50×10 门禁。
+9. 由同一独立 Checker context 做 Phase B final check，使用
    `$PLAN_ROOT/templates/CHECKER_REPORT.md`。
-9. 更新 `$PLAN_ROOT/plans/PROGRESS.yaml`、
+10. 更新 `$PLAN_ROOT/plans/PROGRESS.yaml`、
    `$PLAN_ROOT/plans/ACCEPTANCE_TRACEABILITY.csv` 和
    `$REPO_ROOT/evidence/indexes/<loop-id>.md`。
-10. 提交 loop 结果并报告 branch/commit/证据路径，不默认合并真实 integration
+11. 提交 loop 结果并报告 branch/commit/证据路径，不默认合并真实 integration
     branch。
+
+主 Agent 不为普通检索/总结启用 subagent。Checker 以无聊天继承的最小输入启动；每个
+loop 默认最多一个 Checker context，blocked 修复通过 follow-up 继续，而不是重建全部
+上下文。
 
 ## Miyabi 前置
 

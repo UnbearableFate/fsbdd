@@ -1,5 +1,20 @@
 # 执行包变更记录
 
+## v1.1.0 — 2026-07-15
+
+- 根据 Stage 0 七 loops、六份保留 blocked Checker 和 stage closure 证据完成耗时与
+  token 复盘，并明确 Stage 0 没有生产训练/9N 结论。
+- 在 RED 前增加 requirement/counterexample/observation/aggregation/evidence matrix；
+  import-only failure 不再作为语义 RED。
+- 在正式 runtime run 前后增加通用 package validator，澄清 run timestamp source 与
+  PBS qtime 的关系，并禁止合成非同步 rank-local rates。
+- L2–L4 使用同一个独立 Checker context 做 Phase A/Phase B；subagent 不继承 Maker
+  聊天且不用于普通工作。
+- focused 检查优先复用 1-node interactive/debug allocation；昂贵失败先降级复现。
+- 加入 index-first/raw-on-demand、短 handoff、窄工具输出等 token 控制，并把通用
+  evidence tooling 前移到 S1-00。
+- 保留现有 Python/Torch 环境不变。
+
 ## v1.0.2 — 2026-07-14
 
 - 将 9 节点 8 learners + 1 syncer、H=50、global-cycle=10 的固定回归 workload 明确为 pretrained GPT-2 small + WikiText-2 raw。

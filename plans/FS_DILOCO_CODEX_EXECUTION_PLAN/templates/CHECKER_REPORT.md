@@ -2,7 +2,9 @@
 
 ## Verdict
 
-`PASS | PASS_WITH_FOLLOWUPS | BLOCKED`
+Phase A：`NOT_REQUIRED | ADMISSIBLE | BLOCKED_PRECHECK`
+
+Phase B：`PASS | PASS_WITH_FOLLOWUPS | BLOCKED`
 
 ## 独立输入
 
@@ -12,6 +14,16 @@
 - resolved config：
 - RED/GREEN/HARDEN evidence：
 - 9N package（适用）：
+- requirement/measurement/evidence matrix：
+- package validator summary：
+
+## Phase A：昂贵运行前检查
+
+- requirement/acceptance 是否完整：
+- 反例是否覆盖主要错误实现：
+- authoritative observation 与 aggregation 是否有效：
+- run/evidence contract 是否 admissible：
+- 允许升级到的最高资源等级：
 
 ## 重新构建的目标
 
@@ -35,6 +47,8 @@
 - base/consumption：
 - numerical reference：
 - config/identity：
+- mutable-container bounded-state inventory：
+- resume code/config/generator/formula identity：
 
 ## Maker 未列出的反例
 
@@ -49,6 +63,8 @@
 - global cycles/local steps：
 - fault/perf overlay：
 - raw evidence 可复算：
+- timestamp source / scheduler identity：
+- final package validator：
 
 ## Acceptance 判定
 
@@ -63,5 +79,6 @@
 ## 签署
 
 - Checker session/date：
+- Checker context ID / Maker chat inherited=false：
 - checked commit：
 - report hash：

@@ -29,7 +29,17 @@
 - model/data/config：
 - Miyabi skill commit/host routing：
 - resource/runtime budget：
+- attempt budget / fallback level：
+- context inputs / raw evidence on demand：
+- goal token start / soft budget：
 - baseline/fault overlay：
+
+## PREFLIGHT
+
+- requirement/counterexample/observation/aggregation/evidence matrix：
+- run/evidence package contract：
+- package validator：
+- Checker Phase A（L2–L4）：
 
 ## SPECIFY / RED
 
@@ -59,9 +69,10 @@
 
 ## CHECK
 
-- Checker session/commit：
+- single Checker context/commit：
+- Phase A verdict（适用）：
 - unseen counterexample：
-- verdict：
+- Phase B verdict：
 
 ## PERSIST
 
@@ -69,6 +80,8 @@
 - acceptance traceability：
 - result commit：
 - next gap：
+- compact handoff：
+- attempts/queue/active time/Checker cycles/agent tokens/rework causes：
 
 ## 完成定义
 

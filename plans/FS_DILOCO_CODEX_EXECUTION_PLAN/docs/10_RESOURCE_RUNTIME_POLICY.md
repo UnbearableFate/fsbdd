@@ -7,6 +7,7 @@
 - 任何 run 提交前冻结目的、预计时间、节点数、停止条件和证据；
 - queue wait 与 active runtime 分开；
 - 不为“看看会怎样”申请长期多节点 job。
+- requirement/measurement/package preflight 与 Checker Phase A 未通过时不提交 L2–L4。
 
 ## 10.2 预算层级
 
@@ -19,6 +20,14 @@
 | L4 | stage budget | 1B tokens、2h slow FS、kill matrix、多种子 |
 
 每个 loop 卡指定最高必要等级。
+
+L1 focused 迭代优先在一个有效的 1-node interactive/debug allocation 内批量完成；不要
+为每个小测试单独提交 batch。L2 以上、长时和需要 scheduler 作为正式证据的 run 使用
+batch。login 节点仍然只做 control-plane/static 工作。
+
+每个 loop state 预登记 `attempt_budget`。L2/L3/L4 第一次失败后停止同级重试，先在最低
+可复现等级定位；只有 checked commit、resolved config 或环境修复发生可记录变化且低层
+阶梯通过后，才消耗下一次昂贵 attempt。
 
 ## 10.3 9 节点消耗控制
 

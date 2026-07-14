@@ -70,6 +70,51 @@
 
 不得把覆盖率当作需求证明；不得以“本地通过”替代 Miyabi 相关行为的真实验证。
 
+### 4.1 运行前 admissibility
+
+ORIENT 后、RED 前必须冻结并落盘：
+
+- 当前 loop 覆盖的完整 requirement/acceptance IDs；
+- 每个 ID 的 assertion、至少一个反例、权威观察点、聚合区间/公式与证据路径；
+- run/evidence contract，包括 code/config/source/skill/scheduler/role/path identity、
+  timestamp source、fail-if-exists 与 checksum finalization；
+- 资源等级、单次 attempt budget、升级阶梯和失败后的最小降级复现。
+
+RED 必须执行目标 API 或明确记录的错误 surrogate；只在 import/collection 阶段失败
+不能证明目标语义。性能/并发结论必须先固定共同观测区间和聚合公式；不得把非同步
+rank-local rates 直接相加。
+
+L2/L3/L4 run 提交前，通用 validator 必须对 frozen package 返回 admissible。首次昂贵
+run 失败后先保存证据并缩小复现，不得连续用相同大拓扑试错。
+
+### 4.2 Checker 与 subagent
+
+每个 loop 默认一个 Maker 和最多一个独立 Checker context。低成本 loop 只做最终
+Checker；需要 L2/L3/L4 的 loop 由同一个 Checker 在提交前做 Phase A 静态 precheck，
+运行后做 Phase B final check。blocked 修复继续该 Checker context，除非独立性已被
+破坏；不得为重复确认创建多个 final Checker。
+
+Checker 以无 Maker 聊天继承的最小输入启动，只接收 source/loop 路径、checked commit、
+diff、evidence index 和 manifest。subagent 不用于普通检索、总结或主 Agent 可串行完成
+的任务。
+
+### 4.3 上下文与 token 纪律
+
+- 一个执行 goal/session 默认只关闭一个 Maker loop；PERSIST 后先交付 compact handoff，
+  不在同一长上下文自动进入下一 loop，除非用户明确要求连续执行。
+- ORIENT 记录 goal token 起点和 soft budget，各阶段记录增量。超出 soft budget 触发
+  context/input 审计与 handoff 压缩，不得以预算为由降低 correctness gate。
+- 先读 `PROGRESS.yaml`、当前 loop state、stage checkpoint、evidence index 和最后
+  Checker；索引不足或校验失败时才展开 raw evidence。
+- 搜索先窄 `rg` 再读取命中范围；大 CSV/log 由程序输出计数、hash 与 anomaly summary，
+  不整份注入上下文。
+- 每阶段把已证实事实、唯一 gap、checked commit、selected evidence 和下一命令写入
+  loop state；恢复工作以落盘 handoff 为准，不重放聊天历史。
+- 同一 session 对 hash 未变化的 authority 不重复全文读取。工具输出只保留当前判断
+  所需字段和行。
+
+详细依据与 Stage 1 闸门见 `docs/13_STAGE0_RETROSPECTIVE_AND_STAGE1_EXECUTION.md`。
+
 ## 5. 真实 9 节点门禁
 
 `S1-13` 建立基础训练系统与首个基准。自该 loop 通过后，所有后续实现 loop 的完成定义都包含一次新的门禁 run：

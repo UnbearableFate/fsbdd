@@ -1,5 +1,5 @@
 schema_version: 1
-plan_version: '1.0.2'
+plan_version: '1.1.0'
 repository:
   integration_branch: master
   repo_root_source: git-rev-parse-show-toplevel

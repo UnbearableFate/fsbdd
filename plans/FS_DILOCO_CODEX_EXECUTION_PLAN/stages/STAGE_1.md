@@ -43,6 +43,20 @@
 - base window 从第一天按 `S_max+1`；
 - steady-state 不传完整模型。
 
+## 执行与成本约束
+
+- `S1-00` 必须先冻结 manifest/run identity time-source 语义，并提供通用 evidence
+  builder/finalizer/validator。validator 覆盖 clean commit、source/skill/config、PBS
+  scheduler、实际 roles、路径、fail-if-exists、placeholder、checksums 与 listed/actual。
+- 每个 loop 的 RED 前先完成 requirement/counterexample/observation/aggregation/evidence
+  matrix。性能 rate 使用 coordinator 共同区间，不合成非同步 rank-local rates。
+- focused runtime 检查复用有效的 1-node interactive/debug allocation；L2/L3/L4 使用
+  batch，并在首次失败后降级复现。
+- 每 loop 默认最多一个独立 Checker context。L2–L4 由该 context 在昂贵提交前做
+  Phase A、运行后做 Phase B；普通工作不使用 subagent。
+- Agent 从 checkpoint/state/index 逐层读取，raw evidence on demand；大日志/CSV 先生成
+  deterministic summary，以降低重复上下文和 token。
+
 ## 验收覆盖
 
 - A-FRAG-01..03
@@ -79,3 +93,5 @@ capability:
 - 9 节点 runtime baseline 与兼容 key 已冻结；
 - independent-jobs 8+1 运行至少一次，或若队列暂不支持，有明确 Stage 3 前补跑 blocker；
 - Checker 允许关闭。
+- Stage 1 checkpoint 报告 attempts、queue/active time、Checker cycles、返工根因及
+  context/token 改进是否生效。

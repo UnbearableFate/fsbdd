@@ -1,5 +1,11 @@
-schema_version: 2
+schema_version: 3
 run_id: <unique-run-id>
+run_identity:
+  timestamp_utc: <UTC>
+  time_source: <submission_utc-or-pbs_qtime>
+  execution_identity: <pbs-job-identity-or-submission-nonce>
+  config_digest_short: <12-hex>
+  fail_if_exists: true
 purpose:
   stage: <stage>
   loop_id: <loop-id>
@@ -9,7 +15,7 @@ status: planned
 authority:
   research_plan_sha256: <sha256>
   stage0_4_spec_sha256: <sha256>
-  plan_version: "1.0.2"
+  plan_version: "1.1.0"
 code:
   repository: <url>
   branch: <branch>
@@ -24,6 +30,10 @@ codex:
     workflow: <local-or-remote>
 miyabi:
   pbs_job_ids: []
+  submission_utc: <UTC>
+  scheduler_qtime_utc: <UTC-or-null>
+  scheduler_start_utc: <UTC-or-null>
+  scheduler_end_utc: <UTC-or-null>
   queue: <discovered>
   group: <literal-group>
   nodefile_sha256: <sha>
@@ -135,3 +145,12 @@ outputs:
   storage_snapshot: <path>
   analysis: <path>
   checker_report: <path>
+evidence_validation:
+  preflight_command: <command>
+  preflight_status: <admissible>
+  finalizer_command: <command>
+  final_validator_command: <command>
+  final_validator_status: <admissible>
+  checksums_sha256: <sha>
+  listed_files: <integer>
+  actual_files: <integer>

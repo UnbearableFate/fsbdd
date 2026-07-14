@@ -65,3 +65,19 @@ Stage 0 的 0-A/0-B/0-C 可并行。下面是单一 Codex 会话的默认串行�
 - S1-13 未通过，不启用后续9N基准比较。
 - 任何 loop 的低层验证失败，不直接提交9节点。
 - Stage3未关闭，不开始Stage4正式 stale实验。
+
+## Stage 1 成本里程碑
+
+Stage 1 不新增 loop，但按以下里程碑升级资源：
+
+1. `S1-00` 先交付 typed config、identity 和通用 run-package
+   builder/finalizer/validator；后续正式 run 不再各自拼装证据契约。
+2. `S1-01..S1-05` 先关闭 model/fragment/storage/protocol 的结构与语义反例；没有必要
+   不上 L2。
+3. `S1-06..S1-12` 先通过 targeted/1-node real，再做 2-node functional/numerical E2E。
+4. `S1-13` 只有在 package preflight、Checker Phase A、1-node 和 2-node smoke 全通过后
+   才提交 9N gate；M=4/160M/≥1B-token long run 还必须在短跑 loss/runtime/storage
+   证据通过后提交。
+
+每个里程碑从 `PROGRESS.yaml`、loop state 和 evidence index 恢复；不要求重读全部历史
+Checker 或 raw logs。

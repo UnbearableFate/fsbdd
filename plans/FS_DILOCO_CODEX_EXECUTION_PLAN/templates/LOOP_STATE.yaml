@@ -1,4 +1,4 @@
-schema_version: 1
+schema_version: 2
 loop_id: <LOOP-ID>
 title: <title>
 stage: <stage>
@@ -22,6 +22,20 @@ orient:
   miyabi_skill_commit: null
   initial_hostname: null
   workflow: null
+  context_inputs: []
+  raw_evidence_on_demand: []
+  resource_level: null
+  attempt_budget: {}
+  goal_tokens_start: null
+  soft_token_budget: null
+preflight:
+  requirement_matrix: null
+  requirements_complete: false
+  measurement_contract: null
+  package_contract: null
+  package_validator_command: null
+  package_validator_result: null
+  checker_phase_a: not_required
 red:
   command: null
   exit_code: null
@@ -39,6 +53,9 @@ nine_node_gate:
   loss_gate: null
   runtime_gate: null
 checker:
+  context_id: null
+  maker_chat_inherited: false
+  phase_a_verdict: null
   verdict: null
   report_path: null
 persist:
@@ -46,4 +63,18 @@ persist:
   raw_evidence_root: null
   acceptance_traceability_updated: false
   next_gap: null
+  handoff:
+    proven_facts: []
+    checked_commit: null
+    selected_evidence: []
+    next_command: null
+  cost:
+    attempts_by_level: {}
+    queue_seconds: null
+    active_seconds: null
+    checker_cycles: 0
+    goal_tokens_end: null
+    agent_tokens_used: null
+    phase_token_deltas: {}
+    rework_causes: []
 blocker: null
