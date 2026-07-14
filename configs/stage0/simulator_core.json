@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "profile_id": "stage0-simulator-core",
+  "learners": 4,
+  "fragments": 4,
+  "q": 3,
+  "q_fresh": 1,
+  "s_max": 1,
+  "lambda_s": 1.0,
+  "h_steps": 50,
+  "grace_fraction_of_h": 0.1,
+  "upload_delay_seconds": 0.05,
+  "visibility_delay_seconds": 1.0,
+  "duration_seconds": 1000.0,
+  "heterogeneity_ratio": 1.5,
+  "speed_model": "constant_ratio",
+  "tokens_per_step": 512,
+  "seed": 20260714,
+  "max_trace_events": 512
+}

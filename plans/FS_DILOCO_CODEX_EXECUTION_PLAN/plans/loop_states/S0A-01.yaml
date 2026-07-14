@@ -1,0 +1,61 @@
+schema_version: 1
+loop_id: S0A-01
+title: 离散事件模拟器内核与 oracle 对齐
+stage: stage0
+status: oriented
+source_hashes:
+  research_plan: 2c0db3148110da10ea62f445c189d2d53b405527d8da264b9af9817f5ca9d835
+  stage0_4_spec: fad26a8add51e70ddf50d0130b61d80fe06e1c3945221c29508412a5bcab2feb
+git:
+  integration_branch: master
+  branch: codex/S0A-01-simulator-core
+  base_commit: 35694ba1d3444b3791b1a6f9f5be11acc8237570
+  result_commit: null
+  dirty_at_start: false
+dependencies:
+  - S0C-02
+requirements:
+  - SIM-01
+  - SIM-02
+  - STALE-01
+  - STALE-07
+  - STALE-08
+  - STALE-09
+acceptance_ids:
+  - A-SIM-01
+orient:
+  unique_failing_gap: No bounded deterministic event simulator models H/offset, learner speeds, publication visibility, Q/grace, adoption, staleness, one-per-learner, and same-base consumption using the shared oracle decisions.
+  planned_files:
+    - src/fsbdd_stage0/simulation.py
+    - configs/stage0/simulator_core.json
+    - tests/simulation/test_a_sim_01__event_semantics.py
+    - tests/red_cases/s0a01_naive_event_simulator_surrogate.py
+  model_data_profile: Synthetic event/count simulation only; M=4 core profile, F=4, H=10 in focused tests; no loss/model/data.
+  miyabi_skill_commit: ad1fd34a9de976b4fb26ba47d9a1770430884765
+  initial_hostname: miyabi-g1
+  workflow: Miyabi control plane; deterministic CPU runtime checks submitted to one PBS compute node.
+red:
+  command: null
+  exit_code: null
+  evidence_path: null
+green:
+  command: null
+  evidence_path: null
+harden:
+  commands: []
+  evidence_paths: []
+nine_node_gate:
+  required: false
+  run_id: null
+  topology_gate: not_applicable_before_S1-13
+  loss_gate: not_applicable
+  runtime_gate: not_applicable
+checker:
+  verdict: null
+  report_path: null
+persist:
+  evidence_index: null
+  raw_evidence_root: /work/xg24i002/x10041/fsbdd/evidence/raw/S0A-01
+  acceptance_traceability_updated: false
+  next_gap: S0A-02 full SIM-03 sweep and recommendation report
+blocker: null
