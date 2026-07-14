@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "loop_id": "S0B-02",
-  "status": "pass",
+  "status": "pass_candidate",
   "runtime_commit": "78e5992383d3fc6900edeb80f6055451bb08933b",
   "source_hashes": {
     "RESEARCH_PLAN.md": "2c0db3148110da10ea62f445c189d2d53b405527d8da264b9af9817f5ca9d835",
@@ -147,10 +147,11 @@
     "A-BENCH-02": "pass"
   },
   "checker": {
-    "checked_candidate": "725d7d6a48dc28b52fde509a548e3e6a34148318",
-    "verdict": "PASS",
+    "checked_candidate": "454043a659a15a54d90177f35b689f0d9c40a271",
+    "verdict": "BLOCKED",
     "report": "reports/checkers/S0B-02.md",
-    "report_sha256": "a718af0425707968dd3bbe28e95e6634bf3fd606ae40d60c6c74d636804c518d"
+    "report_sha256": null,
+    "successor_recheck_required": true
   },
   "claims_boundary": "This report qualifies visibility and atomic replacement only on the frozen Miyabi Lustre RUN_ROOT. It makes no metadata, bandwidth, training, GPU, model, loss, or nine-node claim."
 }

@@ -2,7 +2,7 @@ schema_version: 1
 loop_id: S0B-02
 title: 跨节点可见性与 10^5 次原子发布验证
 stage: stage0
-status: pass
+status: checking
 source_hashes:
   research_plan: 2c0db3148110da10ea62f445c189d2d53b405527d8da264b9af9817f5ca9d835
   stage0_4_spec: fad26a8add51e70ddf50d0130b61d80fe06e1c3945221c29508412a5bcab2feb
@@ -10,7 +10,7 @@ git:
   integration_branch: master
   branch: codex/S0B-02-visibility-atomicity
   base_commit: 5e00111228c7652d76e3ae2c2f05c5880bd0bcd5
-  result_commit: 725d7d6a48dc28b52fde509a548e3e6a34148318
+  result_commit: 454043a659a15a54d90177f35b689f0d9c40a271
   dirty_at_start: false
 dependencies:
   - S0B-01
@@ -53,7 +53,10 @@ orient:
 red:
   command: TEST_TARGETS=tests.red_cases.s0b02_unsafe_visibility_surrogate EXPECTED_TEST_RESULT=fail qsub pbs/stage0_cpu_tests.pbs
   exit_code: 1
-  evidence_path: evidence/raw/S0B-02/20260714T155627Z-red-n3f8c-3c37e0b38ef2
+  evidence_path: evidence/raw/S0B-02/20260714T164222Z-red-clock-n5a7d-3c37e0b38ef2
+  additional_evidence_paths:
+    - evidence/raw/S0B-02/20260714T155627Z-red-n3f8c-3c37e0b38ef2
+  provenance_note: The selected repeat has exact UTC qtime provenance and the same four failures; the original package is retained only to prove pre-implementation ordering because its run prefix is seven seconds early.
 green:
   command: qsub pbs/stage0_storage_visibility_atomicity.pbs with FSBDD_STRESS_MODE=full
   evidence_path: evidence/raw/S0B-02/20260714T161909Z-fullfix-fullfix-n6c9a-006abf2a3b43
@@ -71,11 +74,11 @@ nine_node_gate:
   loss_gate: not_applicable
   runtime_gate: not_applicable
 checker:
-  verdict: PASS
-  report_path: reports/checkers/S0B-02.md
+  verdict: null
+  report_path: null
 persist:
   evidence_index: evidence/indexes/S0B-02.md
   raw_evidence_root: /work/xg24i002/x10041/fsbdd/evidence/raw/S0B-02
-  acceptance_traceability_updated: true
+  acceptance_traceability_updated: false
   next_gap: S0B-03 metadata and bandwidth capacity decision
 blocker: null
