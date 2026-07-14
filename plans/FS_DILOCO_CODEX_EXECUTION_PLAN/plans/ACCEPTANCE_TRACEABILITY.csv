@@ -10,10 +10,10 @@ stage,acceptance_id,primary_loop,supporting_loops,required_evidence,status,evide
 1,A-FRAG-01,S1-02,S1-01,parameter identity全覆盖恰好一次,passed,evidence/indexes/S1-02.md,PASS,148 real identities plus synthetic cases partition exactly once
 1,A-FRAG-02,S1-02,,连续非空fragments,passed,evidence/indexes/S1-02.md,PASS,validated ordered nonempty intervals cover every logical layer
 1,A-FRAG-03,S1-02,,小模型exhaustive+大模型摘要,passed,evidence/indexes/S1-02.md,PASS,212750 exhaustive and 500 random brute-force matches plus Pythia summary
-1,A-PROP-01,S1-05,S1-03,部分proposal不可见,not_started,,,
+1,A-PROP-01,S1-05,S1-03,部分proposal不可见,not_started,evidence/indexes/S1-03.md,PENDING,component storage evidence: 1428 cross-node observations and zero partial/invalid reads; proposal business closure remains S1-05
 1,A-PROP-02,S1-05,S1-09,同learner一次最多一个contribution,not_started,,,
 1,A-PROP-03,S1-11,S1-05;S1-09,重复polling不重复消费,not_started,,,
-1,A-GLOBAL-01,S1-11,S1-03,params/outer/frontier共同可见,not_started,,,
+1,A-GLOBAL-01,S1-11,S1-03,params/outer/frontier共同可见,not_started,evidence/indexes/S1-03.md,PENDING,component atomic compound-payload evidence: old/old/old/complete-new crash matrix; business closure remains S1-11
 1,A-GLOBAL-02,S1-11,S1-04,per-fragment version单调+1,not_started,,,
 1,A-LEARN-01,S1-12,S1-13,单learner×0.5，其余吞吐变化≤2%,not_started,,,
 1,A-LEARN-02,S1-08,,adoption只覆盖目标fragment,not_started,,,

@@ -34,7 +34,7 @@ preflight:
   measurement_contract: reports/stage1/S1-03-evidence-contract.json
   package_contract: reports/stage1/S1-03-evidence-contract.json
   package_validator_command: fsbdd evidence validate runtime_runs/S1-03/formal-l2-r2
-  package_validator_result: admissible at runtime_runs/S1-03/preflight-qtime-31c6f5d (manifest eaae119c5d549e50f821df2166ab00efcab83a22d7faa0b355c85f3179c3d0e4); runtime_runs/S1-03/formal-l2 is preserved but not selected because its PBS qtime was labeled UTC without converting from JST
+  package_validator_result: admissible at runtime_runs/S1-03/formal-l2-r2 (25/25 files; manifest 66ffade28606c3f5b6d855bbff542299f90c33df84c389c9d2e9bbef75632c76); runtime_runs/S1-03/formal-l2 is preserved but not selected because its PBS qtime was labeled UTC without converting from JST
   checker_phase_a: required
 red:
   command: two expected-failure commands recorded under runtime_runs/S1-03/red-474182d
@@ -55,28 +55,30 @@ nine_node_gate: {required: false, run_id: null, topology_gate: null, loss_gate: 
 checker:
   context_id: /root/s1_03_checker
   maker_chat_inherited: false
-  phase_a_verdict: recheck required after qtime identity correction
+  phase_a_verdict: ADMISSIBLE after qtime identity correction
   verdict: null
   report_path: reports/checkers/S1-03-phase-a.md
 persist:
-  evidence_index: pending Phase B
+  evidence_index: evidence/indexes/S1-03.md
   raw_evidence_root: runtime_runs/S1-03
-  acceptance_traceability_updated: false
-  next_gap: null
+  acceptance_traceability_updated: true
+  next_gap: S1-04 must implement bootstrap per-fragment current references and bounded global state.
   handoff:
     proven_facts:
     - fixed-slot readers observe only the old or a fully validated new compound payload in focused crash and concurrency tests
     - normal reads use one visibility record and its referenced immutable payload without directory scans
     - the frozen preflight package is checksum-finalized and validator-admissible with the full Stage 1 suite passing
     - the PBS qtime regression failed before correction and the corrected L1 package proves explicit JST-to-UTC conversion
-    checked_commit: 31c6f5da8f2c822076d860f197c200fef4d925a7
-    selected_evidence: [runtime_runs/S1-03/preflight-qtime-31c6f5d, runtime_runs/S1-03/l1-smoke2-e64b6d1]
-    next_command: request Phase A recheck in the same Checker context before the replacement L2 submission
+    - selected L2 job 2384655.opbs ran on mg0026 and mg0027 with 500 publications 1428 valid observations final sequence 500 and zero invalid reads
+    - crash outcomes are old old old complete-new and the selected finalized package is checksum-valid and validator-admissible
+    checked_commit: e5fc7db5a5f52ec7c407e4867fffc1037d831c5b
+    selected_evidence: [runtime_runs/S1-03/formal-l2-r2]
+    next_command: independent Checker Phase B final review of the checked candidate and selected L2 package
   cost:
-    attempts_by_level: {L0: 3, L1: 2, L2: 1}
-    queue_seconds: null
-    active_seconds: null
-    checker_cycles: 1
+    attempts_by_level: {L0: 3, L1: 2, L2: 2}
+    queue_seconds: 5
+    active_seconds: 22
+    checker_cycles: 2
     goal_tokens_end: null
     agent_tokens_used: null
     phase_token_deltas: {}

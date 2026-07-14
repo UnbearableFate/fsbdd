@@ -31,3 +31,9 @@ failed identity attempt: its application observations passed, but its manifest
 labeled the local-JST PBS `qtime` as UTC. A static regression now requires the
 explicit JST parse, and the selected replacement package is frozen at
 `runtime_runs/S1-03/formal-l2-r2`.
+
+The replacement job `2384655.opbs` ran one writer on `mg0026` and one reader
+on `mg0027`. Its selected package is validator-admissible (25/25 files), all 68
+Stage 1 tests pass, and 500 publications produced 1,428 valid observations with
+zero invalid reads. The reader observed final sequence 500; the crash matrix is
+old/old/old/complete-new and normal discovery performed zero directory scans.
