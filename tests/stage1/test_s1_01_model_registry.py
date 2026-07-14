@@ -50,6 +50,17 @@ class ThirdFamily(nn.Module):
         self.output = nn.Linear(4, 8, bias=False)
 
 
+class ReorderedLlama(nn.Module):
+    def __init__(self) -> None:
+        super().__init__()
+        self.config = SimpleNamespace(model_type="llama")
+        self.lm_head = nn.Linear(4, 8, bias=False)
+        self.model = nn.Module()
+        self.model.norm = nn.LayerNorm(4)
+        self.model.layers = nn.ModuleList([nn.Linear(4, 4), nn.Linear(4, 4)])
+        self.model.embed_tokens = nn.Embedding(8, 4)
+
+
 def unique_trainable(model: nn.Module) -> int:
     return len({id(parameter) for parameter in model.parameters() if parameter.requires_grad})
 
@@ -103,4 +114,33 @@ def test_unlisted_auxiliary_parameter_is_rejected() -> None:
     model = TinyLlama()
     model.auxiliary = nn.Parameter(torch.ones(2))
     with pytest.raises(RegistryError, match="unowned"):
+        build_logical_layer_registry(model)
+
+
+def test_registration_order_does_not_change_registry_digest() -> None:
+    assert build_logical_layer_registry(TinyLlama()).digest == build_logical_layer_registry(ReorderedLlama()).digest
+
+
+def test_large_embedding_and_zero_parameter_head_are_supported_explicitly() -> None:
+    model = ThirdFamily()
+    model.tokens = nn.Embedding(4096, 4)
+    model.post = nn.Identity()
+    model.output = nn.Identity()
+    mapping = ExplicitMapping(
+        family="third-zero-head",
+        embedding_path="tokens",
+        block_paths=("stack.0", "stack.1"),
+        head_path="output",
+        misc=(),
+    )
+    registry = build_logical_layer_registry(model, explicit=mapping, sync_dtype_bytes=2)
+    assert registry.layers[0].sync_bytes == 4096 * 4 * 2
+    assert registry.layers[-1].parameter_count == 0
+    assert registry.coverage.owned == unique_trainable(model)
+
+
+def test_parameter_shared_across_blocks_is_rejected() -> None:
+    model = TinyLlama()
+    model.model.layers[1].weight = model.model.layers[0].weight
+    with pytest.raises(RegistryError, match="shared"):
         build_logical_layer_registry(model)
