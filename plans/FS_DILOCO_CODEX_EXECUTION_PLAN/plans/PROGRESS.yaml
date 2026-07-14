@@ -12,7 +12,7 @@ capabilities:
     status: inactive
     established_by: S1-13
     baseline_9n_run_id: null
-current_loop: S0C-02
+current_loop: S0A-01
 loops:
 - id: S0C-01
   stage: stage0
@@ -33,15 +33,15 @@ loops:
   title: Consumption 语义、Outer Optimizer reference transitions 与证据映射
   depends_on:
   - S0C-01
-  status: not_started
+  status: pass
   nine_node_gate_required: false
   acceptance_ids:
   - A-ALG-00
-  branch: null
-  base_commit: null
-  result_commit: null
-  evidence_index: null
-  checker_verdict: null
+  branch: codex/S0C-02-consumption-transitions
+  base_commit: 1c41a9025a125d6b8140ddb048c49a6d9dea7028
+  result_commit: a470dcdb32a6c4b8a6e2e6f756903946ef36aefc
+  evidence_index: evidence/indexes/S0C-02.md
+  checker_verdict: PASS
   blocker: null
 - id: S0A-01
   stage: stage0
