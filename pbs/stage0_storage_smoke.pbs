@@ -177,26 +177,28 @@ RESULT_ROOT="$RUN_DIR/results"
 mkdir -p "$RESULT_ROOT"
 
 printf '%q ' mpirun -np 2 --map-by ppr:1:node --hostfile "$PBS_NODEFILE" \
-  /usr/bin/env "PYTHONPATH=$PYTHONPATH" "$PYTHON" \
+  /usr/bin/env "PYTHONPATH=$PYTHONPATH" "PBS_JOBID=$PBS_JOBID" \
+  "PBS_NODEFILE=$PBS_NODEFILE" "$PYTHON" \
   -m fsbdd_stage0.storage_bench smoke-role \
   --config "$STORAGE_CONFIG" --test-root "$TEST_ROOT" \
   --result-root "$RESULT_ROOT" --run-id "$RUN_ID" --path-mode "$SMOKE_PATH_MODE" \
   > "$RUN_DIR/commands.log"
 printf '\n' >> "$RUN_DIR/commands.log"
 
-set +e
-mpirun -np 2 --map-by ppr:1:node --hostfile "$PBS_NODEFILE" \
-  /usr/bin/env "PYTHONPATH=$PYTHONPATH" \
-  "$PYTHON" -m fsbdd_stage0.storage_bench smoke-role \
-  --config "$STORAGE_CONFIG" \
-  --test-root "$TEST_ROOT" \
-  --result-root "$RESULT_ROOT" \
-  --run-id "$RUN_ID" \
-  --path-mode "$SMOKE_PATH_MODE" \
-  > "$RUN_DIR/results/mpirun.stdout" \
-  2> "$RUN_DIR/results/mpirun.stderr"
-MPI_EXIT=$?
-set -e
+if mpirun -np 2 --map-by ppr:1:node --hostfile "$PBS_NODEFILE" \
+    /usr/bin/env "PYTHONPATH=$PYTHONPATH" "PBS_JOBID=$PBS_JOBID" \
+    "PBS_NODEFILE=$PBS_NODEFILE" "$PYTHON" -m fsbdd_stage0.storage_bench smoke-role \
+    --config "$STORAGE_CONFIG" \
+    --test-root "$TEST_ROOT" \
+    --result-root "$RESULT_ROOT" \
+    --run-id "$RUN_ID" \
+    --path-mode "$SMOKE_PATH_MODE" \
+    > "$RUN_DIR/results/mpirun.stdout" \
+    2> "$RUN_DIR/results/mpirun.stderr"; then
+  MPI_EXIT=0
+else
+  MPI_EXIT=$?
+fi
 printf '%s\n' "$MPI_EXIT" > "$RUN_DIR/results/mpirun_exit_code.txt"
 
 case "$SMOKE_EXPECTED_RESULT" in
