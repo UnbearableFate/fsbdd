@@ -1,0 +1,76 @@
+schema_version: 1
+loop_id: S0B-02
+title: 跨节点可见性与 10^5 次原子发布验证
+stage: stage0
+status: oriented
+source_hashes:
+  research_plan: 2c0db3148110da10ea62f445c189d2d53b405527d8da264b9af9817f5ca9d835
+  stage0_4_spec: fad26a8add51e70ddf50d0130b61d80fe06e1c3945221c29508412a5bcab2feb
+git:
+  integration_branch: master
+  branch: codex/S0B-02-visibility-atomicity
+  base_commit: 5e00111228c7652d76e3ae2c2f05c5880bd0bcd5
+  result_commit: null
+  dirty_at_start: false
+dependencies:
+  - S0B-01
+dependency_evidence:
+  S0B-01: evidence/indexes/S0B-01.md is PASS with actual target Lustre identity, current skill provenance, and distinct-host shared/local controls.
+requirements:
+  - BENCH-01
+  - BENCH-02
+  - STOR-01
+  - FS-02
+acceptance_ids:
+  - A-BENCH-01
+  - A-BENCH-02
+orient:
+  unique_failing_gap: No target-Lustre evidence measures empty/loaded publication visibility distributions or proves zero torn reads across at least 100000 concurrent atomic replacements.
+  planned_files:
+    - configs/stage0/storage_benchmark.json
+    - src/fsbdd_stage0/storage_bench.py
+    - pbs/stage0_storage_visibility_atomicity.pbs
+    - tests/storage/test_stage0_visibility_atomicity.py
+    - tests/red_cases/s0b02_unsafe_visibility_surrogate.py
+    - reports/stage0/storage_visibility_atomicity_summary.json
+    - reports/stage0/storage_visibility_atomicity.md
+  protected_interfaces:
+    - src/fsbdd_stage0/oracle.py
+    - src/fsbdd_stage0/simulation.py
+    - src/fsbdd_stage0/sweep.py
+    - all future learner/syncer production runtime paths
+  target_shared_run_root: /work/xg24i002/x10041/fsbdd/runtime_runs
+  timing_method: Writer-side monotonic publication-to-reader-acknowledgement round trip; this is a conservative upper bound that does not subtract cross-host clocks.
+  resolved_measurement_plan: Empty and atomic-background-load profiles, 1000 samples each, warm/cold cache states, p50/p95/p99/max; 100000 atomic replacements at each of 256 and 4096 bytes, four concurrent readers, zero permitted violations; actual writer-kill before/after visibility probes.
+  frozen_thresholds: visibility p99 <= 2.5 seconds from min(5 seconds, 0.05 * H) with H=50 seconds; atomicity violations = 0.
+  model_data_profile: Deterministic byte payloads and fixed structured visibility records only; no model, dataset, Torch, GPU, training, or quality claim.
+  resource_profile: Two distinct Miyabi CPU compute nodes, one MPI launcher rank per node, debug-g walltime at most 30 minutes; application coordination and data use only the frozen Lustre RUN_ROOT.
+  miyabi_skill_repository: https://github.com/UnbearableFate/miyabi-development
+  miyabi_skill_commit: c3ddfa47cadfd9132edf939d359b90b28ab5f8ed
+  initial_hostname: miyabi-g1
+  workflow: miyabi-g1 is control plane only; tests and benchmarks run only inside verified PBS compute allocations.
+red:
+  command: null
+  exit_code: null
+  evidence_path: null
+green:
+  command: null
+  evidence_path: null
+harden:
+  commands: []
+  evidence_paths: []
+nine_node_gate:
+  required: false
+  run_id: null
+  topology_gate: not_applicable_before_S1-13
+  loss_gate: not_applicable
+  runtime_gate: not_applicable
+checker:
+  verdict: null
+  report_path: null
+persist:
+  evidence_index: null
+  raw_evidence_root: /work/xg24i002/x10041/fsbdd/evidence/raw/S0B-02
+  acceptance_traceability_updated: false
+  next_gap: S0B-03 metadata and bandwidth capacity decision
+blocker: null

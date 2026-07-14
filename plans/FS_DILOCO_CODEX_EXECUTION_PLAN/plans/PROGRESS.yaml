@@ -92,13 +92,13 @@ loops:
   title: 跨节点可见性与 10^5 次原子发布验证
   depends_on:
   - S0B-01
-  status: not_started
+  status: oriented
   nine_node_gate_required: false
   acceptance_ids:
   - A-BENCH-01
   - A-BENCH-02
-  branch: null
-  base_commit: null
+  branch: codex/S0B-02-visibility-atomicity
+  base_commit: 5e00111228c7652d76e3ae2c2f05c5880bd0bcd5
   result_commit: null
   evidence_index: null
   checker_verdict: null
