@@ -1,0 +1,96 @@
+{
+  "schema_version": 1,
+  "profile_id": "stage0-sim-03-resolved",
+  "axes": {
+    "learners": [4, 8, 16],
+    "quorum_fraction": [0.5, 0.75, 1.0],
+    "heterogeneity_ratio": [1.0, 1.5, 2.0, 3.0],
+    "grace_fraction_of_h": [0.0, 0.1, 0.25],
+    "visibility_delay_seconds": [0.0, 1.0, 5.0, 30.0],
+    "s_max": [0, 1, 2],
+    "speed_model": ["constant_ratio", "lognormal_jitter"],
+    "seed": [17, 29, 43]
+  },
+  "fixed": {
+    "fragments": 4,
+    "h_steps": 50,
+    "lambda_s": 1.0,
+    "q_fresh": 1,
+    "upload_delay_seconds": 0.05,
+    "duration_seconds": 2000.0,
+    "tokens_per_step": 512,
+    "max_trace_events": 0,
+    "offsets": "evenly_staggered",
+    "one_per_learner": true,
+    "same_base_once_only": true
+  },
+  "execution": {
+    "shard_count": 4,
+    "checkpoint_every_rows": 25,
+    "expected_rows": 7776
+  },
+  "outputs": [
+    "token_weighted_discard_rate",
+    "accepted_token_efficiency",
+    "fragment_update_interval_distribution",
+    "stale_acceptance_rate",
+    "recovery_gain_smax1_vs_smax0"
+  ],
+  "selected_trace_profiles": [
+    {
+      "learners": 8,
+      "quorum_fraction": 0.75,
+      "heterogeneity_ratio": 1.5,
+      "grace_fraction_of_h": 0.1,
+      "visibility_delay_seconds": 1.0,
+      "s_max": 0,
+      "speed_model": "constant_ratio",
+      "seed": 17
+    },
+    {
+      "learners": 8,
+      "quorum_fraction": 0.75,
+      "heterogeneity_ratio": 1.5,
+      "grace_fraction_of_h": 0.1,
+      "visibility_delay_seconds": 1.0,
+      "s_max": 1,
+      "speed_model": "constant_ratio",
+      "seed": 17
+    }
+  ],
+  "recommendation_policy": {
+    "stage1_profile_a": {
+      "learners": 8,
+      "quorum_fraction": 1.0,
+      "q_fresh": "Q",
+      "s_max": 0,
+      "grace_fraction_of_h": 0.0,
+      "lambda_s": 1.0
+    },
+    "stage4_profile_b_candidates": {
+      "learners": 8,
+      "quorum_fraction": [0.5, 0.75],
+      "grace_fraction_of_h": [0.1, 0.25],
+      "s_max": 1,
+      "q_fresh": 1,
+      "lambda_s": 1.0,
+      "ranking_region": {
+        "heterogeneity_ratio": [1.5, 2.0, 3.0],
+        "visibility_delay_seconds": [1.0, 5.0]
+      },
+      "rank_by": [
+        "mean_recovery_gain_desc",
+        "accepted_token_efficiency_desc",
+        "update_interval_mean_asc",
+        "grace_fraction_of_h_asc",
+        "quorum_fraction_desc"
+      ]
+    },
+    "paper_classification_percentage_points": {
+      "full_second_contribution_min": 10.0,
+      "compressed_section_min": 3.0
+    },
+    "stage5_visibility_delay_seconds": [0.0, 1.0, 5.0, 30.0]
+  },
+  "claims_boundary": "Simulation selects parameters and anchors later measurements; it is not runtime correctness or training-quality evidence."
+}
