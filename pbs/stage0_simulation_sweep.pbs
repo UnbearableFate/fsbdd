@@ -16,6 +16,8 @@ export PAGER=cat MODULES_PAGER=cat LMOD_PAGER=cat
 : "${SUBMISSION_NONCE:?SUBMISSION_NONCE is required}"
 : "${CONFIG_DIGEST:?CONFIG_DIGEST is required}"
 : "${CONFIG_PATHS:?CONFIG_PATHS is required}"
+: "${MIYABI_SKILL_DIR:=/work/xg24i002/x10041/.codex/skills/miyabi-development}"
+: "${MIYABI_SKILL_COMMIT:?MIYABI_SKILL_COMMIT is required}"
 : "${SWEEP_CONFIG:=configs/stage0/simulation_sweep.json}"
 : "${SHARD_COUNT:=4}"
 : "${RESUME_MODE:=0}"
@@ -42,6 +44,11 @@ if [[ ! "$HOST" =~ ^mg[0-9]+$ ]] || [[ -z "${PBS_JOBID:-}" ]] || [[ -z "${PBS_NO
   echo "Refusing simulation execution outside a confirmed Miyabi PBS compute allocation" >&2
   exit 70
 fi
+ACTUAL_MIYABI_SKILL_COMMIT="$(git -C "$MIYABI_SKILL_DIR" rev-parse HEAD)"
+if [[ "$ACTUAL_MIYABI_SKILL_COMMIT" != "$MIYABI_SKILL_COMMIT" ]]; then
+  echo "miyabi-development commit mismatch: expected=$MIYABI_SKILL_COMMIT actual=$ACTUAL_MIYABI_SKILL_COMMIT" >&2
+  exit 65
+fi
 
 cd "$PROJECT_ROOT"
 PYTHON="$PROJECT_ROOT/.venv/bin/python"
@@ -64,7 +71,7 @@ if [[ -e "$RUN_DIR" ]]; then
     echo "Evidence directory exists; set RESUME_MODE=1 for verified continuation: $RUN_DIR" >&2
     exit 73
   fi
-  for required in manifest.yaml env/git_commit.txt configs/config_digest_inputs.sha256 configs/config_paths.txt; do
+  for required in manifest.yaml env/git_commit.txt env/miyabi_skill_commit.txt configs/config_digest_inputs.sha256 configs/config_paths.txt; do
     if [[ ! -f "$RUN_DIR/$required" ]]; then
       echo "Resume package is missing identity file: $required" >&2
       exit 66
@@ -74,8 +81,10 @@ if [[ -e "$RUN_DIR" ]]; then
   STORED_COMMIT="$(cat "$RUN_DIR/env/git_commit.txt")"
   STORED_DIGEST="$(awk '$1 == "config_digest:" {print $2}' "$RUN_DIR/manifest.yaml")"
   STORED_NONCE="$(awk '$1 == "submission_nonce:" {print $2}' "$RUN_DIR/manifest.yaml")"
+  STORED_MIYABI_SKILL_COMMIT="$(cat "$RUN_DIR/env/miyabi_skill_commit.txt")"
   if [[ "$STORED_RUN_ID" != "$RUN_ID" || "$STORED_COMMIT" != "$CODE_COMMIT" || \
-        "$STORED_DIGEST" != "$CONFIG_DIGEST" || "$STORED_NONCE" != "$SUBMISSION_NONCE" ]]; then
+        "$STORED_DIGEST" != "$CONFIG_DIGEST" || "$STORED_NONCE" != "$SUBMISSION_NONCE" || \
+        "$STORED_MIYABI_SKILL_COMMIT" != "$MIYABI_SKILL_COMMIT" ]]; then
     echo "Resume identity differs from the interrupted run" >&2
     exit 66
   fi
@@ -107,6 +116,9 @@ else
     cp -- "$source_path" "$RUN_DIR/configs/$snapshot_name"
   done
   printf '%s\n' "$CODE_COMMIT" > "$RUN_DIR/env/git_commit.txt"
+  printf '%s\n' "$ACTUAL_MIYABI_SKILL_COMMIT" > "$RUN_DIR/env/miyabi_skill_commit.txt"
+  git -C "$MIYABI_SKILL_DIR" status --short > "$RUN_DIR/env/miyabi_skill_status.txt"
+  cp "$MIYABI_SKILL_DIR/SKILL.md" "$RUN_DIR/env/miyabi_skill_SKILL.md"
   sha256sum \
     plans/FS_DILOCO_CODEX_EXECUTION_PLAN/source/RESEARCH_PLAN.md \
     plans/FS_DILOCO_CODEX_EXECUTION_PLAN/source/STAGE0-4_SPEC.md \
@@ -129,7 +141,7 @@ else
     echo "config_paths: $CONFIG_PATHS"
     echo "resume_supported: true"
     echo "miyabi_skill_repository: https://github.com/UnbearableFate/miyabi-development"
-    echo "miyabi_skill_commit: ad1fd34a9de976b4fb26ba47d9a1770430884765"
+    echo "miyabi_skill_commit: $MIYABI_SKILL_COMMIT"
     echo "raw_evidence_root: $RUN_DIR"
   } > "$RUN_DIR/manifest.yaml"
   printf 'session\tpbs_job_id\thost\tcode_commit\tconfig_digest\tmode\n' > "$RUN_DIR/env/resume_sessions.tsv"

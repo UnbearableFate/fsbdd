@@ -18,6 +18,8 @@ export PAGER=cat MODULES_PAGER=cat LMOD_PAGER=cat
 : "${SUBMISSION_NONCE:?SUBMISSION_NONCE is required}"
 : "${CONFIG_DIGEST:?CONFIG_DIGEST is required}"
 : "${CONFIG_PATHS:?CONFIG_PATHS is required}"
+: "${MIYABI_SKILL_DIR:=/work/xg24i002/x10041/.codex/skills/miyabi-development}"
+: "${MIYABI_SKILL_COMMIT:?MIYABI_SKILL_COMMIT is required}"
 : "${EVIDENCE_ROOT:=$PROJECT_ROOT/evidence/raw}"
 
 CONFIG_DIGEST_SHORT="${CONFIG_DIGEST:0:12}"
@@ -30,6 +32,11 @@ HOST="$(hostname)"
 if [[ ! "$HOST" =~ ^mg[0-9]+$ ]] || [[ -z "${PBS_JOBID:-}" ]] || [[ -z "${PBS_NODEFILE:-}" ]]; then
   echo "Refusing runtime tests outside a confirmed Miyabi PBS compute allocation" >&2
   exit 70
+fi
+ACTUAL_MIYABI_SKILL_COMMIT="$(git -C "$MIYABI_SKILL_DIR" rev-parse HEAD)"
+if [[ "$ACTUAL_MIYABI_SKILL_COMMIT" != "$MIYABI_SKILL_COMMIT" ]]; then
+  echo "miyabi-development commit mismatch: expected=$MIYABI_SKILL_COMMIT actual=$ACTUAL_MIYABI_SKILL_COMMIT" >&2
+  exit 65
 fi
 
 RUN_DIR="$EVIDENCE_ROOT/$LOOP_ID/$RUN_ID"
@@ -54,6 +61,9 @@ cp "$PBS_NODEFILE" "$RUN_DIR/env/pbs_nodefile.txt"
 git status --short --branch > "$RUN_DIR/env/git_status.txt"
 git rev-parse HEAD > "$RUN_DIR/env/git_commit.txt"
 "$PYTHON" --version > "$RUN_DIR/env/python_version.txt" 2>&1
+printf '%s\n' "$ACTUAL_MIYABI_SKILL_COMMIT" > "$RUN_DIR/env/miyabi_skill_commit.txt"
+git -C "$MIYABI_SKILL_DIR" status --short > "$RUN_DIR/env/miyabi_skill_status.txt"
+cp "$MIYABI_SKILL_DIR/SKILL.md" "$RUN_DIR/env/miyabi_skill_SKILL.md"
 sha256sum \
   plans/FS_DILOCO_CODEX_EXECUTION_PLAN/source/RESEARCH_PLAN.md \
   plans/FS_DILOCO_CODEX_EXECUTION_PLAN/source/STAGE0-4_SPEC.md \
@@ -93,7 +103,7 @@ done
   echo "config_digest: $CONFIG_DIGEST"
   echo "config_paths: $CONFIG_PATHS"
   echo "miyabi_skill_repository: https://github.com/UnbearableFate/miyabi-development"
-  echo "miyabi_skill_commit: ad1fd34a9de976b4fb26ba47d9a1770430884765"
+  echo "miyabi_skill_commit: $MIYABI_SKILL_COMMIT"
   echo "raw_evidence_root: $RUN_DIR"
 } > "$RUN_DIR/manifest.yaml"
 

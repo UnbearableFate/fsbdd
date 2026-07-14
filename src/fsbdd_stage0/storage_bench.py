@@ -18,7 +18,7 @@ from typing import Any, Mapping, Sequence
 
 
 SKILL_REPOSITORY = "https://github.com/UnbearableFate/miyabi-development"
-SKILL_COMMIT = "ad1fd34a9de976b4fb26ba47d9a1770430884765"
+SKILL_COMMIT = "c3ddfa47cadfd9132edf939d359b90b28ab5f8ed"
 COMPUTE_HOST_PATTERN = re.compile(r"^mg[0-9]+$")
 REQUIRED_MANIFEST_FIELDS = frozenset(
     {
@@ -387,7 +387,7 @@ def validate_environment_manifest(
         raise StorageHarnessError("manifest compute_hostname is outside the allocation")
     if manifest["filesystem_type"] != "lustre":
         raise StorageHarnessError("target RUN_ROOT was not identified as Lustre")
-    if manifest["initial_hostname"] != "miyabi-g1":
+    if not re.fullmatch(r"miyabi-g[0-9]+", str(manifest["initial_hostname"])):
         raise StorageHarnessError("initial control-plane hostname was not recorded")
     if not str(manifest["target_run_root"]).startswith("/work/"):
         raise StorageHarnessError("target RUN_ROOT is not below /work")

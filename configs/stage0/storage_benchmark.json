@@ -3,7 +3,7 @@
   "profile_id": "stage0-miyabi-lustre-resolved",
   "miyabi": {
     "required_skill_repository": "https://github.com/UnbearableFate/miyabi-development",
-    "required_skill_commit": "ad1fd34a9de976b4fb26ba47d9a1770430884765",
+    "required_skill_commit": "c3ddfa47cadfd9132edf939d359b90b28ab5f8ed",
     "target_shared_run_root": "/work/xg24i002/x10041/fsbdd/runtime_runs",
     "expected_filesystem_type": "lustre",
     "pbs_group": "xg24i002",

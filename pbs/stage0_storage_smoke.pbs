@@ -16,6 +16,8 @@ export PAGER=cat MODULES_PAGER=cat LMOD_PAGER=cat
 : "${SUBMISSION_NONCE:?SUBMISSION_NONCE is required}"
 : "${CONFIG_DIGEST:?CONFIG_DIGEST is required}"
 : "${CONFIG_PATHS:?CONFIG_PATHS is required}"
+: "${MIYABI_SKILL_DIR:=/work/xg24i002/x10041/.codex/skills/miyabi-development}"
+: "${MIYABI_SKILL_COMMIT:?MIYABI_SKILL_COMMIT is required}"
 : "${STORAGE_CONFIG:=configs/stage0/storage_benchmark.json}"
 : "${TARGET_RUN_ROOT:=/work/xg24i002/x10041/fsbdd/runtime_runs}"
 : "${SMOKE_PATH_MODE:=shared}"
@@ -41,6 +43,15 @@ HOST="$(hostname -s)"
 if [[ ! "$HOST" =~ ^mg[0-9]+$ ]] || [[ -z "${PBS_JOBID:-}" ]] || [[ -z "${PBS_NODEFILE:-}" ]]; then
   echo "Refusing storage benchmark outside a confirmed Miyabi PBS compute allocation" >&2
   exit 70
+fi
+if [[ "$MIYABI_SKILL_COMMIT" != "c3ddfa47cadfd9132edf939d359b90b28ab5f8ed" ]]; then
+  echo "storage config requires miyabi-development@c3ddfa47cadfd9132edf939d359b90b28ab5f8ed" >&2
+  exit 65
+fi
+ACTUAL_MIYABI_SKILL_COMMIT="$(git -C "$MIYABI_SKILL_DIR" rev-parse HEAD)"
+if [[ "$ACTUAL_MIYABI_SKILL_COMMIT" != "$MIYABI_SKILL_COMMIT" ]]; then
+  echo "miyabi-development commit mismatch: expected=$MIYABI_SKILL_COMMIT actual=$ACTUAL_MIYABI_SKILL_COMMIT" >&2
+  exit 65
 fi
 
 cd "$PROJECT_ROOT"
@@ -82,6 +93,9 @@ hostname > "$RUN_DIR/env/hostname.txt"
 git rev-parse HEAD > "$RUN_DIR/env/git_commit.txt"
 git status --short --branch > "$RUN_DIR/env/git_status.txt"
 "$PYTHON" --version > "$RUN_DIR/env/python_version.txt" 2>&1
+printf '%s\n' "$ACTUAL_MIYABI_SKILL_COMMIT" > "$RUN_DIR/env/miyabi_skill_commit.txt"
+git -C "$MIYABI_SKILL_DIR" status --short > "$RUN_DIR/env/miyabi_skill_status.txt"
+cp "$MIYABI_SKILL_DIR/SKILL.md" "$RUN_DIR/env/miyabi_skill_SKILL.md"
 module list 2>&1 | sed '/^[[:space:]]*$/d' > "$RUN_DIR/env/modules.txt"
 mpirun --version > "$RUN_DIR/env/mpirun_version.txt" 2>&1
 sha256sum "${CONFIG_ARRAY[@]}" > "$RUN_DIR/configs/config_digest_inputs.sha256"
