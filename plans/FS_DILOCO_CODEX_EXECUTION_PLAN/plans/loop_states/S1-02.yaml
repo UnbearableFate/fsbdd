@@ -40,20 +40,37 @@ red:
   command: python tests/red_cases/s1_02_naive_fragment_map_surrogate.py
   exit_code: 1
   evidence_path: runtime_runs/S1-02/red-ba7a3af/stderr/red.log
-green: {command: null, evidence_path: null}
-harden: {commands: [], evidence_paths: []}
+green:
+  command: PYTHONPATH=src .venv/bin/python -m pytest -q tests/stage1/test_s1_02_fragment_map.py
+  evidence_path: runtime_runs/S1-02/harden-4e696a3-2384543/stdout/pytest.log
+harden:
+  commands:
+  - PYTHONPATH=src python -m pytest -q tests/stage1
+  - PYTHONPATH=src python -m fsbdd.fragment_map_analysis --output <new-exhaustive-path> --digest-output <new-digest-path>
+  - PYTHONPATH=src python -m fsbdd.hf_fragment_summary --model EleutherAI/pythia-160m --revision 50f5173d932e8e61f858120bcb800b97af589f46 --fragments 4 --output <new-map-path>
+  - PYTHONPATH=src python -m fsbdd.cli evidence validate runtime_runs/S1-02/harden-4e696a3-2384543
+  evidence_paths:
+  - runtime_runs/S1-02/harden-4e696a3-2384543/stdout/pytest.log
+  - runtime_runs/S1-02/harden-4e696a3-2384543/analysis/exhaustive-summary.json
+  - runtime_runs/S1-02/harden-4e696a3-2384543/analysis/digest-repetitions.json
+  - runtime_runs/S1-02/harden-4e696a3-2384543/analysis/pythia-160m-fragment-map.json
+  - runtime_runs/S1-02/harden-4e696a3-2384543/validation-summary.json
 nine_node_gate: {required: false, run_id: null, topology_gate: null, loss_gate: null, runtime_gate: null}
 checker: {context_id: null, maker_chat_inherited: false, phase_a_verdict: not_required, verdict: null, report_path: null}
 persist:
-  evidence_index: null
+  evidence_index: evidence/indexes/S1-02.md
   raw_evidence_root: runtime_runs/S1-02
   acceptance_traceability_updated: false
   next_gap: null
-  handoff: {proven_facts: [], checked_commit: null, selected_evidence: [], next_command: null}
+  handoff:
+    proven_facts: [integer DP matches 212750 exhaustive and 500 random brute-force cases, four process hash seeds produce one digest, real Pythia F=4 map covers 148 parameter identities exactly once]
+    checked_commit: 4e696a34261816415b2c375b2b2357e798b29a01
+    selected_evidence: [runtime_runs/S1-02/harden-4e696a3-2384543]
+    next_command: Run the independent S1-02 Checker against the persisted candidate.
   cost:
-    attempts_by_level: {L0: 0, L1: 0}
+    attempts_by_level: {L0: 1, L1: 1}
     queue_seconds: null
-    active_seconds: null
+    active_seconds: 55
     checker_cycles: 0
     goal_tokens_end: null
     agent_tokens_used: null
