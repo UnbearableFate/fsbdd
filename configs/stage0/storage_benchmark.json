@@ -20,15 +20,25 @@
   },
   "visibility": {
     "profiles": ["empty", "loaded"],
+    "cache_states": ["cold", "warm"],
     "samples_per_profile": 1000,
+    "samples_per_cache_state": 500,
     "poll_interval_seconds": 0.0005,
     "report_percentiles": [50, 95, 99, 100],
-    "clock_calibration_rounds": 32
+    "timing_method": "writer_ack_roundtrip_upper_bound",
+    "timing_origin": "visibility_record_replace_complete",
+    "background_record_bytes": 4096,
+    "background_minimum_replacements": 1000
   },
   "atomicity": {
-    "replacements": 100000,
+    "replacements_per_record_size": 100000,
     "concurrent_readers": 4,
     "record_sizes_bytes": [256, 4096],
+    "minimum_observations_per_reader": 1000,
+    "checkpoint_every_observations": 5000,
+    "writer_kill_positions": ["before_visibility", "after_visibility"],
+    "unsafe_direct_overwrite_iterations": 1000,
+    "unsafe_half_write_pause_seconds": 0.001,
     "permitted_violations": 0
   },
   "metadata": {
