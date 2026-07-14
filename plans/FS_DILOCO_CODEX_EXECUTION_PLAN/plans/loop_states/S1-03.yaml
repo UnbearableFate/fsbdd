@@ -2,7 +2,7 @@ schema_version: 2
 loop_id: S1-03
 title: STOR-01 atomic publication primitive
 stage: stage1
-status: in_progress
+status: pass
 source_hashes:
   research_plan: 2c0db3148110da10ea62f445c189d2d53b405527d8da264b9af9817f5ca9d835
   stage0_4_spec: 1ea71fb6e34fef0d7b5558d8e7999dfdedeb82957f4331afcf6f80279d1f5a7d
@@ -10,7 +10,7 @@ git:
   integration_branch: master
   branch: codex/S1-03-storage-primitive
   base_commit: 754f12d415878bcebba660db967afcfceb852ccf
-  result_commit: null
+  result_commit: 3552c9bdd8f27df2db128ce19511bd14b26f60dd
   dirty_at_start: true
 dependencies: [S1-00, S0B-03]
 requirements: [STOR-01, FS-01, FS-02, FS-03, FS-07, PROP-02, INV-04]
@@ -56,8 +56,23 @@ checker:
   context_id: /root/s1_03_checker
   maker_chat_inherited: false
   phase_a_verdict: ADMISSIBLE after qtime identity correction
-  verdict: null
-  report_path: reports/checkers/S1-03-phase-a.md
+  verdict: PASS
+  report_path: reports/checkers/S1-03.md
+  cycles:
+  - cycle: 1
+    phase: A
+    checked_candidate: a09b7239aeea604b19c3be888a3bba1a077ef5e5
+    verdict: ADMISSIBLE
+  - cycle: 2
+    phase: A-recheck
+    checked_candidate: e5fc7db5a5f52ec7c407e4867fffc1037d831c5b
+    verdict: ADMISSIBLE
+    correction: explicit JST-to-UTC conversion after rejecting the first L2 package identity
+  - cycle: 3
+    phase: B
+    checked_candidate: 3552c9bdd8f27df2db128ce19511bd14b26f60dd
+    verdict: PASS
+    report_sha256: 01a1f47d951c6d88966ab3aa030e5800b993abfd1050c895d199cd8d1e0dcda7
 persist:
   evidence_index: evidence/indexes/S1-03.md
   raw_evidence_root: runtime_runs/S1-03
@@ -73,12 +88,12 @@ persist:
     - crash outcomes are old old old complete-new and the selected finalized package is checksum-valid and validator-admissible
     checked_commit: e5fc7db5a5f52ec7c407e4867fffc1037d831c5b
     selected_evidence: [runtime_runs/S1-03/formal-l2-r2]
-    next_command: independent Checker Phase B final review of the checked candidate and selected L2 package
+    next_command: create the S1-04 branch from the S1-03 closure commit and begin its ORIENT phase
   cost:
     attempts_by_level: {L0: 3, L1: 2, L2: 2}
     queue_seconds: 5
     active_seconds: 22
-    checker_cycles: 2
+    checker_cycles: 3
     goal_tokens_end: null
     agent_tokens_used: null
     phase_token_deltas: {}
