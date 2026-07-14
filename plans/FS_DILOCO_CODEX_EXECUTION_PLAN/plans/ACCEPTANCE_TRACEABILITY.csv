@@ -7,7 +7,7 @@ stage,acceptance_id,primary_loop,supporting_loops,required_evidence,status,evide
 0-B,A-BENCH-03,S0B-03,S0B-01,metadata throughput ≥10× steady demand,passed,evidence/indexes/S0B-03.md,PASS,worse corrected synchronized run 39403.448/s versus 5120/s gate
 0-B,A-BENCH-04,S0B-03,S0B-01,M并发fragment一轮≤10%H,passed,evidence/indexes/S0B-03.md,PASS,worst corrected 16-stream write round 0.323808s versus 5s gate
 0-C,A-ALG-00,S0C-02,S0C-01,错误stale公式被拒绝；全部golden通过,passed,evidence/indexes/S0C-02.md,PASS,S0C-01 and S0C-02 oracle evidence complete
-1,A-FRAG-01,S1-02,S1-01,parameter identity全覆盖恰好一次,not_started,,,
+1,A-FRAG-01,S1-02,S1-01,parameter identity全覆盖恰好一次,not_started,evidence/indexes/S1-01.md,,S1-01 logical-owner component passes; fragment assignment remains S1-02
 1,A-FRAG-02,S1-02,,连续非空fragments,not_started,,,
 1,A-FRAG-03,S1-02,,小模型exhaustive+大模型摘要,not_started,,,
 1,A-PROP-01,S1-05,S1-03,部分proposal不可见,not_started,,,

@@ -52,12 +52,12 @@ LEARN-08,planned,S1-08,S2-02,
 LEARN-09,planned,S1-08,,
 LEARN-10,planned,S1-08,,
 LEARN-11,planned,S1-07,S1-08,
-MODEL-01,planned,S1-01,,
-MODEL-02,planned,S1-01,,
-MODEL-03,planned,S1-01,,
-MODEL-04,planned,S1-01,,
-MODEL-05,planned,S1-01,,
-MODEL-06,planned,S1-01,,
+MODEL-01,passed,S1-01,,Two exact decoder-only family adapters plus explicit mapping
+MODEL-02,passed,S1-01,,Ordered embedding complete blocks and lm_head registry
+MODEL-03,passed,S1-01,,Deterministic adjacent-byte misc assignment
+MODEL-04,passed,S1-01,,Tied embedding/head single-owner and aliases
+MODEL-05,passed,S1-01,,Unique trainable coverage fixtures and real Pythia structure
+MODEL-06,passed,S1-01,,Unknown family fails closed unless explicit mapping supplied
 OPT-01,planned,S0C-01,S1-10,
 OPT-02,planned,S1-10,,
 OPT-03,deferred_stage5,DEFERRED_STAGE5,,RDA在source changelog中说明已移至Stage5，不是Stage0–4当前条款

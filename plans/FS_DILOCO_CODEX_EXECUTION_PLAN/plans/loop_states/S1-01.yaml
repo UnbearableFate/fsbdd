@@ -2,7 +2,7 @@ schema_version: 2
 loop_id: S1-01
 title: Hugging Face model logical-layer registry
 stage: stage1
-status: oriented
+status: check_pending
 source_hashes:
   research_plan: 2c0db3148110da10ea62f445c189d2d53b405527d8da264b9af9817f5ca9d835
   stage0_4_spec: 1ea71fb6e34fef0d7b5558d8e7999dfdedeb82957f4331afcf6f80279d1f5a7d
@@ -38,25 +38,35 @@ preflight:
   checker_phase_a: not_required
 red:
   command: python tests/red_cases/s1_01_naive_layer_registry_surrogate.py
-  exit_code: null
-  evidence_path: null
-green: {command: null, evidence_path: null}
-harden: {commands: [], evidence_paths: []}
+  exit_code: 1
+  evidence_path: runtime_runs/S1-01/red-c3c62da/stderr/red.log
+green:
+  command: PYTHONPATH=src .venv/bin/python -m pytest -q tests/stage1/test_s1_01_model_registry.py
+  evidence_path: runtime_runs/S1-01/harden2-a57a5cb-2384525/stdout/pytest.log
+harden:
+  commands:
+  - PYTHONPATH=src python -m pytest -q tests/stage1
+  - PYTHONPATH=src python -m fsbdd.hf_registry_summary --model EleutherAI/pythia-160m --revision 50f5173d932e8e61f858120bcb800b97af589f46
+  - PYTHONPATH=src python -m fsbdd.cli evidence validate runtime_runs/S1-01/harden2-a57a5cb-2384525
+  evidence_paths:
+  - runtime_runs/S1-01/harden2-a57a5cb-2384525/stdout/pytest.log
+  - runtime_runs/S1-01/harden2-a57a5cb-2384525/analysis/pythia-160m-registry.json
+  - runtime_runs/S1-01/harden2-a57a5cb-2384525/validation-summary.json
 nine_node_gate: {required: false, run_id: null, topology_gate: null, loss_gate: null, runtime_gate: null}
 checker: {context_id: null, maker_chat_inherited: false, phase_a_verdict: null, verdict: null, report_path: null}
 persist:
-  evidence_index: null
+  evidence_index: evidence/indexes/S1-01.md
   raw_evidence_root: runtime_runs/S1-01
   acceptance_traceability_updated: false
   next_gap: null
   handoff: {proven_facts: [], checked_commit: null, selected_evidence: [], next_command: null}
   cost:
-    attempts_by_level: {L0: 1}
+    attempts_by_level: {L0: 1, L1: 3}
     queue_seconds: null
-    active_seconds: null
+    active_seconds: 95
     checker_cycles: 0
     goal_tokens_end: null
     agent_tokens_used: null
     phase_token_deltas: {}
-    rework_causes: []
+    rework_causes: [first HF summary found integer-key config canonicalization gap; preserved and corrected before rerun]
 blocker: null
