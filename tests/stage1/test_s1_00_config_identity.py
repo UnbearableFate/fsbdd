@@ -28,7 +28,7 @@ def test_required_fields_unknown_fields_and_frozen_digest(tmp_path: Path) -> Non
     path = tmp_path / "config.json"
     path.write_text(json.dumps(raw), encoding="utf-8")
     resolved = load_config(path)
-    assert resolved.algorithm.H == 50
+    assert resolved.schedule.H == 50
     assert resolved.digest == canonical_digest(raw)
 
     for section, field in [

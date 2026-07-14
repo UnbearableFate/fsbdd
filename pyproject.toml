@@ -1,7 +1,7 @@
 [project]
 name = "fsbdd"
 version = "0.1.0"
-description = "Add your description here"
+description = "Filesystem-based decoupled DiLoCo research runtime"
 readme = "README.md"
 requires-python = ">=3.13"
 
@@ -23,6 +23,17 @@ dependencies = [
     "trl>=1.7.0",
     "wandb>=0.28.0",
 ]
+
+[project.scripts]
+fsbdd = "fsbdd.cli:entrypoint"
+
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["fsbdd*"]
 
 [tool.uv]
 prerelease = "allow"

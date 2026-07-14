@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "run": {"name": "profile-a", "seed": 20260715},
+  "algorithm": {"S_max": 0, "lambda_s": 1.0, "Q": 8, "Q_fresh": 8, "grace_seconds": 0.0},
+  "schedule": {"H": 50, "offsets": [0, 12, 25, 37]},
+  "model": {"repository": "openai-community/gpt2", "revision": "607a30d783dfa663caf39e06633721c8d4cfcd7e"},
+  "data": {"repository": "Salesforce/wikitext", "revision": "b08601e04326c79dfdd32d625aee71d232d685c3", "split": "train"},
+  "fragment_map": {"identity": "0000000000000000000000000000000000000000000000000000000000000000", "count": 4},
+  "storage": {"backend": "posix", "root": "/work/xg24i002/x10041/fsbdd/runtime_runs"},
+  "stop": {"target_global_cycles": 10, "max_walltime_seconds": 3600}
+}
