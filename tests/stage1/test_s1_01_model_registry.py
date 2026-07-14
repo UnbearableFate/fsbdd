@@ -172,3 +172,20 @@ def test_unclassified_buffer_fails_closed_for_explicit_mapping() -> None:
     )
     with pytest.raises(RegistryError, match="buffer"):
         build_logical_layer_registry(model, explicit=mapping)
+
+
+def test_explicit_reconstructable_buffer_policy_is_reported() -> None:
+    model = ThirdFamily()
+    model.register_buffer("static_mask", torch.ones(2), persistent=True)
+    mapping = ExplicitMapping(
+        family="third-static-buffer",
+        embedding_path="tokens",
+        block_paths=("stack.0", "stack.1"),
+        head_path="output",
+        misc=(MiscAssignment("post", left_layer=2, right_layer=3),),
+        reconstructable_buffers=("static_mask",),
+    )
+    registry = build_logical_layer_registry(model, explicit=mapping)
+    assert registry.coverage.total_buffers == 1
+    assert registry.coverage.reconstructable_buffers == 1
+    assert registry.buffers[0].classification == "reconstructable_from_config"

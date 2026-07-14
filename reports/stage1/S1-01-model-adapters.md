@@ -19,6 +19,12 @@ have one synchronization owner at the embedding and retain all aliases in the
 report. Any other cross-layer sharing or unowned trainable parameter fails
 closed.
 
+All registered buffers are also fail-closed. Built-in adapters explicitly
+classify their known rotary-frequency buffers as reconstructable from frozen
+config. An explicit adapter must list every reconstructable/static buffer by
+its exact full name; any unclassified buffer rejects the model so mutable
+training-semantic state cannot silently disappear from coverage.
+
 The real-structure command is compute-node only and creates no weights or data:
 
 ```bash

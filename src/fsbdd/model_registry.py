@@ -27,6 +27,7 @@ class ExplicitMapping:
     block_paths: tuple[str, ...]
     head_path: str
     misc: tuple[MiscAssignment, ...] = ()
+    reconstructable_buffers: tuple[str, ...] = ()
 
 
 @dataclasses.dataclass(frozen=True, slots=True)
@@ -39,6 +40,19 @@ class ParameterRecord:
     dtype: str
     numel: int
     sync_bytes: int
+
+    def to_dict(self) -> dict[str, Any]:
+        return dataclasses.asdict(self)
+
+
+@dataclasses.dataclass(frozen=True, slots=True)
+class BufferRecord:
+    identity: str
+    aliases: tuple[str, ...]
+    shape: tuple[int, ...]
+    dtype: str
+    numel: int
+    classification: str
 
     def to_dict(self) -> dict[str, Any]:
         return dataclasses.asdict(self)
@@ -64,6 +78,9 @@ class Coverage:
     owned: int
     duplicate_owners: int
     unowned: int
+    total_buffers: int
+    reconstructable_buffers: int
+    unclassified_buffers: int
 
     def to_dict(self) -> dict[str, int]:
         return dataclasses.asdict(self)
@@ -76,6 +93,7 @@ class LogicalLayerRegistry:
     sync_dtype_bytes: int
     layers: tuple[LogicalLayer, ...]
     parameters: tuple[ParameterRecord, ...]
+    buffers: tuple[BufferRecord, ...]
     tied_identities: tuple[str, ...]
     misc_assignments: tuple[dict[str, Any], ...]
     coverage: Coverage
@@ -88,6 +106,7 @@ class LogicalLayerRegistry:
             "sync_dtype_bytes": self.sync_dtype_bytes,
             "layers": [layer.to_dict() for layer in self.layers],
             "parameters": [parameter.to_dict() for parameter in self.parameters],
+            "buffers": [buffer.to_dict() for buffer in self.buffers],
             "tied_identities": list(self.tied_identities),
             "misc_assignments": list(self.misc_assignments),
             "coverage": self.coverage.to_dict(),
@@ -138,6 +157,10 @@ def _builtin_mapping(model: Any) -> ExplicitMapping:
             block_paths=blocks,
             head_path="embed_out",
             misc=(MiscAssignment("gpt_neox.final_layer_norm", len(blocks), len(blocks) + 1),),
+            reconstructable_buffers=(
+                "gpt_neox.rotary_emb.inv_freq",
+                "gpt_neox.rotary_emb.original_inv_freq",
+            ),
         )
     if model_type == "llama":
         blocks = _children_paths(model, "model.layers")
@@ -147,6 +170,10 @@ def _builtin_mapping(model: Any) -> ExplicitMapping:
             block_paths=blocks,
             head_path="lm_head",
             misc=(MiscAssignment("model.norm", len(blocks), len(blocks) + 1),),
+            reconstructable_buffers=(
+                "model.rotary_emb.inv_freq",
+                "model.rotary_emb.original_inv_freq",
+            ),
         )
     raise RegistryError(f"unsupported or ambiguous model_type {model_type!r}; provide explicit mapping")
 
@@ -166,6 +193,21 @@ def _global_aliases(model: Any) -> tuple[dict[int, Any], dict[int, tuple[str, ..
         if name not in aliases[key]:
             aliases[key].append(name)
     return parameters, {key: tuple(names) for key, names in aliases.items()}
+
+
+def _global_buffers(model: Any) -> tuple[dict[int, Any], dict[int, tuple[str, ...]]]:
+    buffers: dict[int, Any] = {}
+    aliases: dict[int, list[str]] = defaultdict(list)
+    try:
+        named = model.named_buffers(recurse=True, remove_duplicate=False)
+    except (AttributeError, TypeError) as error:
+        raise RegistryError("model must support named_buffers(remove_duplicate=False)") from error
+    for name, buffer in named:
+        key = id(buffer)
+        buffers[key] = buffer
+        if name not in aliases[key]:
+            aliases[key].append(name)
+    return buffers, {key: tuple(names) for key, names in aliases.items()}
 
 
 def _under(name: str, module_path: str) -> bool:
@@ -201,6 +243,11 @@ def build_logical_layer_registry(
 ) -> LogicalLayerRegistry:
     if not isinstance(sync_dtype_bytes, int) or isinstance(sync_dtype_bytes, bool) or sync_dtype_bytes <= 0:
         raise RegistryError("sync_dtype_bytes must be a positive integer")
+    config = getattr(model, "config", None)
+    if config is None:
+        raise RegistryError("model lacks config; supported scope cannot be established")
+    if bool(getattr(config, "is_encoder_decoder", False)):
+        raise RegistryError("encoder-decoder models are outside the supported scope")
     mapping = explicit or _builtin_mapping(model)
     if not mapping.family or not mapping.block_paths:
         raise RegistryError("logical mapping requires a family and at least one complete block")
@@ -217,6 +264,36 @@ def build_logical_layer_registry(
             raise RegistryError("misc assignment must name adjacent logical layers")
 
     parameters, aliases = _global_aliases(model)
+    buffers, buffer_aliases = _global_buffers(model)
+    allowed_buffers = set(mapping.reconstructable_buffers)
+    if len(allowed_buffers) != len(mapping.reconstructable_buffers):
+        raise RegistryError("reconstructable buffer declarations must be unique")
+    unclassified_buffers = sorted(
+        name for names in buffer_aliases.values() for name in names if name not in allowed_buffers
+    )
+    if unclassified_buffers:
+        raise RegistryError(
+            "unclassified buffers require an explicit reconstructable/static or mutable-state policy: "
+            f"{unclassified_buffers}"
+        )
+    buffer_records = tuple(
+        BufferRecord(
+            identity=canonical_digest(
+                {
+                    "aliases": names,
+                    "shape": _parameter_shape(buffers[key]),
+                    "dtype": str(getattr(buffers[key], "dtype", "unknown")),
+                    "classification": "reconstructable_from_config",
+                }
+            ),
+            aliases=names,
+            shape=_parameter_shape(buffers[key]),
+            dtype=str(getattr(buffers[key], "dtype", "unknown")),
+            numel=int(buffers[key].numel()),
+            classification="reconstructable_from_config",
+        )
+        for key, names in sorted(buffer_aliases.items(), key=lambda item: item[1][0])
+    )
     owner_index: dict[int, int] = {}
     base_candidates: dict[int, set[int]] = defaultdict(set)
     for key, names in aliases.items():
@@ -309,7 +386,13 @@ def build_logical_layer_registry(
         for index in range(len(logical_paths))
     )
     coverage = Coverage(
-        unique_trainable=len(parameters), owned=len(records), duplicate_owners=0, unowned=0
+        unique_trainable=len(parameters),
+        owned=len(records),
+        duplicate_owners=0,
+        unowned=0,
+        total_buffers=len(buffers),
+        reconstructable_buffers=len(buffer_records),
+        unclassified_buffers=0,
     )
     body = {
         "schema_version": 1,
@@ -317,6 +400,7 @@ def build_logical_layer_registry(
         "sync_dtype_bytes": sync_dtype_bytes,
         "layers": [layer.to_dict() for layer in layers],
         "parameters": [record.to_dict() for record in records],
+        "buffers": [buffer.to_dict() for buffer in buffer_records],
         "tied_identities": sorted(tied),
         "misc_assignments": misc_report,
         "coverage": coverage.to_dict(),
@@ -327,6 +411,7 @@ def build_logical_layer_registry(
         sync_dtype_bytes=sync_dtype_bytes,
         layers=layers,
         parameters=tuple(records),
+        buffers=buffer_records,
         tied_identities=tuple(sorted(tied)),
         misc_assignments=tuple(misc_report),
         coverage=coverage,
