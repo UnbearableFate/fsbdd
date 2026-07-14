@@ -144,3 +144,31 @@ def test_parameter_shared_across_blocks_is_rejected() -> None:
     model.model.layers[1].weight = model.model.layers[0].weight
     with pytest.raises(RegistryError, match="shared"):
         build_logical_layer_registry(model)
+
+
+def test_explicit_mapping_cannot_bypass_encoder_decoder_scope() -> None:
+    model = ThirdFamily()
+    model.config.is_encoder_decoder = True
+    mapping = ExplicitMapping(
+        family="forbidden-encoder-decoder",
+        embedding_path="tokens",
+        block_paths=("stack.0", "stack.1"),
+        head_path="output",
+        misc=(MiscAssignment("post", left_layer=2, right_layer=3),),
+    )
+    with pytest.raises(RegistryError, match="encoder-decoder"):
+        build_logical_layer_registry(model, explicit=mapping)
+
+
+def test_unclassified_buffer_fails_closed_for_explicit_mapping() -> None:
+    model = ThirdFamily()
+    model.register_buffer("training_running_state", torch.ones(2), persistent=True)
+    mapping = ExplicitMapping(
+        family="third-with-unknown-buffer",
+        embedding_path="tokens",
+        block_paths=("stack.0", "stack.1"),
+        head_path="output",
+        misc=(MiscAssignment("post", left_layer=2, right_layer=3),),
+    )
+    with pytest.raises(RegistryError, match="buffer"):
+        build_logical_layer_registry(model, explicit=mapping)
