@@ -15,6 +15,12 @@ from .oracle import (
     validated_pseudo_gradient,
     weighted_direct_merge,
 )
+from .simulation import (
+    SimulationConfig,
+    SimulationResult,
+    evaluate_decision_case,
+    simulate,
+)
 
 __all__ = [
     "CandidatePolicy",
@@ -30,4 +36,8 @@ __all__ = [
     "validate_requirement_evidence",
     "validated_pseudo_gradient",
     "weighted_direct_merge",
+    "SimulationConfig",
+    "SimulationResult",
+    "evaluate_decision_case",
+    "simulate",
 ]
