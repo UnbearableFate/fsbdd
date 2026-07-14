@@ -197,12 +197,12 @@ loops:
   depends_on:
   - S1-02
   - S1-03
-  status: not_started
+  status: in_progress
   nine_node_gate_required: false
   acceptance_ids:
   - A-GLOBAL-02
-  branch: null
-  base_commit: null
+  branch: codex/S1-04-bootstrap-state
+  base_commit: 629aa6ffc92de2d3b7740571ca97898b0558827f
   result_commit: null
   evidence_index: null
   checker_verdict: null

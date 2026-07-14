@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "resource_level": "L2",
+  "selected_evidence_root": "/work/xg24i002/x10041/fsbdd/runtime_runs/S1-04/formal-l2",
+  "target_shared_root": "/work/xg24i002/x10041/fsbdd/runtime_runs",
+  "topology": {
+    "pbs_queue": "debug-g",
+    "pbs_group": "xg24i002",
+    "nodes": 2,
+    "ranks": 2,
+    "ranks_per_node": 1,
+    "roles": ["bootstrap_writer", "snapshot_reader"],
+    "application_coordination": "filesystem_only",
+    "mpi_usage": "launcher_only"
+  },
+  "frozen_workload": {
+    "fragment_count": 4,
+    "s_max": 0,
+    "history_objects": 10000,
+    "bootstrap_interruption_after_fragments": 2,
+    "payload_bytes_per_fragment": 65536
+  },
+  "authoritative_observation": {
+    "startup_interval": "one complete GlobalStateStore.load_snapshot call over the frozen four-fragment descriptor set",
+    "startup_io_counter": "CountingStorageBackend read invocations at the global-state API boundary",
+    "history_independence": "baseline_snapshot_read_calls == post_10000_object_snapshot_read_calls == fragment_count",
+    "partial_bootstrap": "snapshot load before every frozen current slot exists must raise and return no version vector",
+    "idempotence": "identical repeated bootstrap creates zero new referenced or immutable payloads and preserves all content identities",
+    "conflict": "same run/map/config/model identities with different initial fragment content must reject before changing any current record",
+    "bounded_authority": "current_records == referenced_payloads == fragment_count and total embedded base entries <= fragment_count * (S_max + 1)",
+    "version_rule": "bootstrap version is zero and successor version plus outer_update_count are derived as previous plus one"
+  },
+  "normal_read_forbidden_operations": ["listdir", "scandir", "glob", "rglob", "iterdir", "walk", "history replay", "global-head read"],
+  "formal_package": "S1-00 builder/finalizer/validator with clean code/config/source/skill/scheduler/role/path identity and fail-if-exists root",
+  "failure_ladder": "preserve the first L2 package; reproduce on one compute node with the same commit and deterministic four-fragment workload before any resubmission"
+}
