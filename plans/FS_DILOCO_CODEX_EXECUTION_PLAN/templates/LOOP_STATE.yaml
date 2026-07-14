@@ -1,0 +1,49 @@
+schema_version: 1
+loop_id: <LOOP-ID>
+title: <title>
+stage: <stage>
+status: not_started
+source_hashes:
+  research_plan: <sha256>
+  stage0_4_spec: <sha256>
+git:
+  integration_branch: master
+  branch: null
+  base_commit: null
+  result_commit: null
+  dirty_at_start: null
+dependencies: []
+requirements: []
+acceptance_ids: []
+orient:
+  unique_failing_gap: null
+  planned_files: []
+  model_data_profile: null
+  miyabi_skill_commit: null
+  initial_hostname: null
+  workflow: null
+red:
+  command: null
+  exit_code: null
+  evidence_path: null
+green:
+  command: null
+  evidence_path: null
+harden:
+  commands: []
+  evidence_paths: []
+nine_node_gate:
+  required: false
+  run_id: null
+  topology_gate: null
+  loss_gate: null
+  runtime_gate: null
+checker:
+  verdict: null
+  report_path: null
+persist:
+  evidence_index: null
+  raw_evidence_root: null
+  acceptance_traceability_updated: false
+  next_gap: null
+blocker: null

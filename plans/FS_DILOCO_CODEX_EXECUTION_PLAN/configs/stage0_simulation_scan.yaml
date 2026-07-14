@@ -1,0 +1,27 @@
+schema_version: 1
+profile_id: stage0-sim-03
+axes:
+  learners_M: [4, 8, 16]
+  quorum_fraction: [0.5, 0.75, 1.0]
+  heterogeneity_ratio: [1.0, 1.5, 2.0, 3.0]
+  grace_fraction_of_H: [0.0, 0.1, 0.25]
+  visibility_delay_seconds: [0, 1, 5, 30]
+  S_max: [0, 1, 2]
+fixed:
+  fragments_F: null
+  H_seconds_or_steps: null
+  offsets: evenly_staggered
+  speed_models:
+    - constant_ratio
+    - lognormal_jitter
+  one_per_learner: true
+  same_base_once_only: true
+outputs:
+  - token_weighted_discard_rate
+  - accepted_token_efficiency
+  - fragment_update_interval_distribution
+  - stale_acceptance_rate
+  - recovery_gain_smax1_vs_smax0
+reproducibility:
+  seeds: null
+  raw_event_trace_for_selected_points: true

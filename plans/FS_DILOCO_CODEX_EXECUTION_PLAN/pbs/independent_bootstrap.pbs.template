@@ -1,0 +1,36 @@
+#!/bin/bash
+#PBS -q <queue>
+#PBS -W group_list=<literal_group_id>
+#PBS -l select=1:mpiprocs=1
+#PBS -l walltime=<frozen_walltime>
+#PBS -j oe
+#PBS -m ae
+
+set -eEuo pipefail
+trap 'rc=$?; echo "[ERROR] line=$LINENO rc=$rc" >&2; exit "$rc"' ERR
+
+PROJECT_ROOT="${PROJECT_ROOT:-${PBS_O_WORKDIR:-$PWD}}"
+RUN_ROOT="${RUN_ROOT:?}"
+CONFIG_PATH="${CONFIG_PATH:?}"
+EVIDENCE_ROOT="${EVIDENCE_ROOT:?}"
+PYTHON_BIN="${PYTHON_BIN:-$PROJECT_ROOT/.venv/bin/python}"
+RUN_ID="${RUN_ID:?same frozen run ID for all roles}"
+
+cd "$PROJECT_ROOT"
+# module load <validated modules>
+
+ATTEMPT_ID="${PBS_JOBID%%.*}"
+BOOTSTRAP_EVIDENCE="$EVIDENCE_ROOT/$RUN_ID/bootstrap/attempt-$ATTEMPT_ID"
+mkdir -p "$EVIDENCE_ROOT/$RUN_ID/bootstrap"
+if ! mkdir "$BOOTSTRAP_EVIDENCE"; then
+  printf 'Bootstrap evidence already exists: %s\n' "$BOOTSTRAP_EVIDENCE" >&2
+  exit 3
+fi
+hostname > "$BOOTSTRAP_EVIDENCE/hostname.txt"
+printf '%s\n' "${PBS_JOBID:-}" > "$BOOTSTRAP_EVIDENCE/pbs_job_id.txt"
+module list > "$BOOTSTRAP_EVIDENCE/modules.txt" 2>&1 || true
+
+exec "$PYTHON_BIN" -m fsdiloco.cli.bootstrap \
+  --config "$CONFIG_PATH" \
+  --run-root "$RUN_ROOT" \
+  --evidence-root "$EVIDENCE_ROOT/$RUN_ID"

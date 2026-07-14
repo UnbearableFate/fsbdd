@@ -1,0 +1,54 @@
+#!/bin/bash
+#PBS -q <queue>
+#PBS -W group_list=<literal_group_id>
+#PBS -l select=1:mpiprocs=1
+#PBS -l place=<verified_exclusive_host_placement>
+#PBS -l walltime=<frozen_walltime>
+#PBS -j oe
+#PBS -m ae
+
+set -eEuo pipefail
+trap 'rc=$?; echo "[ERROR] line=$LINENO rc=$rc" >&2; exit "$rc"' ERR
+
+PROJECT_ROOT="${PROJECT_ROOT:-${PBS_O_WORKDIR:-$PWD}}"
+RUN_ROOT="${RUN_ROOT:?}"
+CONFIG_PATH="${CONFIG_PATH:?}"
+EVIDENCE_ROOT="${EVIDENCE_ROOT:?}"
+PYTHON_BIN="${PYTHON_BIN:-$PROJECT_ROOT/.venv/bin/python}"
+RUN_ID="${RUN_ID:?same frozen run ID for all roles}"
+
+cd "$PROJECT_ROOT"
+# module load <validated modules>
+
+HOST="$(hostname)"
+ROLE_ID="syncer"
+CLAIM_ROOT="$RUN_ROOT/control/host_claims"
+CLAIM_DIR="$CLAIM_ROOT/$HOST"
+mkdir -p "$CLAIM_ROOT"
+if mkdir "$CLAIM_DIR" 2>/dev/null; then
+  printf '%s\n' "$ROLE_ID" > "$CLAIM_DIR/role_id.txt"
+else
+  claimed_by="$(cat "$CLAIM_DIR/role_id.txt" 2>/dev/null || true)"
+  if [[ "$claimed_by" != "$ROLE_ID" ]]; then
+    printf 'Host %s is already claimed by %s\n' "$HOST" "${claimed_by:-unknown}" >&2
+    exit 4
+  fi
+fi
+
+ATTEMPT_ID="${PBS_JOBID%%.*}"
+ROLE_EVIDENCE="$EVIDENCE_ROOT/$RUN_ID/$ROLE_ID/attempt-$ATTEMPT_ID"
+mkdir -p "$EVIDENCE_ROOT/$RUN_ID/$ROLE_ID"
+if ! mkdir "$ROLE_EVIDENCE"; then
+  printf 'Role evidence already exists: %s\n' "$ROLE_EVIDENCE" >&2
+  exit 3
+fi
+printf '%s\n' "$HOST" > "$ROLE_EVIDENCE/hostname.txt"
+echo "${PBS_JOBID:-}" > "$ROLE_EVIDENCE/pbs_job_id.txt"
+module list > "$ROLE_EVIDENCE/modules.txt" 2>&1 || true
+
+export CUDA_VISIBLE_DEVICES=""
+exec "$PYTHON_BIN" -m fsdiloco.cli.syncer \
+  --config "$CONFIG_PATH" \
+  --run-root "$RUN_ROOT" \
+  --role-host "$HOST" \
+  --metrics "$ROLE_EVIDENCE/metrics.jsonl"

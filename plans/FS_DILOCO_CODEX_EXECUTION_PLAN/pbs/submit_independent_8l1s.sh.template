@@ -1,0 +1,48 @@
+#!/bin/bash
+# Run on Miyabi login/control plane after reading miyabi-development.
+# This submits jobs; it does not run project Python on the login node.
+
+set -eEuo pipefail
+
+PROJECT_ROOT="${PROJECT_ROOT:?}"
+RUN_ROOT_BASE="${RUN_ROOT_BASE:?}"
+CONFIG_PATH="${CONFIG_PATH:?}"
+EVIDENCE_ROOT="${EVIDENCE_ROOT:?}"
+CONFIG_DIGEST="$(sha256sum "$CONFIG_PATH" | awk '{print substr($1,1,12)}')"
+RUN_ID="${RUN_ID:-$(date -u +%Y%m%dT%H%M%S)-submit$$-${CONFIG_DIGEST}}"
+RUN_ROOT="$RUN_ROOT_BASE/$RUN_ID"
+RUN_EVIDENCE="$EVIDENCE_ROOT/$RUN_ID"
+BOOTSTRAP_SCRIPT="${BOOTSTRAP_SCRIPT:-$PROJECT_ROOT/pbs/independent_bootstrap.pbs}"
+SYNCER_SCRIPT="${SYNCER_SCRIPT:-$PROJECT_ROOT/pbs/independent_syncer.pbs}"
+LEARNER_SCRIPT="${LEARNER_SCRIPT:-$PROJECT_ROOT/pbs/independent_learner.pbs}"
+
+if ! mkdir "$RUN_EVIDENCE"; then
+  printf 'Evidence directory already exists: %s\n' "$RUN_EVIDENCE" >&2
+  exit 3
+fi
+if ! mkdir "$RUN_ROOT"; then
+  printf 'Protocol run root already exists: %s\n' "$RUN_ROOT" >&2
+  exit 3
+fi
+mkdir "$RUN_EVIDENCE/pbs"
+cp "$0" "$RUN_EVIDENCE/pbs/submit_script.sh"
+cp "$CONFIG_PATH" "$RUN_EVIDENCE/resolved_config.yaml"
+printf '%s\n' "$RUN_ID" > "$RUN_EVIDENCE/run_id.txt"
+printf '%s\n' "$RUN_ROOT" > "$RUN_EVIDENCE/run_root.txt"
+
+COMMON_VARS="PROJECT_ROOT=$PROJECT_ROOT,RUN_ROOT=$RUN_ROOT,CONFIG_PATH=$CONFIG_PATH,EVIDENCE_ROOT=$EVIDENCE_ROOT,RUN_ID=$RUN_ID"
+
+bootstrap_job="$(qsub -v "$COMMON_VARS" "$BOOTSTRAP_SCRIPT")"
+printf 'bootstrap\t%s\n' "$bootstrap_job" | tee -a "$RUN_EVIDENCE/pbs/job_ids.tsv"
+
+syncer_job="$(qsub -W "depend=afterok:$bootstrap_job" -v "$COMMON_VARS" "$SYNCER_SCRIPT")"
+printf 'syncer\t%s\n' "$syncer_job" | tee -a "$RUN_EVIDENCE/pbs/job_ids.tsv"
+
+for learner_id in $(seq 0 7); do
+  learner_job="$(qsub -W "depend=afterok:$bootstrap_job" -v "$COMMON_VARS,LEARNER_ID=$learner_id" "$LEARNER_SCRIPT")"
+  printf 'learner-%s\t%s\n' "$learner_id" "$learner_job" \
+    | tee -a "$RUN_EVIDENCE/pbs/job_ids.tsv"
+done
+
+printf 'RUN_ID=%s\nRUN_ROOT=%s\nEVIDENCE=%s\n' \
+  "$RUN_ID" "$RUN_ROOT" "$RUN_EVIDENCE"

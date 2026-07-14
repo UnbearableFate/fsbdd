@@ -9,3 +9,9 @@ wheels/
 # Virtual environments
 .venv
 plans/temp
+
+# Raw run evidence is durable outside Git. Commit only human-readable indexes.
+/evidence/*
+!/evidence/README.md
+!/evidence/indexes/
+!/evidence/indexes/**

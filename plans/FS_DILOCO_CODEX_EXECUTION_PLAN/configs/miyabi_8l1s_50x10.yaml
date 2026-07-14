@@ -1,0 +1,71 @@
+schema_version: 1
+profile_id: miyabi-8l1s-50x10
+purpose: per-loop final real-node gate
+executor:
+  agent: codex
+  required_skill:
+    repository: https://github.com/UnbearableFate/miyabi-development
+    commit: null
+miyabi:
+  launch_mode: coallocated
+  queue: null
+  group_list: null
+  requested_walltime: null
+  distinct_compute_nodes: 9
+  protocol_shared_run_root_base: null
+  cache_root: null
+  local_stage_root: null
+topology:
+  learners: 8
+  syncers: 1
+  one_process_per_node: true
+  learner_gpus_per_node: 1
+  syncer_uses_gpu: false
+  network_data_plane: forbidden
+training:
+  framework: torch
+  model_ecosystem: huggingface
+  model_profile: hf-decoder-160m-gate
+  dataset_profile: real-tokenized-gate-shards
+  offline_assets_required: true
+  local_optimizer_step_definition: completed_optimizer_step
+  fragment_sync_interval_H: 50
+  target_global_cycles: 10
+  stop_when_all_fragments_reach_target: true
+  report_actual_local_steps_per_learner: true
+  report_actual_tokens_per_learner: true
+gate:
+  thresholds_frozen_before_submit: true
+  topology:
+    require_9_distinct_hosts: true
+    require_8_distinct_learner_gpu_records: true
+    require_syncer_cuda_disabled: true
+  loss:
+    require_finite: true
+    aggregate: token_weighted
+    smoothing: rolling_median
+    window_points: 20
+    initial_fraction_after_warmup: 0.20
+    final_fraction: 0.20
+    max_final_over_initial: 0.99
+    require_negative_robust_slope: true
+    max_per_learner_final_over_initial: 1.10
+  runtime:
+    queue_wait_included: false
+    runtime_budget_seconds: null
+    compatible_baseline_run_id: null
+    max_factor_over_baseline: 1.50
+    additive_slack_seconds: 300
+    max_fraction_of_pbs_walltime: 0.80
+  protocol:
+    require_global_cycle_at_least: 10
+    require_monotonic_fragment_versions: true
+    require_no_partial_publication: true
+    require_bounded_queues: true
+evidence:
+  require_manifest: true
+  require_role_map: true
+  require_resolved_config: true
+  require_raw_metrics: true
+  require_storage_snapshot: true
+  require_checker_report: true

@@ -1,0 +1,28 @@
+schema_version: 1
+profile_id: stage0-miyabi-storage
+miyabi:
+  required_skill_repository: https://github.com/UnbearableFate/miyabi-development
+  target_shared_run_root: null
+  compute_nodes: null
+visibility:
+  empty_and_loaded: true
+  samples: null
+  report_percentiles: [50, 95, 99, 100]
+atomicity:
+  replacements: 100000
+  concurrent_readers: null
+  permitted_violations: 0
+metadata:
+  learner_counts: [4, 8, 16]
+  fragment_counts: [8, 16, 32]
+  polling_interval_seconds: 1
+  history_sizes_for_negative_control: [0, 1000, 10000]
+bandwidth:
+  payload_sizes_mb: [50, 100, 250, 500]
+  streams:
+    - 1
+    - M
+thresholds:
+  visibility_p99_seconds: "min(5, 0.05 * planned_sync_period_seconds)"
+  metadata_capacity_factor: 10
+  concurrent_fragment_round_fraction_of_H: 0.10

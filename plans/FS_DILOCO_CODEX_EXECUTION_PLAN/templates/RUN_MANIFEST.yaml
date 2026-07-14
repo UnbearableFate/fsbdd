@@ -1,0 +1,99 @@
+schema_version: 1
+run_id: <unique-run-id>
+purpose:
+  stage: <stage>
+  loop_id: <loop-id>
+  acceptance_ids: []
+  description: <single purpose>
+status: planned
+authority:
+  research_plan_sha256: <sha256>
+  stage0_4_spec_sha256: <sha256>
+  plan_version: "1.0.1"
+code:
+  repository: <url>
+  branch: <branch>
+  commit: <sha>
+  dirty: false
+codex:
+  executor: Codex
+  miyabi_skill:
+    repository: https://github.com/UnbearableFate/miyabi-development
+    commit: <sha>
+    initial_hostname: <hostname>
+    workflow: <local-or-remote>
+miyabi:
+  pbs_job_ids: []
+  queue: <discovered>
+  group: <literal-group>
+  nodefile_sha256: <sha>
+  role_map_sha256: <sha>
+  distinct_compute_hosts: 9
+  modules: []
+  python: <version>
+  torch: <version>
+  cuda: <version>
+  transformers: <version>
+  datasets: <version>
+  tokenizers: <version>
+  safetensors: <version>
+paths:
+  project_root: <path>
+  plan_root: <path>
+  run_root_base: <shared-fs-path>
+  run_root: <shared-fs-path>
+  cache_root: <path>
+  local_stage_root: <path-or-null>
+  evidence_root: <path>
+identities:
+  resolved_config_sha256: <sha>
+  model_config_sha256: <sha>
+  initial_parameters_sha256: <sha>
+  tokenizer_sha256: <sha>
+  dataset_manifest_sha256: <sha>
+  fragment_map_sha256: <sha>
+topology:
+  learners: 8
+  syncers: 1
+  learner_gpus_per_node: 1
+  syncer_uses_gpu: false
+  no_network_data_plane: true
+training:
+  framework: torch
+  ecosystem: huggingface
+  local_optimizer_step_interval_H: 50
+  target_global_cycles: 10
+  actual_global_cycles: null
+  model_profile: <profile>
+  data_profile: <profile>
+  precision: <bf16-or-fp32>
+  fragment_count: <F>
+  Q: <Q>
+  Q_fresh: <Q_fresh>
+  S_max: <0-or-1>
+  lambda_s: <value>
+gate:
+  thresholds_frozen_at: <UTC>
+  baseline_run_id: <run-or-null>
+  runtime_budget_s: <integer>
+  runtime_factor_limit: 1.5
+  loss:
+    finite_required: true
+    smoothing: rolling_median
+    window_points: 20
+    initial_fraction: 0.20
+    final_fraction: 0.20
+    max_final_over_initial: 0.99
+    robust_slope_must_be_negative: true
+fault_or_overlay:
+  type: none
+  config: {}
+outputs:
+  evidence_index: <tracked-path>
+  role_map: <path>
+  resolved_config: <path>
+  raw_logs: <path>
+  raw_metrics: <path>
+  storage_snapshot: <path>
+  analysis: <path>
+  checker_report: <path>

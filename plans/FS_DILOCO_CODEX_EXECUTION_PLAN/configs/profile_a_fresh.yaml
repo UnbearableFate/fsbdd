@@ -1,0 +1,34 @@
+schema_version: 1
+profile_id: profile-a-fresh-reference
+algorithm:
+  S_max: 0
+  lambda_s: 1.0
+  Q: 8
+  Q_fresh: 8
+  grace_seconds: 0
+  merge_policy: direct_weighted_averaging
+  outer_optimizer:
+    type: sgd_nesterov
+    learning_rate: null
+    momentum: null
+  eligibility_path: generic_staleness_eligibility
+fragmentation:
+  strategy: layer_aligned_contiguous_byte_balanced
+  fragment_count: null
+  H: 50
+  offsets: null
+learner:
+  inner_optimizer: adamw
+  preserve_inner_moments_on_adoption: true
+  latest_only_adoption: true
+  max_in_flight_publications_per_fragment: 1
+syncer:
+  readiness_driven: true
+  distinct_learner_quorum: true
+  fair_fragment_scheduling: true
+  fp32_accumulation: true
+storage:
+  backend: posix_shared_fs
+  base_retention_versions: 1
+  fixed_latest_slots: true
+  history_scan: forbidden

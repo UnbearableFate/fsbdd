@@ -1,0 +1,123 @@
+#!/bin/bash
+# Fill directives from current miyabi-development skill and project allocation.
+#PBS -q <queue>
+#PBS -W group_list=<literal_group_id>
+#PBS -l select=<verified_1cpu_plus_8gpu_chunks>
+#PBS -l walltime=<frozen_walltime>
+#PBS -j oe
+#PBS -m ae
+
+set -eEuo pipefail
+trap 'rc=$?; echo "[ERROR] line=$LINENO rc=$rc" >&2; exit "$rc"' ERR
+
+: "${PBS_NODEFILE:?PBS_NODEFILE is required}"
+PROJECT_ROOT="${PROJECT_ROOT:-${PBS_O_WORKDIR:-$PWD}}"
+RUN_ROOT_BASE="${RUN_ROOT_BASE:?set shared protocol RUN_ROOT base}"
+CONFIG_PATH="${CONFIG_PATH:?set frozen resolved config}"
+EVIDENCE_ROOT="${EVIDENCE_ROOT:?set evidence root}"
+PYTHON_BIN="${PYTHON_BIN:-$PROJECT_ROOT/.venv/bin/python}"
+MASTER_PORT="${MASTER_PORT:-29500}"  # launcher control plane only
+LEARNER_GPU_INDEX="${LEARNER_GPU_INDEX:-0}"
+
+cd "$PROJECT_ROOT"
+
+# Load the exact modules discovered and recorded for this project.
+# module purge
+# module load <compiler/cuda/python/openmpi modules>
+
+mapfile -t HOSTS < <(awk '!seen[$0]++' "$PBS_NODEFILE")
+if [[ "${#HOSTS[@]}" -ne 9 ]]; then
+  printf 'Expected 9 distinct hosts, got %s\n' "${#HOSTS[@]}" >&2
+  printf '%s\n' "${HOSTS[@]}" >&2
+  exit 2
+fi
+
+CONFIG_ID="$("$PYTHON_BIN" -m fsdiloco.cli.config_id --config "$CONFIG_PATH")"
+JOB_TAG="${PBS_JOBID%%.*}"
+RUN_ID="${RUN_ID:-$(date -u +%Y%m%dT%H%M%SZ)-${JOB_TAG}-${CONFIG_ID:0:12}}"
+RUN_ROOT="$RUN_ROOT_BASE/$RUN_ID"
+RUN_EVIDENCE="$EVIDENCE_ROOT/$RUN_ID"
+if ! mkdir "$RUN_EVIDENCE"; then
+  printf 'Evidence directory already exists: %s\n' "$RUN_EVIDENCE" >&2
+  exit 3
+fi
+if ! mkdir "$RUN_ROOT"; then
+  printf 'Protocol run root already exists: %s\n' "$RUN_ROOT" >&2
+  exit 3
+fi
+mkdir "$RUN_EVIDENCE"/{env,logs,metrics,analysis,pbs}
+cp "$0" "$RUN_EVIDENCE/pbs/job_script.sh"
+cp "$CONFIG_PATH" "$RUN_EVIDENCE/resolved_config.yaml"
+printf '%s\n' "$RUN_ID" > "$RUN_EVIDENCE/env/run_id.txt"
+printf '%s\n' "$RUN_ROOT" > "$RUN_EVIDENCE/env/run_root.txt"
+printf '%s\n' "${HOSTS[@]}" > "$RUN_EVIDENCE/env/hosts.txt"
+hostname > "$RUN_EVIDENCE/env/submission_shell_hostname.txt"
+module list > "$RUN_EVIDENCE/env/modules.txt" 2>&1 || true
+cp "$PBS_NODEFILE" "$RUN_EVIDENCE/env/PBS_NODEFILE"
+
+ROLE_MAP="$RUN_EVIDENCE/role_map.tsv"
+: > "$ROLE_MAP"
+printf '0\tsyncer\t-\t%s\n' "${HOSTS[0]}" >> "$ROLE_MAP"
+for i in $(seq 1 8); do
+  printf '%s\tlearner\t%s\t%s\n' "$i" "$((i-1))" "${HOSTS[$i]}" >> "$ROLE_MAP"
+done
+
+# Bootstrap must be idempotent. Learners wait for the shared bootstrap record.
+"$PYTHON_BIN" -m fsdiloco.cli.bootstrap \
+  --config "$CONFIG_PATH" \
+  --run-root "$RUN_ROOT" \
+  --evidence-root "$RUN_EVIDENCE"
+
+MPI_ENV_ARGS=(
+  "PROJECT_ROOT=$PROJECT_ROOT"
+  "RUN_ID=$RUN_ID"
+  "RUN_ROOT=$RUN_ROOT"
+  "CONFIG_PATH=$CONFIG_PATH"
+  "RUN_EVIDENCE=$RUN_EVIDENCE"
+  "LEARNER_GPU_INDEX=$LEARNER_GPU_INDEX"
+)
+
+# MPI is used only to start/monitor one application process per node.
+# The application must not import mpi4py or initialize torch.distributed.
+mpirun \
+  --mca mpi_abort_print_stack 1 \
+  --report-bindings \
+  --map-by ppr:1:node \
+  --bind-to core \
+  -np 9 \
+  /usr/bin/env "${MPI_ENV_ARGS[@]}" \
+  bash -lc '
+    set -eEuo pipefail
+    rank="${OMPI_COMM_WORLD_RANK:?}"
+    host="$(hostname)"
+    mkdir -p "$RUN_EVIDENCE/logs" "$RUN_EVIDENCE/metrics"
+
+    if [[ "$rank" -eq 0 ]]; then
+      export CUDA_VISIBLE_DEVICES=""
+      exec "$PROJECT_ROOT/.venv/bin/python" -m fsdiloco.cli.syncer \
+        --config "$CONFIG_PATH" \
+        --run-root "$RUN_ROOT" \
+        --role-host "$host" \
+        --metrics "$RUN_EVIDENCE/metrics/syncer.jsonl" \
+        > "$RUN_EVIDENCE/logs/syncer.log" 2>&1
+    fi
+
+    learner_id="$((rank - 1))"
+    export CUDA_VISIBLE_DEVICES="$LEARNER_GPU_INDEX"
+    exec "$PROJECT_ROOT/.venv/bin/python" -m fsdiloco.cli.learner \
+      --config "$CONFIG_PATH" \
+      --run-root "$RUN_ROOT" \
+      --learner-id "$learner_id" \
+      --role-host "$host" \
+      --metrics "$RUN_EVIDENCE/metrics/learner-${learner_id}.jsonl" \
+      > "$RUN_EVIDENCE/logs/learner-${learner_id}.log" 2>&1
+  '
+
+"$PYTHON_BIN" -m fsdiloco.cli.analyze_gate \
+  --manifest "$RUN_EVIDENCE/manifest.yaml" \
+  --evidence-root "$RUN_EVIDENCE"
+
+find "$RUN_EVIDENCE" -type f ! -name checksums.sha256 -print0 \
+  | sort -z \
+  | xargs -0 sha256sum \
+  > "$RUN_EVIDENCE/checksums.sha256"

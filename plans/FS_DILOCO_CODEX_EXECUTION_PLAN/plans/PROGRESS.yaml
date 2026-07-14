@@ -1,0 +1,591 @@
+schema_version: 1
+plan_version: '1.0.1'
+repository:
+  integration_branch: master
+  repo_root_source: git-rev-parse-show-toplevel
+  plan_root: plans/FS_DILOCO_CODEX_EXECUTION_PLAN
+source_hashes:
+  RESEARCH_PLAN.md: 2c0db3148110da10ea62f445c189d2d53b405527d8da264b9af9817f5ca9d835
+  STAGE0-4_SPEC.md: fad26a8add51e70ddf50d0130b61d80fe06e1c3945221c29508412a5bcab2feb
+capabilities:
+  CAP_BASE_TRAINING:
+    status: inactive
+    established_by: S1-13
+    baseline_9n_run_id: null
+current_loop: S0C-01
+loops:
+- id: S0C-01
+  stage: stage0
+  title: Fresh/Stale 数学 oracle 与 weighting
+  depends_on: []
+  status: not_started
+  nine_node_gate_required: false
+  acceptance_ids:
+  - A-ALG-00
+  branch: null
+  base_commit: null
+  result_commit: null
+  evidence_index: null
+  checker_verdict: null
+  blocker: null
+- id: S0C-02
+  stage: stage0
+  title: Consumption 语义、Outer Optimizer reference transitions 与证据映射
+  depends_on:
+  - S0C-01
+  status: not_started
+  nine_node_gate_required: false
+  acceptance_ids:
+  - A-ALG-00
+  branch: null
+  base_commit: null
+  result_commit: null
+  evidence_index: null
+  checker_verdict: null
+  blocker: null
+- id: S0A-01
+  stage: stage0
+  title: 离散事件模拟器内核与 oracle 对齐
+  depends_on:
+  - S0C-02
+  status: not_started
+  nine_node_gate_required: false
+  acceptance_ids:
+  - A-SIM-01
+  branch: null
+  base_commit: null
+  result_commit: null
+  evidence_index: null
+  checker_verdict: null
+  blocker: null
+- id: S0A-02
+  stage: stage0
+  title: 参数扫描、默认 Profile 与 stale 挽回预测
+  depends_on:
+  - S0A-01
+  status: not_started
+  nine_node_gate_required: false
+  acceptance_ids:
+  - A-SIM-02
+  - A-SIM-03
+  branch: null
+  base_commit: null
+  result_commit: null
+  evidence_index: null
+  checker_verdict: null
+  blocker: null
+- id: S0B-01
+  stage: stage0
+  title: Miyabi 与目标共享 FS 能力发现/Benchmark Harness
+  depends_on: []
+  status: not_started
+  nine_node_gate_required: false
+  acceptance_ids: []
+  branch: null
+  base_commit: null
+  result_commit: null
+  evidence_index: null
+  checker_verdict: null
+  blocker: null
+- id: S0B-02
+  stage: stage0
+  title: 跨节点可见性与 10^5 次原子发布验证
+  depends_on:
+  - S0B-01
+  status: not_started
+  nine_node_gate_required: false
+  acceptance_ids:
+  - A-BENCH-01
+  - A-BENCH-02
+  branch: null
+  base_commit: null
+  result_commit: null
+  evidence_index: null
+  checker_verdict: null
+  blocker: null
+- id: S0B-03
+  stage: stage0
+  title: Metadata/Bandwidth 压测与 Stage 1 FS 决策
+  depends_on:
+  - S0B-02
+  status: not_started
+  nine_node_gate_required: false
+  acceptance_ids:
+  - A-BENCH-03
+  - A-BENCH-04
+  branch: null
+  base_commit: null
+  result_commit: null
+  evidence_index: null
+  checker_verdict: null
+  blocker: null
+- id: S1-00
+  stage: stage1
+  title: 项目 Skeleton、Typed Config、Identity 与 Run Manifest
+  depends_on:
+  - S0A-02
+  - S0B-03
+  - S0C-02
+  status: not_started
+  nine_node_gate_required: false
+  acceptance_ids: []
+  branch: null
+  base_commit: null
+  result_commit: null
+  evidence_index: null
+  checker_verdict: null
+  blocker: null
+- id: S1-01
+  stage: stage1
+  title: Hugging Face Model Logical-Layer Registry
+  depends_on:
+  - S1-00
+  status: not_started
+  nine_node_gate_required: false
+  acceptance_ids:
+  - A-FRAG-01
+  branch: null
+  base_commit: null
+  result_commit: null
+  evidence_index: null
+  checker_verdict: null
+  blocker: null
+- id: S1-02
+  stage: stage1
+  title: Layer-aligned 连续均衡 Fragment Map
+  depends_on:
+  - S1-01
+  status: not_started
+  nine_node_gate_required: false
+  acceptance_ids:
+  - A-FRAG-01
+  - A-FRAG-02
+  - A-FRAG-03
+  branch: null
+  base_commit: null
+  result_commit: null
+  evidence_index: null
+  checker_verdict: null
+  blocker: null
+- id: S1-03
+  stage: stage1
+  title: STOR-01 抽象与原子 Publication Primitive
+  depends_on:
+  - S1-00
+  - S0B-03
+  status: not_started
+  nine_node_gate_required: false
+  acceptance_ids:
+  - A-PROP-01
+  - A-GLOBAL-01
+  branch: null
+  base_commit: null
+  result_commit: null
+  evidence_index: null
+  checker_verdict: null
+  blocker: null
+- id: S1-04
+  stage: stage1
+  title: Bootstrap、Per-fragment Current 与 Bounded Global State
+  depends_on:
+  - S1-02
+  - S1-03
+  status: not_started
+  nine_node_gate_required: false
+  acceptance_ids:
+  - A-GLOBAL-02
+  branch: null
+  base_commit: null
+  result_commit: null
+  evidence_index: null
+  checker_verdict: null
+  blocker: null
+- id: S1-05
+  stage: stage1
+  title: Proposal Schema、Latest-wins Discovery 与通用 Eligibility
+  depends_on:
+  - S1-03
+  - S1-04
+  - S0C-02
+  status: not_started
+  nine_node_gate_required: false
+  acceptance_ids:
+  - A-PROP-01
+  - A-PROP-02
+  - A-PROP-03
+  branch: null
+  base_commit: null
+  result_commit: null
+  evidence_index: null
+  checker_verdict: null
+  blocker: null
+- id: S1-06
+  stage: stage1
+  title: Torch/HF Learner Inner Training Core
+  depends_on:
+  - S1-00
+  - S1-01
+  status: not_started
+  nine_node_gate_required: false
+  acceptance_ids: []
+  branch: null
+  base_commit: null
+  result_commit: null
+  evidence_index: null
+  checker_verdict: null
+  blocker: null
+- id: S1-07
+  stage: stage1
+  title: H/Offset Fragment Snapshot 与 Proposal Publish
+  depends_on:
+  - S1-05
+  - S1-06
+  - S1-02
+  status: not_started
+  nine_node_gate_required: false
+  acceptance_ids: []
+  branch: null
+  base_commit: null
+  result_commit: null
+  evidence_index: null
+  checker_verdict: null
+  blocker: null
+- id: S1-08
+  stage: stage1
+  title: Latest-only Adoption、Mixed-version Model 与 Inner Moments
+  depends_on:
+  - S1-04
+  - S1-06
+  - S1-03
+  - S1-02
+  status: not_started
+  nine_node_gate_required: false
+  acceptance_ids:
+  - A-LEARN-02
+  - A-LEARN-03
+  branch: null
+  base_commit: null
+  result_commit: null
+  evidence_index: null
+  checker_verdict: null
+  blocker: null
+- id: S1-09
+  stage: stage1
+  title: Syncer Readiness、Quorum、Grace 与 Fair Scheduling
+  depends_on:
+  - S1-05
+  - S1-04
+  status: not_started
+  nine_node_gate_required: false
+  acceptance_ids:
+  - A-PROP-02
+  - A-PROP-03
+  branch: null
+  base_commit: null
+  result_commit: null
+  evidence_index: null
+  checker_verdict: null
+  blocker: null
+- id: S1-10
+  stage: stage1
+  title: Streaming Direct Merge 与 Fragment-wise Outer Optimizer
+  depends_on:
+  - S1-09
+  - S0C-02
+  status: not_started
+  nine_node_gate_required: false
+  acceptance_ids:
+  - A-ALG-01
+  - A-PERF-01
+  branch: null
+  base_commit: null
+  result_commit: null
+  evidence_index: null
+  checker_verdict: null
+  blocker: null
+- id: S1-11
+  stage: stage1
+  title: Atomic Global Commit 与 Consumed Frontier
+  depends_on:
+  - S1-03
+  - S1-05
+  - S1-10
+  status: not_started
+  nine_node_gate_required: false
+  acceptance_ids:
+  - A-GLOBAL-01
+  - A-GLOBAL-02
+  - A-PROP-03
+  branch: null
+  base_commit: null
+  result_commit: null
+  evidence_index: null
+  checker_verdict: null
+  blocker: null
+- id: S1-12
+  stage: stage1
+  title: Profile A 数值端到端与 Frozen Evaluation Snapshot
+  depends_on:
+  - S1-07
+  - S1-08
+  - S1-09
+  - S1-11
+  status: not_started
+  nine_node_gate_required: false
+  acceptance_ids:
+  - A-ALG-01
+  - A-EVAL-01
+  - A-LEARN-01
+  - A-LEARN-03
+  branch: null
+  base_commit: null
+  result_commit: null
+  evidence_index: null
+  checker_verdict: null
+  blocker: null
+- id: S1-13
+  stage: stage1
+  title: 基础训练系统关闭与首个 Miyabi 8+1/50×10 Baseline
+  depends_on:
+  - S1-12
+  status: not_started
+  nine_node_gate_required: true
+  acceptance_ids:
+  - A-LEARN-01
+  - A-PERF-01
+  branch: null
+  base_commit: null
+  result_commit: null
+  evidence_index: null
+  checker_verdict: null
+  blocker: null
+- id: S2-01
+  stage: stage2
+  title: 异步 GPU→CPU→FS Publication Pipeline
+  depends_on:
+  - S1-13
+  status: not_started
+  nine_node_gate_required: true
+  acceptance_ids: []
+  branch: null
+  base_commit: null
+  result_commit: null
+  evidence_index: null
+  checker_verdict: null
+  blocker: null
+- id: S2-02
+  stage: stage2
+  title: 异步 FS→CPU→GPU Adoption Pipeline
+  depends_on:
+  - S2-01
+  status: not_started
+  nine_node_gate_required: true
+  acceptance_ids: []
+  branch: null
+  base_commit: null
+  result_commit: null
+  evidence_index: null
+  checker_verdict: null
+  blocker: null
+- id: S2-03
+  stage: stage2
+  title: Bounded Backpressure、Slow FS 与 GC
+  depends_on:
+  - S2-01
+  - S2-02
+  status: not_started
+  nine_node_gate_required: true
+  acceptance_ids:
+  - A-PERF-02
+  branch: null
+  base_commit: null
+  result_commit: null
+  evidence_index: null
+  checker_verdict: null
+  blocker: null
+- id: S2-04
+  stage: stage2
+  title: Telemetry、Latency Decomposition 与 Gate Analyzer
+  depends_on:
+  - S2-03
+  status: not_started
+  nine_node_gate_required: true
+  acceptance_ids:
+  - A-PERF-06
+  branch: null
+  base_commit: null
+  result_commit: null
+  evidence_index: null
+  checker_verdict: null
+  blocker: null
+- id: S2-05
+  stage: stage2
+  title: Goodput 优化与 Stage 2 关闭
+  depends_on:
+  - S2-04
+  status: not_started
+  nine_node_gate_required: true
+  acceptance_ids:
+  - A-PERF-04
+  - A-PERF-05
+  - A-PERF-06
+  branch: null
+  base_commit: null
+  result_commit: null
+  evidence_index: null
+  checker_verdict: null
+  blocker: null
+- id: S3-01
+  stage: stage3
+  title: Learner Kill-Restart Recovery
+  depends_on:
+  - S2-05
+  status: not_started
+  nine_node_gate_required: true
+  acceptance_ids:
+  - A-REC-02
+  branch: null
+  base_commit: null
+  result_commit: null
+  evidence_index: null
+  checker_verdict: null
+  blocker: null
+- id: S3-02
+  stage: stage3
+  title: Syncer Kill-Restart from Per-fragment Authority
+  depends_on:
+  - S3-01
+  status: not_started
+  nine_node_gate_required: true
+  acceptance_ids:
+  - A-REC-01
+  branch: null
+  base_commit: null
+  result_commit: null
+  evidence_index: null
+  checker_verdict: null
+  blocker: null
+- id: S3-03
+  stage: stage3
+  title: Global Publication Crash Matrix
+  depends_on:
+  - S3-02
+  status: not_started
+  nine_node_gate_required: true
+  acceptance_ids:
+  - A-REC-03
+  branch: null
+  base_commit: null
+  result_commit: null
+  evidence_index: null
+  checker_verdict: null
+  blocker: null
+- id: S3-04
+  stage: stage3
+  title: Quorum Availability Boundary、Automatic Resume 与 Stage 3 关闭
+  depends_on:
+  - S3-03
+  status: not_started
+  nine_node_gate_required: true
+  acceptance_ids:
+  - A-REC-04
+  branch: null
+  base_commit: null
+  result_commit: null
+  evidence_index: null
+  checker_verdict: null
+  blocker: null
+- id: S4-01
+  stage: stage4
+  title: '`S_max=1` Base History Window 与 Bounded GC'
+  depends_on:
+  - S3-04
+  status: not_started
+  nine_node_gate_required: true
+  acceptance_ids: []
+  branch: null
+  base_commit: null
+  result_commit: null
+  evidence_index: null
+  checker_verdict: null
+  blocker: null
+- id: S4-02
+  stage: stage4
+  title: Old-base Displacement 与 Staleness Boundary/Rejections
+  depends_on:
+  - S4-01
+  status: not_started
+  nine_node_gate_required: true
+  acceptance_ids:
+  - A-STALE-01
+  - A-STALE-02
+  - A-STALE-03
+  - A-STALE-04
+  branch: null
+  base_commit: null
+  result_commit: null
+  evidence_index: null
+  checker_verdict: null
+  blocker: null
+- id: S4-03
+  stage: stage4
+  title: Fresh Anchor、Readiness 与 Deterministic Candidate Selection
+  depends_on:
+  - S4-02
+  status: not_started
+  nine_node_gate_required: true
+  acceptance_ids:
+  - A-STALE-06
+  branch: null
+  base_commit: null
+  result_commit: null
+  evidence_index: null
+  checker_verdict: null
+  blocker: null
+- id: S4-04
+  stage: stage4
+  title: Inverse-staleness Weighting、Same-base Consumption 与 Latest Reorder
+  depends_on:
+  - S4-03
+  status: not_started
+  nine_node_gate_required: true
+  acceptance_ids:
+  - A-STALE-05
+  - A-PROP-04
+  - A-PROP-05
+  branch: null
+  base_commit: null
+  result_commit: null
+  evidence_index: null
+  checker_verdict: null
+  blocker: null
+- id: S4-05
+  stage: stage4
+  title: Profile B 实跑、Simulator 对齐与 Stale Acceptance Gate
+  depends_on:
+  - S4-04
+  status: not_started
+  nine_node_gate_required: true
+  acceptance_ids:
+  - A-STALE-07
+  branch: null
+  base_commit: null
+  result_commit: null
+  evidence_index: null
+  checker_verdict: null
+  blocker: null
+- id: S4-06
+  stage: stage4
+  title: Matched-token H3、多种子与 Stage 4 关闭
+  depends_on:
+  - S4-05
+  status: not_started
+  nine_node_gate_required: true
+  acceptance_ids:
+  - A-ALG-02
+  branch: null
+  base_commit: null
+  result_commit: null
+  evidence_index: null
+  checker_verdict: null
+  blocker: null

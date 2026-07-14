@@ -1,0 +1,37 @@
+schema_version: 1
+profile_id: profile-b-stale-aware
+algorithm:
+  S_max: 1
+  lambda_s: 1.0
+  Q: null
+  Q_constraints: "2 <= Q < 8"
+  Q_fresh: 1
+  grace_seconds: null
+  merge_policy: direct_weighted_averaging
+  outer_optimizer:
+    type: sgd_nesterov
+    learning_rate: null
+    momentum: null
+  stale_displacement: declared_base_minus_local
+  candidate_priority:
+    - lower_staleness
+    - larger_effective_tokens
+    - newer_sequence
+    - fixed_learner_id
+fragmentation:
+  strategy: layer_aligned_contiguous_byte_balanced
+  fragment_count: null
+  H: 50
+  offsets: null
+storage:
+  base_retention_versions: 2
+  fixed_latest_slots: true
+heterogeneity:
+  mode: injected_constant_or_lognormal
+  fastest_over_slowest_ratio: null
+  seed: null
+acceptance:
+  stale_selected_required: true
+  minimum_stale_acceptance_rate: 0.05
+  simulation_prediction_run_id: null
+  maximum_factor_deviation_from_prediction: 2.0
