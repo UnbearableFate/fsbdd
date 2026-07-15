@@ -33,7 +33,7 @@
     "minimum_global_cycles": 2400,
     "active_runtime_budget_seconds": 21600,
     "pbs_walltime_seconds": 28800,
-    "minimum_step_seconds": 0.15,
+    "minimum_step_seconds": 0.16,
     "loss": {"all_finite": true, "warmup_points": 100, "rolling_median_window": 20, "initial_fraction": 0.05, "final_fraction": 0.05, "maximum_final_to_initial_median": 0.99, "aggregate_robust_slope_must_be_negative": true, "analysis_method": {"aggregate": "target-token-weighted loss at common local-step index", "after_warmup": "rolling median including each complete 20-point window", "initial_final_count": "ceil(fraction times rolling-median point count)", "robust_slope": "median fixed-lag finite difference; lag=max(20,floor(point_count/10))"}},
     "comparison_claim": "training_occurs_and_trend_is_reasonable_only_no_matched_control",
     "preflight_smoke": {
@@ -45,7 +45,7 @@
       "minimum_cycle_to_publication_opportunity_ratio": 0.9833333333333333,
       "runtime_budget_seconds": 1200,
       "pbs_walltime_seconds": 1800,
-      "minimum_step_seconds": 0.15,
+      "minimum_step_seconds": 0.16,
       "required_topology": "four real Pythia learners plus one CPU-only NumPy syncer on five distinct compute hosts",
       "required_dataset": "the immutable long-run FineWeb-Edu packed shards",
       "formal_evidence": false

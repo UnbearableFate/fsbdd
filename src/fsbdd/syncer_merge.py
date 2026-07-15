@@ -754,13 +754,20 @@ def execute_numpy_streaming_fragment_update(
     ledger.add(fragment_bytes)
     local_bytes_read = 0
     maximum_active_local = 0
+    prevalidated_payload_integrity = bool(
+        getattr(contribution_source, "prevalidated_payload_integrity", False)
+    )
     for contribution in request.contributions:
         with contribution_source.open_payload(contribution) as local_payload:
             maximum_active_local = 1
             local_payload = _require_fp32_payload(local_payload, "local payload")
             if len(local_payload) != fragment_bytes:
                 raise MergeError("local contribution shape differs from current fragment")
-            if hashlib.sha256(local_payload).hexdigest() != contribution.parameters_sha256:
+            if (
+                not prevalidated_payload_integrity
+                and hashlib.sha256(local_payload).hexdigest()
+                != contribution.parameters_sha256
+            ):
                 raise MergeError("local contribution checksum mismatch")
             local_bytes_read += len(local_payload)
             local = array(local_payload, "local payload")
@@ -770,8 +777,7 @@ def execute_numpy_streaming_fragment_update(
                     raise MergeError("NumPy Profile A merge requires a current-base contribution")
                 if contribution.base_content_identity != request.current_content_identity:
                     raise MergeError("current-base contribution identity mismatch")
-                np.negative(local, out=local)
-                np.add(local, current, out=local)
+                np.subtract(current, local, out=local)
                 np.multiply(local, np.float32(contribution.f32_weight), out=local)
                 np.add(accumulator, local, out=accumulator)
             finally:

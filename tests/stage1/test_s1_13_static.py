@@ -83,7 +83,7 @@ def test_frozen_gate_contract_covers_heartbeat_stalls_and_long_capacity_smoke() 
     assert smoke["publication_opportunities_per_fragment_per_learner"] == 60
     assert smoke["minimum_global_cycles"] == 59
     assert smoke["minimum_cycle_to_publication_opportunity_ratio"] >= 59 / 60
-    assert contract["long_run"]["minimum_step_seconds"] == 0.15
+    assert contract["long_run"]["minimum_step_seconds"] == 0.16
 
 
 def test_resolved_configs_bind_the_complete_immutable_asset_bundle() -> None:

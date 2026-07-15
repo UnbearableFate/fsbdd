@@ -310,10 +310,12 @@ def decode_proposal(payload: bytes) -> Proposal:
         payload_value["dtype"] != descriptor.dtype
         or payload_value["shape"] != list(descriptor.shape)
         or payload_value["bytes"] != len(parameters)
-        or payload_value["sha256"] != hashlib.sha256(parameters).hexdigest()
     ):
         raise ProposalError("proposal parameter payload integrity mismatch")
     try:
+        # Proposal.__post_init__ performs the one semantic payload checksum.
+        # The storage backend has already verified the compound payload against
+        # its visibility record, so hashing here as well would be redundant.
         return Proposal(
             proposal_id=header["proposal_id"],
             identities=identities,

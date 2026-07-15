@@ -421,6 +421,8 @@ class FrozenStopPolicy:
 
 
 class _SelectedProposalSource:
+    prevalidated_payload_integrity = True
+
     def __init__(self, proposals: Sequence[Proposal]) -> None:
         self._payloads = {item.proposal_id: item.parameters for item in proposals}
         if len(self._payloads) != len(proposals):
