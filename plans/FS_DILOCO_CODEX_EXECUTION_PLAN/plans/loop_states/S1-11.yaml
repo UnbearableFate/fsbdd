@@ -42,7 +42,7 @@ preflight:
   package_contract: reports/stage1/S1-11-evidence-contract.json
   fault_injection_contract: reports/stage1/S1-11-publication-injection-points.json
   package_validator_command: fsbdd evidence validate runtime_runs/S1-11/formal-l2
-  package_validator_result: pending
+  package_validator_result: admissible pre-submission package at runtime_runs/S1-11/preflight-validator-5b06623 (15/15 payload files; manifest 9447526c267ff6a611bbe2a1a504d77cc227116cafcb89be2a56527d78e6d1b9)
   checker_phase_a: required
   success_boundary: atomic replacement of the one fixed current visibility record
   replay_observation: reconstruct the complete authority from the fixed current record then rerun the exact immutable request
@@ -52,23 +52,28 @@ red:
   evidence_path: runtime_runs/S1-11/red-83dcca9-semantic
 green:
   command: PYTHONPATH=src .venv/bin/python -m pytest -q tests/stage1/test_s1_11_global_commit.py tests/stage1/test_s1_11_global_commit_analyzer.py tests/stage1/test_s1_11_global_commit_static.py
-  evidence_path: runtime_runs/S1-11/l1-targeted-2386911.opbs
-  result: 29 passed on Miyabi compute node; candidate 43b086163e84b239b5f7eee13fbf84742e42c3cb
+  evidence_path: runtime_runs/S1-11/l1-targeted-2387272.opbs
+  result: 32 passed on Miyabi compute node; candidate 5b06623adcb678444ad501953ca80024783e459f
 harden:
   commands:
   - all four payload and visibility fault boundaries with fresh-reader replay classification
   - exact duplicate retry version skip rollback same-version conflict and same-base repeat rejection
   - eight concurrent readers late proposal freeze stability restart and 10000 frontier advances
   - fail-closed envelope identity checksum schema selected-weight frontier and analyzer mutations
-  evidence_paths: [runtime_runs/S1-11/l1-targeted-2386911.opbs]
+  evidence_paths: [runtime_runs/S1-11/l1-targeted-2386911.opbs, runtime_runs/S1-11/l1-targeted-2387272.opbs, runtime_runs/S1-11/preflight-validator-5b06623]
 nine_node_gate: {required: false, run_id: null, topology_gate: null, loss_gate: null, runtime_gate: null}
 checker:
-  context_id: null
+  context_id: /root/s1_11_checker
   maker_chat_inherited: false
-  phase_a_verdict: pending
+  phase_a_verdict: BLOCKED_PRECHECK on ce25022; corrections implemented on 5b06623 and pending same-context recheck
   verdict: pending
   report_path: reports/checkers/S1-11.md
-  cycles: []
+  cycles:
+  - cycle: 1
+    phase: A
+    checked_candidate: ce250225e63ab1681057dea9050538c6faf2208b
+    verdict: BLOCKED_PRECHECK
+    correction: require each concurrent reader to span bootstrap through final authority on both fragments; independently bind every fault replay request to its final authority and add consistent-fingerprint mutations; finalize and validate a frozen pre-submission evidence package before L2 submission
 persist:
   evidence_index: evidence/indexes/S1-11.md
   raw_evidence_root: runtime_runs/S1-11
