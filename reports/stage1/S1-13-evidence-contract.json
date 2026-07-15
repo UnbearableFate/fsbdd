@@ -53,6 +53,16 @@
     "required_fields": ["failure", "cause", "expected_solution"],
     "next_experiment_blocked_until_review_complete": true
   },
+  "reduced_correction_reproduction": {
+    "contract": "reports/stage1/S1-13-reproduction-contract.json",
+    "topology": "one real GPT-2 learner plus one CPU-only NumPy syncer on two distinct compute hosts",
+    "purpose": "validate the long-smoke filesystem-path corrections before any five-node retry",
+    "required_gate": "analysis/correction-reproduction-gate.json",
+    "required_package_manifest": "package-manifest.json",
+    "required_validator_result": "analysis/package-validator.json",
+    "required_checksum_inventory": "checksums.sha256",
+    "formal_evidence": false
+  },
   "runtime_health": {
     "unexpected_progress_heartbeat_gap": "at most two times the median normal fragment-update completion interval through the target-reaching update",
     "pending_stall": "final learner publication and adoption queues are empty and syncer has no active or selected fragment",

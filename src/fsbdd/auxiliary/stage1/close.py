@@ -73,6 +73,19 @@ _PROFILE_CLAIM = (
 )
 
 
+def _execution_mode(
+    workload: str,
+    *,
+    non_formal_long_smoke: bool,
+    learner_count_override: int | None,
+) -> str:
+    if non_formal_long_smoke:
+        return "non_formal_long_profile_smoke"
+    if workload == "nine_node" and learner_count_override == 1:
+        return "reduced_two_node_reproduction"
+    return "formal_workload"
+
+
 def _hash_file(path: Path) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as stream:
@@ -590,10 +603,10 @@ def run_learner(
         "config_sha256": config_sha256,
         "asset_marker_sha256": asset_marker_sha256,
         "gate_contract_sha256": gate_contract_sha256,
-        "execution_mode": (
-            "non_formal_long_profile_smoke"
-            if non_formal_long_smoke
-            else "formal_workload"
+        "execution_mode": _execution_mode(
+            workload,
+            non_formal_long_smoke=non_formal_long_smoke,
+            learner_count_override=learner_count_override,
         ),
         "model_revision": profile.model["revision"],
         "dataset_revision": profile.dataset["revision"],
@@ -817,10 +830,10 @@ def run_syncer(
         "config_sha256": config_sha256,
         "asset_marker_sha256": asset_marker_sha256,
         "gate_contract_sha256": gate_contract_sha256,
-        "execution_mode": (
-            "non_formal_long_profile_smoke"
-            if non_formal_long_smoke
-            else "formal_workload"
+        "execution_mode": _execution_mode(
+            workload,
+            non_formal_long_smoke=non_formal_long_smoke,
+            learner_count_override=learner_count_override,
         ),
         "version_vector": list(initial_plan.version_vector),
         "bootstrap_identity": bootstrap["bootstrap_identity"],
@@ -1116,18 +1129,27 @@ def main(argv: Sequence[str] | None = None) -> int:
             ),
             None,
         )
-        if rank_value is None or size_value is None or int(size_value) != 5:
-            raise Stage1CloseError("mpi role requires exactly five launcher ranks")
+        if rank_value is None or size_value is None:
+            raise Stage1CloseError("mpi role requires launcher rank and size")
         rank = int(rank_value)
-        if rank < 4:
+        size = int(size_value)
+        if size == 5 and arguments.learner_count_override is None:
+            learner_count = 4
+        elif size == 2 and arguments.learner_count_override == 1:
+            learner_count = 1
+        else:
+            raise Stage1CloseError(
+                "mpi role requires the frozen 4+1 topology or the explicit 1+1 reproduction"
+            )
+        if rank < learner_count:
             arguments.role = "learner"
             arguments.learner_index = rank
             os.environ["CUDA_VISIBLE_DEVICES"] = "0"
-        elif rank == 4:
+        elif rank == learner_count:
             arguments.role = "syncer"
             os.environ["CUDA_VISIBLE_DEVICES"] = ""
         else:
-            raise Stage1CloseError("mpi rank is outside the frozen 4+1 topology")
+            raise Stage1CloseError("mpi rank is outside the selected launcher topology")
     if arguments.role == "learner":
         if arguments.learner_index is None or arguments.hub_cache is None:
             raise Stage1CloseError(

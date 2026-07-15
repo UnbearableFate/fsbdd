@@ -9,61 +9,111 @@ set -eEuo pipefail
 source "${PROJECT_ROOT:-/work/xg24i002/x10041/fsbdd}/pbs/lib/record_experiment_failure.sh"
 install_experiment_failure_traps
 
-: "${PROJECT_ROOT:=/work/xg24i002/x10041/fsbdd}"
+: "${PROJECT_ROOT:?PROJECT_ROOT is required}"
+: "${MAIN_ROOT:=/work/xg24i002/x10041/fsbdd}"
 : "${HF_HOME:=/work/xg24i002/x10041/hf_home}"
+: "${EXPECTED_COMMIT:?EXPECTED_COMMIT is required}"
 : "${RESOLVED_CONFIG:?RESOLVED_CONFIG is required}"
 : "${CONFIG_SHA256:?CONFIG_SHA256 is required}"
+: "${ASSET_ROOT:?ASSET_ROOT is required}"
 : "${ASSET_MARKER_SHA256:?ASSET_MARKER_SHA256 is required}"
-: "${GATE_CONTRACT:=$PROJECT_ROOT/reports/stage1/S1-13-gate-contract.json}"
+: "${GATE_CONTRACT:?GATE_CONTRACT is required}"
 : "${GATE_CONTRACT_SHA256:?GATE_CONTRACT_SHA256 is required}"
-: "${OUTPUT_ROOT:=$PROJECT_ROOT/runtime_runs/S1-13/smoke-2n-${PBS_JOBID}}"
+: "${REPRODUCTION_CONTRACT:?REPRODUCTION_CONTRACT is required}"
+: "${REPRODUCTION_CONTRACT_SHA256:?REPRODUCTION_CONTRACT_SHA256 is required}"
+: "${SHARED_ROOT:?SHARED_ROOT is required}"
+: "${RESULT_ROOT:?RESULT_ROOT is required}"
+: "${RUN_ID:?RUN_ID is required}"
 
+PYTHON="$MAIN_ROOT/.venv/bin/python"
 module load nv-hpcx/25.9
-if [[ -e "$OUTPUT_ROOT" ]]; then
-  echo "refusing to reuse S1-13 two-node smoke output" >&2
+if [[ "$(git -C "$PROJECT_ROOT" rev-parse HEAD)" != "$EXPECTED_COMMIT" ]] || \
+   [[ -n "$(git -C "$PROJECT_ROOT" status --porcelain)" ]]; then
+  echo "two-node reproduction clean worktree identity mismatch" >&2
+  exit 65
+fi
+if [[ "$(sha256sum "$RESOLVED_CONFIG" | awk '{print $1}')" != "$CONFIG_SHA256" ]] || \
+   [[ "$(sha256sum "$ASSET_ROOT/complete.json" | awk '{print $1}')" != "$ASSET_MARKER_SHA256" ]] || \
+   [[ "$(sha256sum "$GATE_CONTRACT" | awk '{print $1}')" != "$GATE_CONTRACT_SHA256" ]] || \
+   [[ "$(sha256sum "$REPRODUCTION_CONTRACT" | awk '{print $1}')" != "$REPRODUCTION_CONTRACT_SHA256" ]]; then
+  echo "two-node reproduction contract identity mismatch" >&2
+  exit 65
+fi
+
+if ! mkdir "$SHARED_ROOT"; then
+  echo "refusing to reuse S1-13 two-node shared root" >&2
   exit 73
 fi
-mkdir -p "$OUTPUT_ROOT"/{results,stdout,stderr}
-FSBDD_FAILURE_OUTPUT_ROOT="$OUTPUT_ROOT"
-SHARED="$PROJECT_ROOT/runtime_runs/S1-13/shared-smoke-2n-${PBS_JOBID}"
-mkdir "$SHARED"
+if ! mkdir "$RESULT_ROOT"; then
+  rmdir "$SHARED_ROOT"
+  echo "refusing to reuse S1-13 two-node result root" >&2
+  exit 73
+fi
+mkdir -p "$RESULT_ROOT"/{analysis,contracts,env,logs,roles,source,stderr,stdout}
+FSBDD_FAILURE_OUTPUT_ROOT="$RESULT_ROOT"
+
 cd "$PROJECT_ROOT"
 export PYTHONPATH="$PROJECT_ROOT/src"
 export OMP_NUM_THREADS=1 TOKENIZERS_PARALLELISM=false
 export HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 HF_DATASETS_OFFLINE=1
-mapfile -t HOSTS < <(sort -u "$PBS_NODEFILE")
-if [[ "${#HOSTS[@]}" -ne 2 ]]; then
-  echo "two-node smoke requires two distinct compute hosts" >&2
+
+sort -u "$PBS_NODEFILE" > "$RESULT_ROOT/env/compute-hosts.txt"
+if [[ "$(wc -l < "$RESULT_ROOT/env/compute-hosts.txt")" -ne 2 ]]; then
+  echo "two-node reproduction requires two distinct compute hosts" >&2
   exit 66
 fi
-RUN_ID="s1-13-smoke-2n-${PBS_JOBID}"
+cp "$PBS_NODEFILE" "$RESULT_ROOT/env/pbs-nodefile.txt"
+qstat -f "$PBS_JOBID" > "$RESULT_ROOT/env/qstat.txt"
+module -t list > "$RESULT_ROOT/env/modules.txt" 2>&1
+findmnt -T "$SHARED_ROOT" > "$RESULT_ROOT/env/findmnt.txt"
+mpirun -np 2 --map-by ppr:1:node --hostfile "$PBS_NODEFILE" nvidia-smi -L \
+  > "$RESULT_ROOT/env/nvidia-smi-all-nodes.txt" 2>&1
+git -C "$PROJECT_ROOT" rev-parse HEAD > "$RESULT_ROOT/env/code-commit.txt"
+git -C "$PROJECT_ROOT" status --porcelain > "$RESULT_ROOT/env/git-status.txt"
+"$PYTHON" -VV > "$RESULT_ROOT/env/python-version.txt" 2>&1
+"$PYTHON" -c 'import torch; print(torch.__version__)' \
+  > "$RESULT_ROOT/env/torch-version.txt" 2>&1
+cp "$RESOLVED_CONFIG" "$RESULT_ROOT/contracts/resolved-config.json"
+cp "$GATE_CONTRACT" "$RESULT_ROOT/contracts/gate-contract.json"
+cp "$REPRODUCTION_CONTRACT" "$RESULT_ROOT/contracts/reproduction-contract.json"
+cp "$PROJECT_ROOT/pbs/stage1_s1_13_smoke_2n.pbs" \
+  "$RESULT_ROOT/source/stage1_s1_13_smoke_2n.pbs"
 
-mpirun -np 1 --host "${HOSTS[1]}" /usr/bin/env \
-  PYTHONPATH="$PYTHONPATH" OMP_NUM_THREADS=1 TOKENIZERS_PARALLELISM=false \
-  HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 HF_DATASETS_OFFLINE=1 CUDA_VISIBLE_DEVICES="" \
-  "$PROJECT_ROOT/.venv/bin/python" -m fsbdd.auxiliary.stage1.close syncer \
-  --shared-root "$SHARED" --result-root "$OUTPUT_ROOT/results" --run-id "$RUN_ID" \
-  --config-path "$RESOLVED_CONFIG" --config-sha256 "$CONFIG_SHA256" \
-  --asset-marker-sha256 "$ASSET_MARKER_SHA256" --learner-count-override 1 \
-  --gate-contract "$GATE_CONTRACT" \
-  --gate-contract-sha256 "$GATE_CONTRACT_SHA256" \
-  --timeout-seconds 1200 \
-  > "$OUTPUT_ROOT/stdout/syncer.log" 2> "$OUTPUT_ROOT/stderr/syncer.log" &
-SYNCER_PID=$!
+ROLE_QTIME_RAW="$(awk -F' = ' '/^[[:space:]]*qtime =/{print $2}' "$RESULT_ROOT/env/qstat.txt")"
+export PBS_QTIME_UTC="$(date -u -d "$ROLE_QTIME_RAW JST" '+%Y-%m-%dT%H:%M:%SZ')"
 
-mpirun -np 1 --host "${HOSTS[0]}" /usr/bin/env \
-  PYTHONPATH="$PYTHONPATH" OMP_NUM_THREADS=1 TOKENIZERS_PARALLELISM=false \
-  HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 HF_DATASETS_OFFLINE=1 CUDA_VISIBLE_DEVICES=0 \
-  "$PROJECT_ROOT/.venv/bin/python" -m fsbdd.auxiliary.stage1.close learner \
-  --shared-root "$SHARED" --result-root "$OUTPUT_ROOT/results" --run-id "$RUN_ID" \
+timeout --signal=TERM --kill-after=30s 900s \
+  mpirun -np 2 --map-by ppr:1:node --hostfile "$PBS_NODEFILE" \
+  /usr/bin/env PYTHONPATH="$PYTHONPATH" OMP_NUM_THREADS=1 \
+  TOKENIZERS_PARALLELISM=false HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 \
+  HF_DATASETS_OFFLINE=1 PBS_QTIME_UTC="$PBS_QTIME_UTC" \
+  "$PYTHON" -m fsbdd.auxiliary.stage1.close mpi \
+  --shared-root "$SHARED_ROOT" --result-root "$RESULT_ROOT" --run-id "$RUN_ID" \
   --config-path "$RESOLVED_CONFIG" --config-sha256 "$CONFIG_SHA256" \
   --asset-marker-sha256 "$ASSET_MARKER_SHA256" --hub-cache "$HF_HOME/hub" \
   --gate-contract "$GATE_CONTRACT" \
   --gate-contract-sha256 "$GATE_CONTRACT_SHA256" \
-  --learner-index 0 --learner-count-override 1 --timeout-seconds 1200 \
-  > "$OUTPUT_ROOT/stdout/learner.log" 2> "$OUTPUT_ROOT/stderr/learner.log"
-wait "$SYNCER_PID"
+  --learner-count-override 1 --timeout-seconds 720 \
+  > "$RESULT_ROOT/stdout/mpirun.log" 2> "$RESULT_ROOT/stderr/mpirun.log"
 
-hostname > "$OUTPUT_ROOT/hostname.txt"
-printf '%s\n' "${HOSTS[@]}" > "$OUTPUT_ROOT/hosts.txt"
-qstat -f "$PBS_JOBID" > "$OUTPUT_ROOT/qstat.txt"
+"$PYTHON" -m fsbdd.auxiliary.stage1.reproduction analyze \
+  --result-root "$RESULT_ROOT" --shared-root "$SHARED_ROOT" \
+  --config "$RESOLVED_CONFIG" --asset-root "$ASSET_ROOT" \
+  --gate-contract "$GATE_CONTRACT" \
+  --reproduction-contract "$REPRODUCTION_CONTRACT" \
+  --expected-commit "$EXPECTED_COMMIT" --run-id "$RUN_ID" --job-id "$PBS_JOBID"
+"$PYTHON" -m fsbdd.auxiliary.stage1.reproduction validate \
+  --result-root "$RESULT_ROOT" \
+  --reproduction-contract "$REPRODUCTION_CONTRACT"
+
+if find "$RESULT_ROOT/stderr" -type f -size +0c -print -quit | grep -q .; then
+  echo "two-node reproduction produced non-empty stderr" >&2
+  find "$RESULT_ROOT/stderr" -type f -size +0c -print >&2
+  exit 1
+fi
+(
+  cd "$RESULT_ROOT"
+  find . -type f ! -name checksums.sha256 -printf '%P\0' \
+    | sort -z | xargs -0 sha256sum > checksums.sha256
+  sha256sum -c checksums.sha256 > /dev/null
+)

@@ -365,7 +365,7 @@ loops:
   result_commit: null
   evidence_index: evidence/indexes/S1-13.md
   checker_verdict: null
-  blocker: Checker-authorized targeted job 2392578 passed all static gates and all 342 Stage 1 tests, consuming the fourth and final targeted attempt; same Checker review is required before one smallest meaningful learner/syncer runtime reproduction, and no 9N, long-smoke, or formal run is admissible.
+  blocker: Targeted job 2392578 passed Phase B. The corrected two-node reproduction now has exact identity, exclusive roots, bounded supervision, correction-specific gates, package validation, checksums, and a reasoned L2 budget amendment from two to three attempts; same Checker approval is required before the one allowed reproduction, and no 9N, long-smoke, or formal run is admissible.
 - id: S2-01
   stage: stage2
   title: 异步 GPU→CPU→FS Publication Pipeline

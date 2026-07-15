@@ -78,6 +78,43 @@ def test_syncer_keeps_update_history_only_in_durable_jsonl() -> None:
     assert "_load_syncer_streams(result_root, syncer)" in gate_source
 
 
+def test_two_node_correction_reproduction_is_identity_bound_and_bounded() -> None:
+    script = (ROOT / "pbs/stage1_s1_13_smoke_2n.pbs").read_text(
+        encoding="utf-8"
+    )
+    for token in (
+        "EXPECTED_COMMIT",
+        "REPRODUCTION_CONTRACT_SHA256",
+        'if ! mkdir "$SHARED_ROOT"',
+        'if ! mkdir "$RESULT_ROOT"',
+        'FSBDD_FAILURE_OUTPUT_ROOT="$RESULT_ROOT"',
+        "timeout --signal=TERM --kill-after=30s 900s",
+        "mpirun -np 2 --map-by ppr:1:node",
+        "--learner-count-override 1 --timeout-seconds 720",
+        "fsbdd.auxiliary.stage1.reproduction analyze",
+        "fsbdd.auxiliary.stage1.reproduction validate",
+        "sha256sum -c checksums.sha256",
+    ):
+        assert token in script
+    assert script.index('if ! mkdir "$RESULT_ROOT"') < script.index(
+        'FSBDD_FAILURE_OUTPUT_ROOT="$RESULT_ROOT"'
+    )
+    contract = json.loads(
+        (ROOT / "reports/stage1/S1-13-reproduction-contract.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert contract["kind"] == "corrected_two_node_filesystem_reproduction"
+    assert contract["topology"]["distinct_compute_hosts"] == 2
+    assert contract["runtime"]["target_global_cycles"] == 10
+    assert contract["runtime"]["expected_fragment_updates"] == 40
+    assert contract["runtime"]["supervisor_term_seconds"] == 900
+    assertions = contract["correction_assertions"]
+    assert assertions["retained_current_base_bytes"] == 0
+    assert assertions["proposal_identity_materialization"] == "background_publisher"
+    assert assertions["proposal_payload_cache_misses_equal_published_proposals"]
+
+
 def test_formal_package_retains_current_protocol_samples_and_rejects_placeholders() -> (
     None
 ):
