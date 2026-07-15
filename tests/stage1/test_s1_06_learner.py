@@ -212,6 +212,8 @@ def _runtime(
     optimizer_type: str = "adamw",
     rng: LearnerRng | None = None,
     rng_seed: int = 1606,
+    update_norm_interval: int = 1,
+    retain_events: bool = True,
     clock_ns=None,
 ) -> LearnerRuntime:
     progress = progress or LearnerProgress.initialize("learner-a", (2, 5))
@@ -240,6 +242,8 @@ def _runtime(
             "claim": "test_only",
         },
         logger=logger,
+        update_norm_interval=update_norm_interval,
+        retain_events=retain_events,
         clock_ns=clock_ns or _Clock(),
     )
 
@@ -381,6 +385,29 @@ def test_optimizer_boundary_accumulation_tokens_loss_and_fragment_counters(tmp_p
         "not_exercised_until_S1-07",
         "not_exercised_until_S1-08",
     } for record in records)
+
+
+def test_long_run_sampling_and_dynamic_stop_keep_complete_loss_log(tmp_path: Path) -> None:
+    progress = LearnerProgress.initialize("learner-a", (2, 5))
+    log = tmp_path / "sampled.jsonl"
+    runtime = _runtime(
+        _tiny_model(),
+        progress=progress,
+        gradient_accumulation=1,
+        logger=StructuredLogger(log, role="learner", run_id="sampled"),
+        update_norm_interval=2,
+        retain_events=False,
+    )
+    result = runtime.run(
+        _batches(5),
+        optimizer_steps=5,
+        stop_requested=lambda: progress.local_optimizer_steps >= 3,
+    )
+    records = [json.loads(line) for line in log.read_text(encoding="utf-8").splitlines()]
+    assert result.optimizer_steps_completed == 3
+    assert result.events == ()
+    assert [record["local_optimizer_step"] for record in records] == [1, 2, 3]
+    assert [bool(record["fragment_update_norms"]) for record in records] == [True, True, False]
 
 
 def test_padding_aware_accumulation_matches_one_combined_token_mean_update() -> None:

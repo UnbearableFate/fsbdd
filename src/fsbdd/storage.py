@@ -251,9 +251,11 @@ class PosixStorageBackend:
         self._payload_root = root / "payloads"
         self._visibility_root = root / "visibility"
         self._record_temp_root = root / ".record-tmp"
+        self._retired_root = root / ".retired"
         self._payload_root.mkdir(parents=True, exist_ok=True)
         self._visibility_root.mkdir(parents=True, exist_ok=True)
         self._record_temp_root.mkdir(parents=True, exist_ok=True)
+        self._retired_root.mkdir(parents=True, exist_ok=True)
 
     @property
     def root(self) -> Path:
@@ -315,6 +317,9 @@ class PosixStorageBackend:
         temporary = tuple(
             path for path in self._record_temp_root.iterdir() if path.is_file()
         )
+        retirement_markers = tuple(
+            path for path in self._retired_root.iterdir() if path.is_file()
+        )
         referenced_bytes = sum(
             path.stat().st_size
             for path in payloads
@@ -338,7 +343,57 @@ class PosixStorageBackend:
             "orphan_payload_bytes": orphan_bytes,
             "record_temp_files": len(temporary),
             "record_temp_bytes": sum(path.stat().st_size for path in temporary),
+            "retirement_markers": len(retirement_markers),
+            "retirement_marker_bytes": sum(
+                path.stat().st_size for path in retirement_markers
+            ),
         }
+
+    def _retirement_times(self) -> dict[str, int]:
+        values: dict[str, int] = {}
+        for path in self._retired_root.glob("*.json"):
+            try:
+                value = json.loads(path.read_bytes())
+                relative = value["payload_relative_path"]
+                retired_unix_ns = value["retired_unix_ns"]
+                if (
+                    not isinstance(relative, str)
+                    or not relative.startswith("payloads/")
+                    or not isinstance(retired_unix_ns, int)
+                    or isinstance(retired_unix_ns, bool)
+                    or retired_unix_ns < 0
+                ):
+                    continue
+                values[relative] = retired_unix_ns
+            except (OSError, KeyError, TypeError, json.JSONDecodeError):
+                continue
+        return values
+
+    def _mark_retiring(self, record: PublicationRecord) -> None:
+        """Timestamp loss of visibility before replacing the current record."""
+
+        name = Path(record.payload_relative_path).name
+        marker = self._retired_root / f"{name}.json"
+        temporary = self._retired_root / f".{name}.{uuid.uuid4().hex}.tmp"
+        value = {
+            "schema_version": 1,
+            "payload_relative_path": record.payload_relative_path,
+            "retired_unix_ns": time.time_ns(),
+        }
+        try:
+            temporary.write_text(
+                json.dumps(value, sort_keys=True, separators=(",", ":")) + "\n",
+                encoding="utf-8",
+            )
+            os.replace(temporary, marker)
+        except OSError as error:
+            try:
+                temporary.unlink()
+            except OSError:
+                pass
+            raise PublicationError(
+                f"failed to stage payload retirement marker: {error}"
+            ) from error
 
     def reclaim_unreferenced_payloads(
         self,
@@ -384,12 +439,15 @@ class PosixStorageBackend:
         )
         now_ns = time.time_ns()
         minimum_age_ns = int(float(minimum_age_seconds) * 1_000_000_000)
+        retirement_times = self._retirement_times()
         reclaimed_files = 0
         reclaimed_bytes = 0
         for path in unreferenced[retain_recent:]:
             try:
                 stat = path.stat()
-                if now_ns - stat.st_mtime_ns < minimum_age_ns:
+                relative = f"payloads/{path.name}"
+                unreferenced_since = retirement_times.get(relative, stat.st_mtime_ns)
+                if now_ns - unreferenced_since < minimum_age_ns:
                     continue
                 size = stat.st_size
                 path.unlink()
@@ -399,6 +457,12 @@ class PosixStorageBackend:
                 continue
             reclaimed_files += 1
             reclaimed_bytes += size
+            try:
+                (self._retired_root / f"{path.name}.json").unlink()
+            except FileNotFoundError:
+                pass
+            except OSError:
+                pass
         reclaimed_temp_files = 0
         reclaimed_temp_bytes = 0
         for path in self._record_temp_root.iterdir():
@@ -497,8 +561,19 @@ class PosixStorageBackend:
             raise PublicationInterrupted(crash_at)
         if visibility_hook is not None:
             visibility_hook(slot, record)
+        visibility_path = self._visibility_root / f"{slot}.json"
         try:
-            os.replace(record_temp, self._visibility_root / f"{slot}.json")
+            previous_record = _parse_record(visibility_path.read_bytes())
+        except FileNotFoundError:
+            previous_record = None
+        except OSError as error:
+            raise PublicationError(
+                f"current visibility record cannot be retired: {error}"
+            ) from error
+        if previous_record is not None:
+            self._mark_retiring(previous_record)
+        try:
+            os.replace(record_temp, visibility_path)
         except OSError as error:
             raise PublicationError(
                 f"atomic visibility record replacement failed: {error}"

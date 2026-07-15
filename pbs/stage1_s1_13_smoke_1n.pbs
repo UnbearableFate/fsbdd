@@ -24,6 +24,9 @@ export PYTHONPATH="$PROJECT_ROOT/src"
 export OMP_NUM_THREADS=1 TOKENIZERS_PARALLELISM=false
 export HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 HF_DATASETS_OFFLINE=1
 
+"$PROJECT_ROOT/.venv/bin/python" -m pytest -q tests/stage1 \
+  > "$OUTPUT_ROOT/pytest.log" 2> "$OUTPUT_ROOT/pytest.stderr"
+
 "$PROJECT_ROOT/.venv/bin/python" -m fsbdd.learner_smoke run-real \
   --profile configs/stage1/s1_06_gpt2_wikitext_smoke.json \
   --hub-cache "$HF_HOME/hub" --materialized-root "$ASSET_ROOT/datasets/gpt2-train" \

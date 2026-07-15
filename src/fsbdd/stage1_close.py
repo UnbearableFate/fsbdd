@@ -148,7 +148,15 @@ def _load_contract(
     if marker.get("manifest_sha256") != _hash_file(asset_root / "manifest.json"):
         raise Stage1CloseError("asset completion marker does not bind the manifest")
     asset_manifest = _read_json(asset_root / "manifest.json")
-    bootstrap = _read_json(asset_root / "workloads" / selected / "manifest.json")
+    bootstrap_path = asset_root / "workloads" / selected / "manifest.json"
+    bootstrap = _read_json(bootstrap_path)
+    if (
+        asset_manifest.get("status") != "complete"
+        or asset_manifest.get("kind") != "s1_13_immutable_asset_bundle"
+        or asset_manifest["workloads"][selected]["manifest_sha256"]
+        != _hash_file(bootstrap_path)
+    ):
+        raise Stage1CloseError("asset manifest does not bind the workload bootstrap")
     if bootstrap.get("bootstrap_identity") != resolved.get("workload_bootstrap_identity"):
         raise Stage1CloseError("bootstrap identity differs from resolved config")
     if [row["descriptor"] for row in bootstrap["fragments"]] != resolved["fragment_descriptors"]:
@@ -461,7 +469,10 @@ def run_learner(
         max_grad_norm=float(config["training"]["inner_optimizer"]["gradient_clip_norm"]),
         comparison=config["comparison"],
         logger=logger,
-        safe_boundary_observers=(adoption.on_safe_boundary, publisher.on_safe_boundary),
+        # Snapshot the completed step against its pre-adoption base first.
+        # Adoption then owns the counter reset and advances publisher context
+        # for the next safe boundary, matching the proven S1-12 ordering.
+        safe_boundary_observers=(publisher.on_safe_boundary, adoption.on_safe_boundary),
         update_norm_interval=50 if workload == "nine_node" else 1000,
         retain_events=False,
     )

@@ -91,7 +91,14 @@ def _loss_gate(
         target_tokens = [int(item["loss_bearing_target_tokens_step"]) for item in events]
         finite = all(math.isfinite(item) for item in losses)
         contiguous = steps == list(range(1, len(steps) + 1))
-        if len(losses) < minimum_points or not finite or not contiguous:
+        counters_reconcile = (
+            int(events[-1]["processed_input_tokens_total"])
+            == int(role["progress"]["processed_input_tokens"])
+            and int(events[-1]["loss_bearing_target_tokens_total"])
+            == int(role["progress"]["loss_bearing_target_tokens"])
+            and len(events) == int(role["progress"]["local_optimizer_steps"])
+        )
+        if len(losses) < minimum_points or not finite or not contiguous or not counters_reconcile:
             raise Stage1GateError(f"loss stream failed basic checks for {learner_id}")
         smoothed = _rolling_medians(losses[warmup:], window)
         initial = _fraction_median(smoothed, initial_fraction, final=False)
@@ -103,6 +110,7 @@ def _loss_gate(
                 "points": len(losses),
                 "finite": finite,
                 "contiguous_local_steps": contiguous,
+                "progress_counters_reconcile": counters_reconcile,
                 "initial_rolling_median": initial,
                 "final_rolling_median": final,
                 "final_to_initial": ratio,
@@ -272,9 +280,11 @@ def _protocol_gate(
     per_fragment: dict[int, list[int]] = {}
     selections_pass = True
     byte_pass = True
+    transitions_pass = True
     for item in updates:
         index = int(item["fragment_index"])
         per_fragment.setdefault(index, []).append(int(item["to_version"]))
+        transitions_pass &= int(item["to_version"]) == int(item["from_version"]) + 1
         selections_pass &= (
             len(item["selected_learners"]) == learner_count
             and len(set(item["selected_learners"])) == learner_count
@@ -289,6 +299,7 @@ def _protocol_gate(
         )
     contiguous = all(values == list(range(1, len(values) + 1)) for values in per_fragment.values())
     global_cycle = int(syncer["progress"]["global_cycle"])
+    recomputed_global_cycle = min((len(values) for values in per_fragment.values()), default=0)
     target = int(
         config["workloads"][workload]["target_global_cycles"]
         if workload == "nine_node"
@@ -299,6 +310,22 @@ def _protocol_gate(
         None
         if workload == "nine_node"
         else int(config["workloads"][workload]["expected_aggregate_processed_input_tokens"])
+    )
+    progress_fragments = {
+        int(item["fragment_index"]): item for item in syncer["progress"]["fragments"]
+    }
+    progress_reconciliation_pass = all(
+        int(progress_fragments[index]["outer_update_count"]) == len(versions)
+        and int(progress_fragments[index]["accepted_tokens"])
+        == sum(
+            sum(int(value) for value in item["proposal_processed_tokens"])
+            for item in updates
+            if int(item["fragment_index"]) == index
+        )
+        and int(progress_fragments[index]["fresh_accepted_contributions"])
+        == len(versions) * learner_count
+        and int(progress_fragments[index]["stale_accepted_contributions"]) == 0
+        for index, versions in per_fragment.items()
     )
     inventory = syncer["inventories"][-1]
     inventory_pass = (
@@ -320,15 +347,30 @@ def _protocol_gate(
         == config["workloads"][workload]["dataset_revision"]
         for item in roles
     )
+    resolved = config["resolved_runtime_fields"]
+    schedule_pass = all(
+        item["publication"]["schedule"]["fragment_bytes"]
+        == resolved["fragment_bytes"]
+        and item["publication"]["schedule"]["offsets"]
+        == resolved["per_learner_offsets"][int(item["learner_index"])]
+        and item["publication"]["schedule"]["intervals"] == [50, 50, 50, 50]
+        and item["publication"]["schedule"]["offset_algorithm"]
+        == "byte_weighted_midpoint_nearest_free_v1"
+        for item in roles
+    )
     passed = (
         len(per_fragment) == 4
         and contiguous
+        and transitions_pass
+        and global_cycle == recomputed_global_cycle
         and global_cycle >= target
         and selections_pass
         and byte_pass
         and inventory_pass
         and forbidden_pass
         and frozen_asset_identity_pass
+        and schedule_pass
+        and progress_reconciliation_pass
         and (expected_tokens is None or tokens == expected_tokens)
     )
     return {
@@ -339,7 +381,9 @@ def _protocol_gate(
         "profile": {"Q": learner_count, "Q_fresh": learner_count, "S_max": 0, "H": 50},
         "fragment_version_sequences": {str(key): value for key, value in sorted(per_fragment.items())},
         "contiguous_fragment_versions": contiguous,
+        "single_step_transitions": transitions_pass,
         "global_cycle": global_cycle,
+        "recomputed_global_cycle": recomputed_global_cycle,
         "minimum_global_cycle": target,
         "selections_pass": selections_pass,
         "fragment_only_byte_accounting_pass": byte_pass,
@@ -349,6 +393,8 @@ def _protocol_gate(
         "bounded_inventory_pass": inventory_pass,
         "forbidden_runtime_pass": forbidden_pass,
         "frozen_model_dataset_identity_pass": frozen_asset_identity_pass,
+        "resolved_publication_schedule_pass": schedule_pass,
+        "progress_reconciliation_pass": progress_reconciliation_pass,
         "readiness": syncer["readiness"],
     }
 

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import json
 import time
 from pathlib import Path
 
@@ -68,6 +69,28 @@ def test_metadata_only_read_and_bounded_payload_reclamation(tmp_path: Path, monk
     assert reclaimed["physical_payloads"] == 2
     assert reclaimed["referenced_payloads"] == 1
     assert reclaimed["orphan_payloads"] == 1
+
+
+def test_reclamation_grace_starts_when_visibility_is_replaced(tmp_path: Path) -> None:
+    backend = PosixStorageBackend(tmp_path)
+    previous = backend.publish("current", b"old" * 4, _spec(0))
+    old_payload = tmp_path / previous.payload_relative_path
+    os.utime(old_payload, ns=(1, 1))
+    backend.publish("current", b"new" * 4, _spec(1))
+    retained = backend.reclaim_unreferenced_payloads(
+        retain_recent=0,
+        minimum_age_seconds=60,
+    )
+    assert retained["reclaimed_payload_files"] == 0
+    marker = tmp_path / ".retired" / f"{old_payload.name}.json"
+    value = json.loads(marker.read_text(encoding="utf-8"))
+    value["retired_unix_ns"] = 0
+    marker.write_text(json.dumps(value), encoding="utf-8")
+    reclaimed = backend.reclaim_unreferenced_payloads(
+        retain_recent=0,
+        minimum_age_seconds=60,
+    )
+    assert reclaimed["reclaimed_payload_files"] == 1
 
 
 def test_readiness_reuses_unchanged_latest_payloads(tmp_path: Path) -> None:
