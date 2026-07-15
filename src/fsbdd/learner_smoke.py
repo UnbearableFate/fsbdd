@@ -514,7 +514,13 @@ def write_manifest(args: argparse.Namespace) -> None:
         "submission_utc",
         identities,
     )
-    manifest["environment"] = {"modules": modules, "pbs_job_id": args.job_id}
+    manifest["environment"] = {
+        "modules": modules,
+        "pbs_job_id": args.job_id,
+        "pbs_queue": args.queue,
+        "pbs_group": args.group,
+        "node_type": args.node_type,
+    }
     _write_json_new(Path(args.output), manifest)
 
 
@@ -557,6 +563,9 @@ def _parser() -> argparse.ArgumentParser:
         "project-root",
         "evidence-root",
         "job-id",
+        "queue",
+        "group",
+        "node-type",
         "timestamp-utc",
     ):
         manifest.add_argument(f"--{name}", required=True)
@@ -598,7 +607,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if args.command == "manifest":
         write_manifest(args)
-        print(json.dumps({"status": "building", "output": args.output}, sort_keys=True))
+        print(json.dumps({"status": "building", "output": str(args.output)}, sort_keys=True))
         return 0
     raise AssertionError("unreachable")
 

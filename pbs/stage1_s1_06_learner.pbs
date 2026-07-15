@@ -18,6 +18,9 @@ trap 'echo "[ERROR] line=$LINENO command=$BASH_COMMAND" >&2' ERR
 : "${MIYABI_SKILL_DIR:=/work/xg24i002/x10041/.codex/skills/miyabi-development}"
 : "${MIYABI_SKILL_COMMIT:=c3ddfa47cadfd9132edf939d359b90b28ab5f8ed}"
 : "${MODULE_NAME:=nv-hpcx/25.9}"
+: "${PBS_QUEUE_ID:=debug-g}"
+: "${PBS_GROUP_ID:=xg24i002}"
+: "${NODE_TYPE:=Miyabi GPU compute node}"
 
 PYTHON="$MAIN_ROOT/.venv/bin/python"
 HUB_CACHE="$HF_HOME/hub"
@@ -191,6 +194,7 @@ done
   --skill-repository "$SKILL_REPOSITORY" --skill-commit "$MIYABI_SKILL_COMMIT" \
   --initial-hostname "$INITIAL_HOSTNAME" --project-root "$PROJECT_ROOT" \
   --evidence-root "$EVIDENCE_ROOT" --job-id "$PBS_JOBID" \
+  --queue "$PBS_QUEUE_ID" --group "$PBS_GROUP_ID" --node-type "$NODE_TYPE" \
   --timestamp-utc "$SUBMISSION_UTC" --modules-file "$EVIDENCE_ROOT/env/modules.txt" \
   --output "$MANIFEST_DRAFT" \
   > "$EVIDENCE_ROOT/stdout/manifest.json" 2> "$EVIDENCE_ROOT/stderr/manifest.log"

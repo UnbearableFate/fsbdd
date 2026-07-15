@@ -438,6 +438,16 @@ class LearnerRuntime:
                         raise LearnerError("data source exhausted before requested optimizer steps") from error
                     batch = self._move_batch(raw_batch, torch)
                     processed, targets = _batch_counts(batch, torch)
+                    attention_mask = batch.get("attention_mask")
+                    if attention_mask is not None:
+                        # The accounting contract excludes padding even when a
+                        # caller supplies unmasked labels. Make the model loss
+                        # use exactly that same target set without mutating the
+                        # caller-owned batch.
+                        batch["labels"] = batch["labels"].masked_fill(
+                            ~attention_mask.to(dtype=torch.bool),
+                            -100,
+                        )
                     with self._autocast(torch):
                         output = self.model(**batch)
                         loss = _extract_loss(output, torch)

@@ -30,10 +30,12 @@ from fsbdd.learner_assets import (  # noqa: E402
 from fsbdd.learner_smoke import (  # noqa: E402
     LearnerSmokeError,
     _fragment_parameter_groups,
+    main as learner_smoke_main,
     profile_set_digest,
     summarize_runs,
 )
 from fsbdd.logging import StructuredLogger  # noqa: E402
+from fsbdd.manifest import validate_manifest  # noqa: E402
 from fsbdd.model_registry import build_logical_layer_registry  # noqa: E402
 
 
@@ -373,14 +375,21 @@ def test_optimizer_boundary_accumulation_tokens_loss_and_fragment_counters(tmp_p
 def test_padding_aware_accumulation_matches_one_combined_token_mean_update() -> None:
     model = _tiny_model()
     reference = copy.deepcopy(model)
-    batches = _batches(2)
+    reference_batches = _batches(2)
+    batches = copy.deepcopy(reference_batches)
+    # A caller may provide an attention mask without also converting padding
+    # labels to -100. The runtime owns the accounting semantics and must make
+    # the model loss use the same loss-bearing target set.
+    batches[1]["labels"][batches[1]["attention_mask"] == 0] = batches[1]["input_ids"][
+        batches[1]["attention_mask"] == 0
+    ]
     runtime = _runtime(model, gradient_accumulation=2, optimizer_type="sgd")
     runtime.run(batches, optimizer_steps=1)
 
     optimizer = torch.optim.SGD(reference.parameters(), lr=0.01)
     combined = {
-        key: torch.cat([batch[key] for batch in batches], dim=0)
-        for key in batches[0]
+        key: torch.cat([batch[key] for batch in reference_batches], dim=0)
+        for key in reference_batches[0]
     }
     reference(**combined).loss.backward()
     torch.nn.utils.clip_grad_norm_(reference.parameters(), 1.0, error_if_nonfinite=True)
@@ -616,3 +625,66 @@ def test_summary_keeps_three_workloads_and_common_intervals_separate(tmp_path: P
     paths[0].write_text(json.dumps(broken), encoding="utf-8")
     with pytest.raises(LearnerSmokeError, match="common-interval"):
         summarize_runs(*paths, tmp_path / "broken-summary.json")
+
+
+def test_manifest_cli_serializes_path_output_and_builds_valid_l1_manifest(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    modules = tmp_path / "modules.txt"
+    modules.write_text("nv-hpcx/25.9\n", encoding="utf-8")
+    output = tmp_path / "manifest.json"
+    result = learner_smoke_main(
+        [
+            "manifest",
+            "--repository",
+            "https://example.invalid/fsbdd.git",
+            "--branch",
+            "codex/S1-06-learner-inner-training",
+            "--commit",
+            "a" * 40,
+            "--run-id",
+            "s1-06-test",
+            "--config-sha256",
+            "b" * 64,
+            "--research-sha256",
+            "c" * 64,
+            "--spec-sha256",
+            "d" * 64,
+            "--skill-repository",
+            "https://example.invalid/miyabi-development.git",
+            "--skill-commit",
+            "e" * 40,
+            "--initial-hostname",
+            "miyabi-g1",
+            "--project-root",
+            str(ROOT),
+            "--evidence-root",
+            str(tmp_path / "evidence"),
+            "--job-id",
+            "123.opbs",
+            "--queue",
+            "debug-g",
+            "--group",
+            "xg24i002",
+            "--node-type",
+            "Miyabi GPU compute node",
+            "--timestamp-utc",
+            "2026-07-15T00:00:00Z",
+            "--modules-file",
+            str(modules),
+            "--output",
+            str(output),
+        ]
+    )
+    assert result == 0
+    status = json.loads(capsys.readouterr().out)
+    assert status == {"status": "building", "output": str(output)}
+    manifest = json.loads(output.read_text(encoding="utf-8"))
+    validate_manifest(manifest, finalized=False)
+    assert manifest["environment"] == {
+        "modules": ["nv-hpcx/25.9"],
+        "pbs_job_id": "123.opbs",
+        "pbs_queue": "debug-g",
+        "pbs_group": "xg24i002",
+        "node_type": "Miyabi GPU compute node",
+    }
