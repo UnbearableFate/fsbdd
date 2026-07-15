@@ -45,7 +45,16 @@ orient:
       code_commit: a02650506593803584a060cb6f839eff14ebbe78
       result: 21 selected tests passed in 0.42 seconds; scheduler exit status 0
       raw_evidence_root: runtime_runs/S1-13/targeted-focus-a026505-20260715T191211Z
-  attempt_budget: {asset_stage: 2, red: 1, targeted: 3, l1_real: 2, l2_real: 2, formal_l3_9n: 2, formal_l4_long: 2}
+  attempt_budget: {asset_stage: 2, red: 1, targeted: 4, l1_real: 2, l2_real: 2, formal_l3_9n: 2, formal_l4_long: 2}
+  attempt_budget_amendments:
+    - amended_at_utc: 2026-07-15T19:18:02Z
+      prior_targeted_budget: 3
+      amended_targeted_budget: 4
+      consumed_before_amendment: 3
+      consumed_attempts: [2392180.opbs, 2392261.opbs, 2392542.opbs]
+      reason: The same Checker required job 2392542 as a bounded focused reproduction after the second complete suite exposed a defective readiness fixture and an unbounded test harness. That focused run consumed the third targeted-class attempt and passed, but it intentionally exercised only the 21 directly implicated tests and therefore cannot replace the required complete Stage 1 targeted correctness gate.
+      scope: Add exactly one one-node targeted attempt for one complete identity-bound suite; do not change any learner/syncer runtime, L2, 9N, long-smoke, or formal-run budget.
+      authorization_gate: The same Checker must review this amendment and explicitly authorize the fourth targeted attempt at an exact clean commit before submission.
   failure_ladder: preserve the first expensive failure then reproduce its failing role or analyzer at the smallest one-node or two-node topology before an authorized retry
   nine_node_gate_required: true
   goal_tokens_start: 5924432
@@ -92,10 +101,13 @@ checker:
     - candidate: a02650506593803584a060cb6f839eff14ebbe78
       verdict: ADMISSIBLE for exactly one one-node focused reproduction
       result: 21 selected tests passed; scheduler exit status 0
+    - candidate: d48e7c899f88f8d5ebcc046304fdaf8f80530bd5
+      verdict: BLOCKED for a complete targeted suite because jobs 2392180, 2392261, and 2392542 consumed the frozen three-attempt targeted budget
+      result: focused evidence passed review; explicit reasoned budget amendment required before another authorization
 persist:
   evidence_index: evidence/indexes/S1-13.md
   raw_evidence_root: runtime_runs/S1-13
   acceptance_traceability_updated: false
   next_gap: Stage 2 asynchronous GPU to CPU to filesystem publication pipeline
-  handoff: Candidate a026505 passed the Checker-authorized focused reproduction for the readiness identity and bounded concurrent-reader corrections; return job 2392542 evidence to the same Checker before one complete targeted retry; no runtime experiment is authorized.
-blocker: Same Checker review of focused job 2392542 is required before exactly one complete targeted retry; no learner/syncer runtime, 9N, long smoke, or formal long submission is allowed.
+  handoff: Candidate a026505 passed the Checker-authorized focused reproduction; the original targeted budget is exhausted, so the loop now records a reasoned increase from three to four targeted attempts for exactly one complete suite; return the amendment in a new exact candidate to the same Checker; no runtime experiment is authorized.
+blocker: Same Checker approval of the explicit targeted-budget amendment is required before exactly one complete targeted retry; no learner/syncer runtime, 9N, long smoke, or formal long submission is allowed.

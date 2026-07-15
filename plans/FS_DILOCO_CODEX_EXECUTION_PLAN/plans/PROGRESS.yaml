@@ -365,7 +365,7 @@ loops:
   result_commit: null
   evidence_index: evidence/indexes/S1-13.md
   checker_verdict: null
-  blocker: The Checker-authorized focused correction reproduction 2392542 passed all 21 selected tests; same Checker review is required before exactly one complete targeted retry, and no learner/syncer runtime or larger experiment is admissible yet.
+  blocker: The focused correction reproduction 2392542 passed all 21 selected tests and exhausted the original three-attempt targeted budget; an explicit one-attempt targeted-budget amendment is persisted and requires same-Checker approval before one complete retry; no learner/syncer runtime or larger experiment is admissible.
 - id: S2-01
   stage: stage2
   title: 异步 GPU→CPU→FS Publication Pipeline
