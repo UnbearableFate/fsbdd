@@ -2,7 +2,7 @@ schema_version: 2
 loop_id: S1-06
 title: Torch/HF learner inner training core
 stage: stage1
-status: in_progress
+status: pass
 source_hashes:
   research_plan: 2c0db3148110da10ea62f445c189d2d53b405527d8da264b9af9817f5ca9d835
   stage0_4_spec: 1ea71fb6e34fef0d7b5558d8e7999dfdedeb82957f4331afcf6f80279d1f5a7d
@@ -34,44 +34,76 @@ preflight:
   measurement_contract: reports/stage1/S1-06-evidence-contract.json
   package_contract: reports/stage1/S1-06-evidence-contract.json
   package_validator_command: fsbdd evidence validate runtime_runs/S1-06/formal-l1
-  package_validator_result: pending
+  package_validator_result: admissible at runtime_runs/S1-06/formal-l1 (48/48 payload files; manifest 33ed8ee47ecc57afe6669be071d812576931e4f54e39dbf8424df88ccee74390)
   checker_phase_a: required
   asset_freeze: immutable raw hashes frozen after job 2385193.opbs and deterministic GPT-2/WikiText plus Pythia/FineWeb processed manifest and token-stream digests frozen before GREEN
 red:
   command: PYTHONPATH=src .venv/bin/python tests/red_cases/s1_06_naive_learner_surrogate.py
   exit_code: 1
   evidence_path: runtime_runs/S1-06/red-1c8d042
-green: {command: null, evidence_path: null}
-harden: {commands: [], evidence_paths: []}
+green:
+  command: PYTHONPATH=src .venv/bin/python -m pytest -q tests/stage1
+  evidence_path: runtime_runs/S1-06/formal-l1/stdout/pytest.log
+harden:
+  commands:
+  - PYTHONPATH=src .venv/bin/python -m pytest -q tests/stage1
+  - deterministic offline materialization of GPT-2/WikiText and Pythia/FineWeb followed by separate tiny GPT-2 and Pythia ten-step one-GPU learner runs
+  - owned RNG alias restore and serialization counterexamples plus real delayed-source finite-loss infinite-gradient padding accumulation resume and failure tests
+  - uvx ruff check plus py_compile bash -n JSON/YAML validation and exact clean-worktree preflight
+  evidence_paths:
+  - runtime_runs/S1-06/preflight-016d16e
+  - runtime_runs/S1-06/formal-l1
 nine_node_gate: {required: false, run_id: null, topology_gate: null, loss_gate: null, runtime_gate: null}
 checker:
-  context_id: null
+  context_id: /root/s1_06_checker
   maker_chat_inherited: false
-  phase_a_verdict: null
-  verdict: null
-  report_path: null
-  cycles: []
+  phase_a_verdict: ADMISSIBLE after learner-RNG delayed-source overflow and formal-manifest corrections
+  verdict: PASS
+  report_path: reports/checkers/S1-06.md
+  cycles:
+  - cycle: 1
+    phase: A
+    checked_candidate: c859aa872e7b3effd0ab5cc0ff0d606c2ecef6ae
+    verdict: BLOCKED_PRECHECK
+    correction: own and serialize an isolated learner RNG stream prove independent data cursors add actual delayed-source timing and exercise finite-loss nonfinite-gradient rollback
+  - cycle: 2
+    phase: A-recheck
+    checked_candidate: 016d16e98d63a22824ca3e5c528c09887d243636
+    verdict: ADMISSIBLE
+  - cycle: 3
+    phase: B
+    checked_candidate: 016d16e98d63a22824ca3e5c528c09887d243636
+    verdict: PASS
+    report_sha256: 0d0149c1b51d68f06d679e9b176aacc0148ea86dc202676db309661519ec1500
 persist:
-  evidence_index: null
+  evidence_index: evidence/indexes/S1-06.md
   raw_evidence_root: runtime_runs/S1-06
-  acceptance_traceability_updated: false
-  next_gap: null
+  acceptance_traceability_updated: true
+  next_gap: S1-07 must schedule per-fragment H/offset snapshots only at completed optimizer boundaries and publish them asynchronously through the frozen proposal protocol with bounded backpressure.
   handoff:
     proven_facts:
-    - S1-00 supplies frozen identity progress and evidence schemas and S1-01 supplies complete deterministic HF logical-layer ownership.
-    - The regression workload is the immutable GPT-2 small and WikiText-2 profile from docs/06 section 6.3.
-    - Asset preflight job 2385193.opbs exits zero on mg0048 and freezes exact GPT-2 WikiText-2 Pythia-160m and FineWeb-Edu raw hashes without Torch or GPU use.
-    - The research workload is frozen to pretrained EleutherAI Pythia-160m and the immutable FineWeb-Edu sample/10BT stream; deterministic processed hashes are required before GREEN.
-    checked_commit: null
-    selected_evidence: []
-    next_command: stage immutable raw assets on one compute node then freeze exact model data and preprocessing manifests before semantic RED
+    - S1-00 supplies frozen identity and progress schemas S1-01 supplies complete deterministic HF logical-layer ownership and S1-02 supplies the complete fragment partition used by the learner.
+    - Frozen GPT-2/WikiText and Pythia-160m/FineWeb profiles bind immutable model tokenizer dataset revisions raw hashes preprocessing sequence length optimizer precision seeds and comparison labels.
+    - Deterministic materialization reproduces 9308c7ca728f9021b3c984c8f086e0b7ef34157e7bd6359d2e0f10998813ce94 for GPT-2/WikiText and 1c9691978f6e435d8a72a4d2582b97e52f5fad8f53a12b4951c596028314b6e4 for the Pythia/FineWeb smoke prefix.
+    - The Pythia long-run mode freezes bytewise lexicographic sample/10BT parquet selection and at least one billion packed input tokens without claiming that later long run here.
+    - LearnerRuntime owns one complete model optimizer scheduler fragment-progress vector and bound serializable forked Torch RNG stream and consumes only its independent PackedTokenShard iterator.
+    - Gradient accumulation uses exact shifted non-padding target weights and progress telemetry is emitted only after clipping optimizer scheduler and zero-grad complete a safe boundary.
+    - Slow data empty batches missing or nonfinite loss finite-loss infinite gradients exhausted data zero learning rate RNG aliasing and malformed progress fail closed in committed tests.
+    - Formal job 2385434.opbs exits zero on one GPU node mg0019 in 84 seconds with exact clean candidate profile source skill path queue group module and role identities.
+    - Tiny GPT-2 and Pythia each complete ten optimizer steps with finite token-weighted loss changed parameters exact counters per-profile common-interval throughput and no Torch distributed Trainer proposal or adoption path.
+    - All 140 Stage 1 tests pass the 48-file package is checksum-valid and validator-admissible all packaged and PBS stderr files are empty and the independent Checker returns PASS.
+    checked_commit: 016d16e98d63a22824ca3e5c528c09887d243636
+    selected_evidence: [runtime_runs/S1-06/formal-l1, runtime_runs/S1-06/scheduler-2385434]
+    next_command: create the S1-07 branch from the S1-06 closure commit and begin its ORIENT phase
   cost:
-    attempts_by_level: {L0: 1, L1: 0, L2: 0}
-    queue_seconds: null
-    active_seconds: null
-    checker_cycles: 0
-    goal_tokens_end: null
-    agent_tokens_used: null
+    attempts_by_level: {L0: 6, L1: 7, L2: 0}
+    queue_seconds: 2
+    active_seconds: 84
+    checker_cycles: 3
+    goal_tokens_end: 1979657
+    agent_tokens_used: 684729
     phase_token_deltas: {}
-    rework_causes: []
+    rework_causes:
+    - The first formal-manifest CLI dry run wrote its draft then failed by passing a PosixPath to json.dumps; the candidate added a CLI regression and complete L1 PBS provenance before submission.
+    - Checker Phase A rejected a test that claimed RNG and cursor isolation without exercising either and required an actually delayed source plus finite-forward nonfinite-gradient rollback evidence.
 blocker: null
