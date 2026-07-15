@@ -11,7 +11,7 @@ git:
   integration_branch: master
   branch: codex/S1-10-merge-outer
   base_commit: 5e76a2757eee7a38378ed95468928283f8384988
-  result_commit: null
+  result_commit: 78afc59c073a1330b5e06ac2eda0f6581bbef017
   dirty_at_start: true
   user_owned_dirty_paths: [AGENTS.md]
 dependencies: [S1-09, S0C-02]
@@ -119,8 +119,8 @@ persist:
     queue_seconds: 3
     active_seconds: 173
     checker_cycles: 5
-    goal_tokens_end: null
-    agent_tokens_used: null
+    goal_tokens_end: 4059096
+    agent_tokens_used: 726868
     phase_token_deltas: {}
     rework_causes:
     - Checker Phase A found unbound role config identity incomplete descriptor shape validation and a lifetime-high-water RSS comparison; corrections added exact bindings and target-interval current-RSS checkpoints before formal submission.
