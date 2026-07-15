@@ -48,9 +48,9 @@ class StructuredLogger:
         record.update(fields)
         with self._lock:
             self._stream.write(json.dumps(record, sort_keys=True, separators=(",", ":")) + "\n")
-            self._stream.flush()
             self._emits += 1
             if self._emits % self.fsync_every == 0:
+                self._stream.flush()
                 os.fsync(self._stream.fileno())
         return record
 

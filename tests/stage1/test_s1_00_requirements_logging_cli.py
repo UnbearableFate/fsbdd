@@ -70,6 +70,24 @@ def test_structured_logger_serializes_concurrent_role_threads(tmp_path: Path) ->
     }
 
 
+def test_structured_logger_batches_flush_with_fsync_interval(tmp_path: Path) -> None:
+    path = tmp_path / "batched.jsonl"
+    logger = StructuredLogger(
+        path,
+        role="learner",
+        run_id="batched",
+        fsync_every=2,
+    )
+    logger.emit("first")
+    assert path.read_text(encoding="utf-8") == ""
+    logger.emit("second")
+    assert [json.loads(line)["event"] for line in path.read_text().splitlines()] == [
+        "first",
+        "second",
+    ]
+    logger.close()
+
+
 def test_evidence_init_cli_is_fail_if_exists(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
