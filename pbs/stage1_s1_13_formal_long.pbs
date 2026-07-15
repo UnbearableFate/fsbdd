@@ -64,14 +64,16 @@ export PBS_QTIME_UTC="$(date -u -d "$ROLE_QTIME_RAW JST" '+%Y-%m-%dT%H:%M:%SZ')"
 mpirun -np 5 --map-by ppr:1:node --hostfile "$PBS_NODEFILE" nvidia-smi -L \
   > "$RESULT_ROOT/env/nvidia-smi-all-nodes.txt" 2>&1
 
-"$PYTHON" -m pytest -q tests/stage1 \
+timeout --signal=TERM --kill-after=30s 600s \
+  "$PYTHON" -m pytest -q tests/stage1 \
   > "$RESULT_ROOT/stdout/pytest.log" 2> "$RESULT_ROOT/stderr/pytest.log"
 "$PYTHON" -m fsbdd.cli requirements \
   plans/FS_DILOCO_CODEX_EXECUTION_PLAN/loops/stage1/S1-13.md \
   reports/stage1/S1-13-requirement-matrix.csv \
   > "$RESULT_ROOT/requirements.json" 2> "$RESULT_ROOT/stderr/requirements.log"
 
-mpirun -np 5 --map-by ppr:1:node --hostfile "$PBS_NODEFILE" \
+timeout --signal=TERM --kill-after=30s 26400s \
+  mpirun -np 5 --map-by ppr:1:node --hostfile "$PBS_NODEFILE" \
   /usr/bin/env PYTHONPATH="$PYTHONPATH" OMP_NUM_THREADS=1 TOKENIZERS_PARALLELISM=false \
   HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 HF_DATASETS_OFFLINE=1 \
   "$PYTHON" -m fsbdd.auxiliary.stage1.close mpi \
