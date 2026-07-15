@@ -90,6 +90,11 @@ orient:
       authorization_gate: The same S1-13 Checker must review the failed L2 package, correction commit, static evidence, exact old identities, and this scope before the asset job is submitted.
       authorization_commit: 6a5adf91028759ff9608de219c59f27cdc5d409d
       checker_verdict: ADMISSIBLE for exactly one second-and-final asset_stage job; no other compute run authorized
+      final_attempt: 2392959.opbs
+      run_id: s1-13-asset-rebuild-20260715T205306Z-6a5adf9
+      output_root: runtime_runs/S1-13/assets-rebuild-20260715T205306Z-6a5adf9
+      log_root: runtime_runs/S1-13/asset-stage-rebuild-20260715T205306Z-6a5adf9
+      final_attempt_result: running on mg1031; no other compute run permitted
     - amended_at_utc: 2026-07-15T19:18:02Z
       prior_targeted_budget: 3
       amended_targeted_budget: 4
@@ -198,12 +203,12 @@ checker:
       result: preflight job 2392830 passed; authorized L2 job 2392852 failed during learner initialization on immutable asset registry/fragment-map incompatibility, with no learner readiness, proposal, update, or training
     - candidate: 6a5adf91028759ff9608de219c59f27cdc5d409d
       verdict: Phase B PASS for job 2392852 failure attribution; Phase A ADMISSIBLE for exactly one second-and-final asset_stage job using only pbs/stage1_s1_13_assets.pbs; no reproduction-preflight, L2, 9N, long-smoke, or formal run authorized
-      result: pending exact-clean offline asset compatibility diagnosis and producer-bound rebuild
+      result: asset-stage job 2392959 is running on mg1031 from the exact-clean authorized commit; no other compute run is active or authorized
 persist:
   evidence_index: evidence/indexes/S1-13.md
   raw_evidence_root: runtime_runs/S1-13
   acceptance_traceability_updated: false
   next_gap: Stage 2 asynchronous GPU to CPU to filesystem publication pipeline
   handoff: >-
-    Same-Checker Phase B passed failure attribution for job 2392852 and authorized exactly one second-and-final asset_stage job at 6a5adf91028759ff9608de219c59f27cdc5d409d. Run only pbs/stage1_s1_13_assets.pbs from an exact-clean detached worktree, fully offline, with frozen old config/marker identities and unique absent asset/log roots. It must retain exact old expected/actual registry and fragment-map evidence, hard-link reuse all four datasets, record the producer commit, and post-validate both workloads. A failure consumes the attempt and requires immediate reviewed-ledger persistence. No preflight, L2, 9N, long-smoke, or formal run is authorized.
-blocker: Exactly one second-and-final asset_stage job is authorized at 6a5adf91028759ff9608de219c59f27cdc5d409d and not yet submitted. All reproduction-preflight and L2 budgets are exhausted, and no two-node, 9N, long-smoke, or formal long submission is authorized.
+    Asset-stage job 2392959 is running on mg1031 from exact-clean authorized commit 6a5adf91028759ff9608de219c59f27cdc5d409d. It is fully offline with frozen old config/marker identities and unique roots, and must retain the exact mismatch diagnosis before rebuilding and post-validating both workloads. Monitor to terminal state. A failure consumes the final asset attempt and requires immediate automatic plus reviewed-ledger persistence; a pass must return to the same Checker. No preflight, L2, 9N, long-smoke, or formal run is authorized.
+blocker: Asset-stage job 2392959 is the only active authorized compute run. Await its terminal evidence; no reproduction-preflight, L2, 9N, long-smoke, or formal long submission is authorized.
