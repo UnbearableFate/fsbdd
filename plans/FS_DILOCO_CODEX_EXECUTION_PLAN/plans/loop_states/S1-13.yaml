@@ -169,7 +169,7 @@ orient:
       checker_verdict: ADMISSIBLE for exactly one third-and-final one-node reproduction_preflight; no L2 or larger run authorized
       final_attempt: 2393049.opbs
       output_root: runtime_runs/S1-13/reproduction-preflight-refrozen-20260715T212246Z-74dbd16
-      final_attempt_result: submitted; sole active compute run; no L2 or larger run authorized
+      final_attempt_result: pass; scheduler exit 0; no abnormal node; 11 focused tests passed; frozen-package validator admissible with all 14 checks true; checksum-verified immutable package awaits same-Checker Phase B
     - amended_at_utc: 2026-07-15T21:13:52Z
       prior_l2_real_budget: 3
       amended_l2_real_budget: 4
@@ -259,12 +259,12 @@ checker:
       result: asset-stage job 2392989 passed from the exact-clean authorized commit with scheduler exit 0, no abnormal node, a complete producer-bound bundle, compatible nine-node and long-run validators, three focused tests passed, all four dataset trees hard-link reused, and a checksum-verified retained package; tracked config/contract refreeze may proceed only with the accepted long-run aligned-zero overlay preserved
     - candidate: 74dbd164555a49551353f4e4da3229698621a633
       verdict: Phase A ADMISSIBLE for exactly one third-and-final one-node reproduction_preflight; preflight budget 2 to 3 admitted; L2 budget 3 to 4 admitted only conditionally; no L2 or larger run authorized
-      result: exact-clean preflight job 2393049 submitted with unique output root runtime_runs/S1-13/reproduction-preflight-refrozen-20260715T212246Z-74dbd16 and refrozen config f956cd698f14d52788ac54a7a5c20615f57a4a18b5a7a5053499583fb714a7ff, marker 7fce5e39feae9b93ebd442b6e1de47e3f82e6e322c9ddbd7ebed689e3f0fd3e3, gate 8fb3734eaaad876b8ceaa3dc8124b32f752ac9ba1611944e16c31c2e4f1a3f84, and reproduction contract 6145e231aae2db438b4397df293feb8d6992ec58d707ddbee7ef512a0c121c0e
+      result: exact-clean preflight job 2393049 passed with scheduler exit 0, no abnormal node, 11 focused tests passed, frozen-package validator admissible with all 14 checks true, empty stderr, and a checksum-verified retained inventory; same-Checker Phase B pending
 persist:
   evidence_index: evidence/indexes/S1-13.md
   raw_evidence_root: runtime_runs/S1-13
   acceptance_traceability_updated: false
   next_gap: Stage 2 asynchronous GPU to CPU to filesystem publication pipeline
   handoff: >-
-    Exact-clean preflight job 2393049 is submitted at Checker-authorized commit 74dbd164555a49551353f4e4da3229698621a633 with unique output root runtime_runs/S1-13/reproduction-preflight-refrozen-20260715T212246Z-74dbd16. Monitor it to terminal state, preserve immutable scheduler/checksum evidence, and return the package to the same Checker for Phase B. On failure stop for review before any next experiment. L2 remains conditional on a pass and separate exact-commit authorization. No L2, 9N, long-smoke, or formal run is authorized.
-blocker: Preflight job 2393049 is the sole active authorized compute run. Await terminal evidence; no L2 or larger run is authorized.
+    Exact-clean preflight job 2393049 passed at Checker-authorized commit 74dbd164555a49551353f4e4da3229698621a633. Its immutable package records scheduler exit 0, no abnormal node, 11 focused tests passed, an admissible 14-of-14 frozen validator, empty stderr, and verified checksums. Return it to the same Checker for Phase B. L2 remains conditional on that verdict and separate exact-commit authorization. No L2, 9N, long-smoke, or formal run is authorized.
+blocker: Passing preflight job 2393049 awaits same-Checker Phase B and separate exact-commit L2 authorization. No L2 or larger run is authorized.
