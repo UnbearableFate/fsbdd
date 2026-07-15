@@ -90,6 +90,8 @@ def test_two_node_correction_reproduction_is_identity_bound_and_bounded() -> Non
         'FSBDD_FAILURE_OUTPUT_ROOT="$RESULT_ROOT"',
         "timeout --signal=TERM --kill-after=30s 900s",
         "mpirun -np 2 --map-by ppr:1:node --bind-to none --report-bindings",
+        "bind-policy none cpus_allowed_list",
+        '"$RESULT_ROOT/env/mpi-report-bindings.txt"',
         "mpirun -np 2 --map-by ppr:1:node --bind-to none",
         "--learner-count-override 1 --timeout-seconds 720",
         "fsbdd.auxiliary.stage1.reproduction analyze",
@@ -117,6 +119,11 @@ def test_two_node_correction_reproduction_is_identity_bound_and_bounded() -> Non
     assert contract["runtime"]["supervisor_term_seconds"] == 900
     assert "env/binding-hostnames.txt" in contract["required_evidence"]
     assert "env/mpi-bindings.txt" in contract["required_evidence"]
+    assert "env/mpi-report-bindings.txt" in contract["required_evidence"]
+    assert (
+        contract["topology"]["mpi_binding_policy"]
+        == "none_with_report_bindings_and_rank_affinity_evidence"
+    )
     assert contract["finalization"]["validator_runs_after_preliminary_checksums"]
     assert contract["finalization"][
         "validator_appended_before_final_checksum_check"
@@ -146,6 +153,33 @@ def test_reproduction_preflight_is_single_node_identity_bound_and_focused() -> N
         "sha256sum -c checksums.sha256",
     ):
         assert token in script
+
+
+def test_asset_rebuild_is_identity_bound_offline_and_reuses_frozen_datasets() -> (
+    None
+):
+    script = (ROOT / "pbs/stage1_s1_13_assets.pbs").read_text(encoding="utf-8")
+    for token in (
+        "EXPECTED_COMMIT",
+        "OLD_RESOLVED_CONFIG",
+        "OLD_CONFIG_SHA256",
+        "OLD_ASSET_ROOT",
+        "OLD_ASSET_MARKER_SHA256",
+        '[[ -n "$(git status --porcelain)" ]]',
+        "HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 HF_DATASETS_OFFLINE=1",
+        "validate-compatibility",
+        '--project-root "$PROJECT_ROOT"',
+        '--producer-commit "$EXPECTED_COMMIT"',
+        '--reuse-gpt-train "$OLD_ASSET_ROOT/datasets/gpt2-train"',
+        '--reuse-gpt-validation "$OLD_ASSET_ROOT/datasets/gpt2-validation"',
+        '--reuse-pythia-smoke "$OLD_ASSET_ROOT/datasets/pythia-smoke"',
+        '--reuse-pythia-long "$OLD_ASSET_ROOT/datasets/pythia-long"',
+        "new-${WORKLOAD}-compatibility.json",
+        "asset-authorities.sha256",
+        "checksums.sha256",
+    ):
+        assert token in script
+    assert "hf download" not in script
 
 
 def test_formal_package_retains_current_protocol_samples_and_rejects_placeholders() -> (

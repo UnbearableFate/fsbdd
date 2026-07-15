@@ -85,6 +85,7 @@ def _fixture(
         "env/code-commit.txt",
         "env/git-status.txt",
         "env/mpi-bindings.txt",
+        "env/mpi-report-bindings.txt",
         "env/role-map.json",
         "logs/learner-00.jsonl",
         "logs/syncer.jsonl",
@@ -110,7 +111,7 @@ def _fixture(
             "syncer_torch_module_imported": False,
             "application_data_plane": "shared_filesystem_only",
             "launcher_ranks": 2,
-            "mpi_binding_policy": "none_with_report_bindings_evidence",
+            "mpi_binding_policy": "none_with_report_bindings_and_rank_affinity_evidence",
         },
         "runtime": {
             "target_global_cycles": 2,
@@ -145,7 +146,12 @@ def _fixture(
         "learner-host\nsyncer-host\n", encoding="utf-8"
     )
     (result_root / "env" / "mpi-bindings.txt").write_text(
-        "MCW rank 0 is not bound\nMCW rank 1 is not bound\n", encoding="utf-8"
+        "rank 0 host learner-host bind-policy none cpus_allowed_list 0-71\n"
+        "rank 1 host syncer-host bind-policy none cpus_allowed_list 0-71\n",
+        encoding="utf-8",
+    )
+    (result_root / "env" / "mpi-report-bindings.txt").write_text(
+        "", encoding="utf-8"
     )
     (result_root / "stderr").mkdir(parents=True, exist_ok=True)
     (result_root / "stderr" / "mpirun.log").write_text("", encoding="utf-8")
@@ -351,6 +357,27 @@ def test_package_validator_rejects_post_manifest_artifact_mutation(
         )
 
 
+def test_reproduction_analyzer_rejects_invalid_effective_rank_affinity(
+    tmp_path: Path,
+) -> None:
+    arguments = _fixture(tmp_path)
+    (arguments["result_root"] / "env" / "mpi-bindings.txt").write_text(
+        "rank 0 host syncer-host bind-policy none cpus_allowed_list 0-71\n"
+        "rank 1 host syncer-host bind-policy none cpus_allowed_list 0-71\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(ReproductionError, match="mpi_binding_policy"):
+        analyze_reproduction(**arguments)
+    gate = json.loads(
+        (
+            arguments["result_root"]
+            / "analysis"
+            / "correction-reproduction-gate.json"
+        ).read_text(encoding="utf-8")
+    )
+    assert gate["checks"]["mpi_binding_policy"] is False
+
+
 def test_frozen_preflight_accepts_exact_clean_package(tmp_path: Path) -> None:
     project_root = tmp_path / "project"
     asset_root = tmp_path / "assets"
@@ -399,7 +426,7 @@ def test_frozen_preflight_accepts_exact_clean_package(tmp_path: Path) -> None:
                 "syncers": 1,
                 "distinct_compute_hosts": 2,
                 "launcher_ranks": 2,
-                "mpi_binding_policy": "none_with_report_bindings_evidence",
+                "mpi_binding_policy": "none_with_report_bindings_and_rank_affinity_evidence",
             },
             "runtime": {
                 "internal_role_timeout_seconds": 720,
@@ -426,6 +453,8 @@ def test_frozen_preflight_accepts_exact_clean_package(tmp_path: Path) -> None:
                 "mpirun --bind-to none --report-bindings",
                 '"$RESULT_ROOT/env/binding-hostnames.txt"',
                 '"$RESULT_ROOT/env/mpi-bindings.txt"',
+                '"$RESULT_ROOT/env/mpi-report-bindings.txt"',
+                "bind-policy none cpus_allowed_list",
                 "timeout --signal=TERM --kill-after=30s 900s",
                 "mpirun -np 2 --map-by ppr:1:node --bind-to none",
                 "--learner-count-override 1 --timeout-seconds 720",

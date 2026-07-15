@@ -165,6 +165,32 @@ def _outer_policy(config: Mapping[str, Any]) -> OuterSGDPolicy:
     )
 
 
+def _require_bootstrap_model_identities(
+    *,
+    actual_registry_digest: str,
+    actual_fragment_map_digest: str,
+    bootstrap: Mapping[str, Any],
+) -> None:
+    expected_registry_digest = bootstrap.get("registry_digest")
+    expected_fragment_map_digest = bootstrap.get("fragment_map_digest")
+    mismatches = {}
+    if actual_registry_digest != expected_registry_digest:
+        mismatches["registry_digest"] = {
+            "expected": expected_registry_digest,
+            "actual": actual_registry_digest,
+        }
+    if actual_fragment_map_digest != expected_fragment_map_digest:
+        mismatches["fragment_map_digest"] = {
+            "expected": expected_fragment_map_digest,
+            "actual": actual_fragment_map_digest,
+        }
+    if mismatches:
+        raise Stage1CloseError(
+            "learner model bootstrap identity mismatch: "
+            + json.dumps(mismatches, sort_keys=True)
+        )
+
+
 def _load_contract(
     config_path: Path,
     *,
@@ -177,7 +203,9 @@ def _load_contract(
     selected = str(config.get("selected_workload"))
     if selected not in {"nine_node", "long_run"}:
         raise Stage1CloseError("resolved config has no valid selected workload")
-    resolved = config.get("resolved_runtime_fields", {})
+    resolved = config.get("resolved_runtime_fields")
+    if not isinstance(resolved, dict):
+        raise Stage1CloseError("resolved config omits runtime fields")
     if resolved.get("asset_marker_sha256") != expected_asset_marker_sha256:
         raise Stage1CloseError("resolved config asset marker identity mismatch")
     asset_root = Path(str(resolved["asset_bundle_root"]))
@@ -189,17 +217,41 @@ def _load_contract(
     asset_manifest = _read_json(asset_root / "manifest.json")
     bootstrap_path = asset_root / "workloads" / selected / "manifest.json"
     bootstrap = _read_json(bootstrap_path)
+    manifest_workloads = asset_manifest.get("workloads")
+    manifest_workload = (
+        manifest_workloads.get(selected)
+        if isinstance(manifest_workloads, dict)
+        else None
+    )
     if (
-        asset_manifest.get("status") != "complete"
+        marker.get("status") != "complete"
+        or marker.get("kind") != "s1_13_immutable_asset_bundle"
+        or asset_manifest.get("status") != "complete"
         or asset_manifest.get("kind") != "s1_13_immutable_asset_bundle"
-        or asset_manifest["workloads"][selected]["manifest_sha256"]
-        != _hash_file(bootstrap_path)
+        or not isinstance(manifest_workload, dict)
+        or manifest_workload.get("manifest_sha256") != _hash_file(bootstrap_path)
+        or bootstrap.get("schema_version") != 1
+        or bootstrap.get("status") != "complete"
     ):
         raise Stage1CloseError("asset manifest does not bind the workload bootstrap")
     if bootstrap.get("bootstrap_identity") != resolved.get(
         "workload_bootstrap_identity"
     ):
         raise Stage1CloseError("bootstrap identity differs from resolved config")
+    producer_commit = resolved.get("asset_producer_code_commit")
+    if (
+        not isinstance(producer_commit, str)
+        or len(producer_commit) != 40
+        or any(
+            character not in "0123456789abcdef" for character in producer_commit
+        )
+        or marker.get("producer_code_commit")
+        != asset_manifest.get("producer_code_commit")
+        or asset_manifest.get("producer_code_commit")
+        != bootstrap.get("producer_code_commit")
+        or bootstrap.get("producer_code_commit") != producer_commit
+    ):
+        raise Stage1CloseError("asset producer code identity mismatch")
     if [row["descriptor"] for row in bootstrap["fragments"]] != resolved[
         "fragment_descriptors"
     ]:
@@ -507,13 +559,11 @@ def run_learner(
     fragment_map = build_fragment_map(
         registry, int(config["protocol"]["fragment_count"])
     )
-    if (
-        registry.digest != bootstrap["registry_digest"]
-        or fragment_map.digest != bootstrap["fragment_map_digest"]
-    ):
-        raise Stage1CloseError(
-            "learner model registry differs from immutable bootstrap"
-        )
+    _require_bootstrap_model_identities(
+        actual_registry_digest=registry.digest,
+        actual_fragment_map_digest=fragment_map.digest,
+        bootstrap=bootstrap,
+    )
     groups = build_fragment_parameter_groups(model, registry, fragment_map)
     initial = atomic.load_snapshot().authorities
     _apply_fragment_payloads(groups, [item.parameters for item in initial])

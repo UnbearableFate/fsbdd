@@ -9,6 +9,15 @@ from pathlib import Path
 
 import pytest
 
+from fsbdd.auxiliary.stage1.assets import (
+    Stage1AssetError,
+    _producer_commit,
+    _sha256_identity,
+)
+from fsbdd.auxiliary.stage1.close import (
+    Stage1CloseError,
+    _require_bootstrap_model_identities,
+)
 from fsbdd.diloco.protocol.global_state import (
     BootstrapFragment,
     FragmentStateDescriptor,
@@ -58,6 +67,40 @@ DESCRIPTOR = FragmentStateDescriptor(
     shape=(4,),
     parameter_identities=("parameter-0",),
 )
+
+
+def test_bootstrap_model_identity_mismatch_reports_exact_expected_and_actual() -> (
+    None
+):
+    bootstrap = {
+        "registry_digest": "a" * 64,
+        "fragment_map_digest": "b" * 64,
+    }
+    with pytest.raises(Stage1CloseError) as captured:
+        _require_bootstrap_model_identities(
+            actual_registry_digest="c" * 64,
+            actual_fragment_map_digest="d" * 64,
+            bootstrap=bootstrap,
+        )
+    payload = json.loads(str(captured.value).split(": ", 1)[1])
+    assert payload == {
+        "fragment_map_digest": {"actual": "d" * 64, "expected": "b" * 64},
+        "registry_digest": {"actual": "c" * 64, "expected": "a" * 64},
+    }
+    _require_bootstrap_model_identities(
+        actual_registry_digest="a" * 64,
+        actual_fragment_map_digest="b" * 64,
+        bootstrap=bootstrap,
+    )
+
+
+def test_asset_identity_validators_reject_malformed_values() -> None:
+    assert _producer_commit("a" * 40) == "a" * 40
+    assert _sha256_identity("b" * 64, "test") == "b" * 64
+    with pytest.raises(Stage1AssetError, match="producer commit"):
+        _producer_commit("A" * 40)
+    with pytest.raises(Stage1AssetError, match="SHA-256"):
+        _sha256_identity("f" * 63, "test")
 
 
 def _spec(sequence: int) -> PublicationSpec:

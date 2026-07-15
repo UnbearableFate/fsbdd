@@ -51,6 +51,44 @@ def _write_json(path: Path, value: Any) -> None:
     )
 
 
+def _write_new_json(path: Path, value: Any) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        with path.open("x", encoding="utf-8") as stream:
+            json.dump(value, stream, sort_keys=True, indent=2)
+            stream.write("\n")
+    except FileExistsError as error:
+        raise Stage1AssetError(f"refusing to replace evidence: {path}") from error
+
+
+def _producer_commit(value: str) -> str:
+    if (
+        len(value) != 40
+        or any(character not in "0123456789abcdef" for character in value)
+    ):
+        raise Stage1AssetError("producer commit must be a lowercase 40-hex identity")
+    return value
+
+
+def _sha256_identity(value: str, name: str) -> str:
+    if (
+        len(value) != 64
+        or any(character not in "0123456789abcdef" for character in value)
+    ):
+        raise Stage1AssetError(f"{name} must be a lowercase SHA-256 identity")
+    return value
+
+
+def _read_object(path: Path, name: str) -> dict[str, Any]:
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        raise Stage1AssetError(f"{name} is unreadable: {path}") from error
+    if not isinstance(value, dict):
+        raise Stage1AssetError(f"{name} must be a JSON object: {path}")
+    return value
+
+
 def _copy_validated_dataset(
     profile: Any, source: Path, destination: Path
 ) -> dict[str, Any]:
@@ -94,6 +132,7 @@ def _bootstrap_model(
     destination: Path,
     learner_count: int,
     h: int,
+    producer_commit: str,
 ) -> dict[str, Any]:
     import torch
 
@@ -139,6 +178,7 @@ def _bootstrap_model(
     result = {
         "schema_version": 1,
         "status": "complete",
+        "producer_code_commit": producer_commit,
         "profile_id": profile.profile_id,
         "profile_digest": profile.digest,
         "model_repository": str(profile.model["repository"]),
@@ -189,8 +229,11 @@ def prepare_assets(
     hub_cache: Path,
     output: Path,
     *,
+    producer_commit: str,
     reuse_gpt_train: Path | None = None,
+    reuse_gpt_validation: Path | None = None,
     reuse_pythia_smoke: Path | None = None,
+    reuse_pythia_long: Path | None = None,
 ) -> dict[str, Any]:
     if output.exists():
         raise Stage1AssetError(f"refusing to overwrite asset bundle: {output}")
@@ -198,6 +241,7 @@ def prepare_assets(
     config = json.loads(config_raw)
     if config.get("profile_id") != "s1-13-stage1-close-v1":
         raise Stage1AssetError("unexpected Stage 1 closure config")
+    producer_commit = _producer_commit(producer_commit)
     nine = config["workloads"]["nine_node"]
     long = config["workloads"]["long_run"]
     project_root = config_path.resolve().parents[2]
@@ -231,7 +275,7 @@ def prepare_assets(
             dataset_root / "gpt2-validation",
             split="validation",
             mode="smoke",
-            reuse=None,
+            reuse=reuse_gpt_validation,
         )
         pythia_smoke = _dataset_asset(
             pythia_profile,
@@ -247,7 +291,7 @@ def prepare_assets(
             dataset_root / "pythia-long",
             split="train",
             mode="long_run",
-            reuse=None,
+            reuse=reuse_pythia_long,
         )
         h = int(config["protocol"]["H"])
         nine_bootstrap = _bootstrap_model(
@@ -256,6 +300,7 @@ def prepare_assets(
             destination=temporary / "workloads" / "nine_node",
             learner_count=int(nine["learner_count"]),
             h=h,
+            producer_commit=producer_commit,
         )
         long_bootstrap = _bootstrap_model(
             profile=pythia_profile,
@@ -263,11 +308,13 @@ def prepare_assets(
             destination=temporary / "workloads" / "long_run",
             learner_count=int(long["learner_count"]),
             h=h,
+            producer_commit=producer_commit,
         )
         manifest = {
             "schema_version": 1,
             "status": "complete",
             "kind": "s1_13_immutable_asset_bundle",
+            "producer_code_commit": producer_commit,
             "config_source_path": str(config_path.resolve()),
             "config_source_sha256": hashlib.sha256(config_raw).hexdigest(),
             "profiles": {
@@ -318,6 +365,7 @@ def prepare_assets(
             "schema_version": 1,
             "status": "complete",
             "kind": "s1_13_immutable_asset_bundle",
+            "producer_code_commit": producer_commit,
             "manifest_sha256": _hash_file(temporary / "manifest.json"),
         }
         _write_json(temporary / "complete.json", marker)
@@ -338,6 +386,7 @@ def prepare_assets(
                 ],
                 "asset_marker_sha256": marker_sha256,
                 "asset_bundle_root": final_text,
+                "asset_producer_code_commit": producer_commit,
                 "workload_bootstrap_identity": bootstrap["bootstrap_identity"],
             }
             resolved["selected_workload"] = workload
@@ -349,6 +398,166 @@ def prepare_assets(
         raise
 
 
+def validate_asset_compatibility(
+    *,
+    project_root: Path,
+    config_path: Path,
+    expected_config_sha256: str,
+    expected_asset_marker_sha256: str,
+    expected_producer_commit: str,
+    hub_cache: Path,
+    output_path: Path,
+) -> dict[str, Any]:
+    import torch
+
+    expected_producer_commit = _producer_commit(expected_producer_commit)
+    expected_config_sha256 = _sha256_identity(
+        expected_config_sha256, "expected config"
+    )
+    expected_asset_marker_sha256 = _sha256_identity(
+        expected_asset_marker_sha256, "expected asset marker"
+    )
+    project_root = project_root.resolve()
+    if not project_root.is_dir():
+        raise Stage1AssetError("project root must be an existing directory")
+    config_sha256 = _hash_file(config_path)
+    config = _read_object(config_path, "resolved config")
+    workload = config.get("selected_workload")
+    resolved = config.get("resolved_runtime_fields")
+    workloads = config.get("workloads")
+    workload_config = (
+        workloads.get(workload)
+        if isinstance(workloads, dict) and isinstance(workload, str)
+        else None
+    )
+    if (
+        not isinstance(workload, str)
+        or workload not in {"nine_node", "long_run"}
+        or not isinstance(resolved, dict)
+        or not isinstance(workloads, dict)
+        or not isinstance(workload_config, dict)
+    ):
+        raise Stage1AssetError("resolved config omits its selected workload")
+    asset_root_value = resolved.get("asset_bundle_root")
+    if not isinstance(asset_root_value, str) or not asset_root_value:
+        raise Stage1AssetError("resolved config omits the asset bundle root")
+    asset_root = Path(asset_root_value)
+    marker_path = asset_root / "complete.json"
+    manifest_path = asset_root / "manifest.json"
+    bootstrap_path = asset_root / "workloads" / workload / "manifest.json"
+    marker = _read_object(marker_path, "asset completion marker")
+    manifest = _read_object(manifest_path, "asset manifest")
+    bootstrap = _read_object(bootstrap_path, "workload bootstrap")
+    profile_value = workload_config.get("learner_profile")
+    if not isinstance(profile_value, str) or not profile_value:
+        raise Stage1AssetError("workload omits its learner profile")
+    profile_relative = Path(profile_value)
+    if profile_relative.is_absolute() or ".." in profile_relative.parts:
+        raise Stage1AssetError("learner profile must be project-root relative")
+    profile_path = project_root / profile_relative
+    profile = load_learner_profile(profile_path)
+    inventory = verify_profile_assets(profile, hub_cache)
+    model = load_frozen_causal_lm(profile, inventory, torch.device("cpu"))
+    registry = build_logical_layer_registry(model)
+    fragment_map = build_fragment_map(
+        registry, int(config["protocol"]["fragment_count"])
+    )
+    actual_model_digest = model_parameter_digest(model)
+    expected_registry_digest = bootstrap.get("registry_digest")
+    expected_fragment_map_digest = bootstrap.get("fragment_map_digest")
+    manifest_workloads = manifest.get("workloads")
+    manifest_workload = (
+        manifest_workloads.get(workload)
+        if isinstance(manifest_workloads, dict)
+        else None
+    )
+    bootstrap_identity_material = dict(bootstrap)
+    recorded_bootstrap_identity = bootstrap_identity_material.pop(
+        "bootstrap_identity", None
+    )
+    bootstrap_fragments = bootstrap.get("fragments")
+    bootstrap_descriptors = (
+        [row.get("descriptor") for row in bootstrap_fragments]
+        if isinstance(bootstrap_fragments, list)
+        and all(isinstance(row, dict) for row in bootstrap_fragments)
+        else None
+    )
+    checks = {
+        "config_identity": config_sha256 == expected_config_sha256,
+        "resolved_marker_identity": resolved.get("asset_marker_sha256")
+        == expected_asset_marker_sha256,
+        "marker_identity": _hash_file(marker_path)
+        == expected_asset_marker_sha256,
+        "manifest_binding": marker.get("manifest_sha256")
+        == _hash_file(manifest_path),
+        "marker_contract": marker.get("schema_version") == 1
+        and marker.get("status") == "complete"
+        and marker.get("kind") == "s1_13_immutable_asset_bundle",
+        "manifest_contract": manifest.get("schema_version") == 1
+        and manifest.get("status") == "complete"
+        and manifest.get("kind") == "s1_13_immutable_asset_bundle",
+        "bootstrap_contract": bootstrap.get("schema_version") == 1
+        and bootstrap.get("status") == "complete",
+        "workload_binding": isinstance(manifest_workload, dict)
+        and manifest_workload.get("manifest_sha256") == _hash_file(bootstrap_path),
+        "bootstrap_identity": recorded_bootstrap_identity
+        == canonical_digest(bootstrap_identity_material)
+        and resolved.get("workload_bootstrap_identity")
+        == recorded_bootstrap_identity
+        and isinstance(manifest_workload, dict)
+        and manifest_workload.get("bootstrap_identity")
+        == recorded_bootstrap_identity,
+        "resolved_fragment_descriptors": bootstrap_descriptors is not None
+        and resolved.get("fragment_descriptors") == bootstrap_descriptors,
+        "resolved_fragment_bytes": resolved.get("fragment_bytes")
+        == bootstrap.get("fragment_bytes"),
+        "producer_identity": resolved.get("asset_producer_code_commit")
+        == marker.get("producer_code_commit")
+        == manifest.get("producer_code_commit")
+        == bootstrap.get("producer_code_commit")
+        == expected_producer_commit,
+        "profile_identity": bootstrap.get("profile_digest") == profile.digest,
+        "model_parameter_identity": bootstrap.get("initial_model_parameter_sha256")
+        == actual_model_digest,
+        "registry_identity": expected_registry_digest == registry.digest,
+        "fragment_map_identity": expected_fragment_map_digest == fragment_map.digest,
+    }
+    passed = all(checks.values())
+    result = {
+        "schema_version": 1,
+        "loop_id": "S1-13",
+        "validator": "real_model_asset_compatibility",
+        "status": "compatible" if passed else "mismatch",
+        "workload": workload,
+        "config_path": str(config_path.resolve()),
+        "project_root": str(project_root),
+        "asset_root": str(asset_root.resolve()),
+        "expected": {
+            "config_sha256": expected_config_sha256,
+            "asset_marker_sha256": expected_asset_marker_sha256,
+            "producer_code_commit": expected_producer_commit,
+            "registry_digest": expected_registry_digest,
+            "fragment_map_digest": expected_fragment_map_digest,
+            "model_parameter_sha256": bootstrap.get(
+                "initial_model_parameter_sha256"
+            ),
+        },
+        "actual": {
+            "config_sha256": config_sha256,
+            "asset_marker_sha256": _hash_file(marker_path),
+            "producer_code_commit": manifest.get("producer_code_commit"),
+            "registry_digest": registry.digest,
+            "fragment_map_digest": fragment_map.digest,
+            "model_parameter_sha256": actual_model_digest,
+        },
+        "checks": checks,
+    }
+    _write_new_json(output_path, result)
+    del fragment_map, registry, model
+    gc.collect()
+    return result
+
+
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Prepare immutable S1-13 model/data/bootstrap assets"
@@ -358,8 +567,19 @@ def _parser() -> argparse.ArgumentParser:
     prepare.add_argument("--config", type=Path, required=True)
     prepare.add_argument("--hub-cache", type=Path, required=True)
     prepare.add_argument("--output", type=Path, required=True)
+    prepare.add_argument("--producer-commit", required=True)
     prepare.add_argument("--reuse-gpt-train", type=Path)
+    prepare.add_argument("--reuse-gpt-validation", type=Path)
     prepare.add_argument("--reuse-pythia-smoke", type=Path)
+    prepare.add_argument("--reuse-pythia-long", type=Path)
+    compatibility = subparsers.add_parser("validate-compatibility")
+    compatibility.add_argument("--project-root", type=Path, required=True)
+    compatibility.add_argument("--config", type=Path, required=True)
+    compatibility.add_argument("--expected-config-sha256", required=True)
+    compatibility.add_argument("--expected-asset-marker-sha256", required=True)
+    compatibility.add_argument("--expected-producer-commit", required=True)
+    compatibility.add_argument("--hub-cache", type=Path, required=True)
+    compatibility.add_argument("--output", type=Path, required=True)
     return parser
 
 
@@ -370,12 +590,25 @@ def main(argv: Sequence[str] | None = None) -> int:
             arguments.config,
             arguments.hub_cache,
             arguments.output,
+            producer_commit=arguments.producer_commit,
             reuse_gpt_train=arguments.reuse_gpt_train,
+            reuse_gpt_validation=arguments.reuse_gpt_validation,
             reuse_pythia_smoke=arguments.reuse_pythia_smoke,
+            reuse_pythia_long=arguments.reuse_pythia_long,
         )
         print(json.dumps(result, sort_keys=True))
         return 0
-    raise AssertionError("unreachable")
+    result = validate_asset_compatibility(
+        project_root=arguments.project_root,
+        config_path=arguments.config,
+        expected_config_sha256=arguments.expected_config_sha256,
+        expected_asset_marker_sha256=arguments.expected_asset_marker_sha256,
+        expected_producer_commit=arguments.expected_producer_commit,
+        hub_cache=arguments.hub_cache,
+        output_path=arguments.output,
+    )
+    print(json.dumps(result, sort_keys=True))
+    return 0 if result["status"] == "compatible" else 1
 
 
 if __name__ == "__main__":

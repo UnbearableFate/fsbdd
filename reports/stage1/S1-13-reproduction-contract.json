@@ -17,7 +17,7 @@
     "syncer_torch_module_imported": false,
     "application_data_plane": "shared_filesystem_only",
     "launcher_ranks": 2,
-    "mpi_binding_policy": "none_with_report_bindings_evidence"
+    "mpi_binding_policy": "none_with_report_bindings_and_rank_affinity_evidence"
   },
   "runtime": {
     "target_global_cycles": 10,
@@ -55,6 +55,7 @@
     "env/git-status.txt",
     "env/modules.txt",
     "env/mpi-bindings.txt",
+    "env/mpi-report-bindings.txt",
     "env/nvidia-smi-all-nodes.txt",
     "env/pbs-nodefile.txt",
     "env/python-version.txt",

@@ -10,55 +10,107 @@ source "${PROJECT_ROOT:-/work/xg24i002/x10041/fsbdd}/pbs/lib/record_experiment_f
 install_experiment_failure_traps
 
 : "${PROJECT_ROOT:=/work/xg24i002/x10041/fsbdd}"
+: "${MAIN_ROOT:=/work/xg24i002/x10041/fsbdd}"
 : "${HF_HOME:=/work/xg24i002/x10041/hf_home}"
+: "${EXPECTED_COMMIT:?EXPECTED_COMMIT is required}"
+: "${OLD_RESOLVED_CONFIG:?OLD_RESOLVED_CONFIG is required}"
+: "${OLD_CONFIG_SHA256:?OLD_CONFIG_SHA256 is required}"
+: "${OLD_ASSET_ROOT:?OLD_ASSET_ROOT is required}"
+: "${OLD_ASSET_MARKER_SHA256:?OLD_ASSET_MARKER_SHA256 is required}"
 : "${OUTPUT_ROOT:=$PROJECT_ROOT/runtime_runs/S1-13/assets-${PBS_JOBID}}"
 
-PYTHON="$PROJECT_ROOT/.venv/bin/python"
-HF="$PROJECT_ROOT/.venv/bin/hf"
+PYTHON="$MAIN_ROOT/.venv/bin/python"
 HUB_CACHE="$HF_HOME/hub"
-LOG_ROOT="$PROJECT_ROOT/runtime_runs/S1-13/asset-stage-${PBS_JOBID}"
+LOG_ROOT="${LOG_ROOT:-$PROJECT_ROOT/runtime_runs/S1-13/asset-stage-${PBS_JOBID}}"
 
 module load nv-hpcx/25.9
+cd "$PROJECT_ROOT"
+if [[ "$(git rev-parse HEAD)" != "$EXPECTED_COMMIT" ]] || \
+   [[ -n "$(git status --porcelain)" ]]; then
+  echo "asset stage code identity mismatch" >&2
+  exit 65
+fi
+if [[ "$(sha256sum "$OLD_RESOLVED_CONFIG" | awk '{print $1}')" != "$OLD_CONFIG_SHA256" ]] || \
+   [[ "$(sha256sum "$OLD_ASSET_ROOT/complete.json" | awk '{print $1}')" != "$OLD_ASSET_MARKER_SHA256" ]]; then
+  echo "asset stage prior identity mismatch" >&2
+  exit 65
+fi
 if [[ -e "$OUTPUT_ROOT" || -e "$LOG_ROOT" ]]; then
   echo "refusing to reuse S1-13 asset output" >&2
   exit 73
 fi
 mkdir -p "$LOG_ROOT"
 FSBDD_FAILURE_OUTPUT_ROOT="$LOG_ROOT"
-cd "$PROJECT_ROOT"
 export PYTHONPATH="$PROJECT_ROOT/src"
 export TOKENIZERS_PARALLELISM=false OMP_NUM_THREADS=1
-
-"$HF" --version > "$LOG_ROOT/hf-cli-version.txt"
-"$HF" download openai-community/gpt2 \
-  config.json model.safetensors merges.txt tokenizer.json tokenizer_config.json vocab.json \
-  --revision 607a30d783dfa663caf39e06633721c8d4cfcd7e --cache-dir "$HUB_CACHE" --quiet \
-  > "$LOG_ROOT/hf-gpt2.txt" 2> "$LOG_ROOT/hf-gpt2.err"
-"$HF" download Salesforce/wikitext \
-  wikitext-2-raw-v1/train-00000-of-00001.parquet \
-  wikitext-2-raw-v1/validation-00000-of-00001.parquet \
-  --type dataset --revision b08601e04326c79dfdd32d625aee71d232d685c3 \
-  --cache-dir "$HUB_CACHE" --quiet \
-  > "$LOG_ROOT/hf-wikitext.txt" 2> "$LOG_ROOT/hf-wikitext.err"
-"$HF" download EleutherAI/pythia-160m \
-  config.json model.safetensors special_tokens_map.json tokenizer.json tokenizer_config.json \
-  --revision 50f5173d932e8e61f858120bcb800b97af589f46 --cache-dir "$HUB_CACHE" --quiet \
-  > "$LOG_ROOT/hf-pythia.txt" 2> "$LOG_ROOT/hf-pythia.err"
-"$HF" download HuggingFaceFW/fineweb-edu \
-  sample/10BT/000_00000.parquet sample/10BT/001_00000.parquet \
-  --type dataset --revision 87f09149ef4734204d70ed1d046ddc9ca3f2b8f9 \
-  --cache-dir "$HUB_CACHE" --quiet \
-  > "$LOG_ROOT/hf-fineweb.txt" 2> "$LOG_ROOT/hf-fineweb.err"
-
 export HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 HF_DATASETS_OFFLINE=1
+
+hostname > "$LOG_ROOT/hostname.txt"
+git rev-parse HEAD > "$LOG_ROOT/commit.txt"
+git status --porcelain > "$LOG_ROOT/git-status.txt"
+qstat -f "$PBS_JOBID" > "$LOG_ROOT/qstat.txt"
+module -t list > "$LOG_ROOT/modules.txt" 2>&1
+"$PYTHON" -VV > "$LOG_ROOT/python-version.txt" 2>&1
+"$PYTHON" -c 'import torch; print(torch.__version__)' \
+  > "$LOG_ROOT/torch-version.txt" 2>&1
+timeout --signal=TERM --kill-after=30s 420s \
+  "$PYTHON" -m pytest -vv -o faulthandler_timeout=60 --durations=25 \
+  tests/stage1/test_s1_13_close.py::test_bootstrap_model_identity_mismatch_reports_exact_expected_and_actual \
+  tests/stage1/test_s1_13_close.py::test_asset_identity_validators_reject_malformed_values \
+  tests/stage1/test_s1_13_static.py::test_asset_rebuild_is_identity_bound_offline_and_reuses_frozen_datasets \
+  > "$LOG_ROOT/pytest.log" 2> "$LOG_ROOT/pytest.err"
+
+set +e
+"$PYTHON" -m fsbdd.auxiliary.stage1.assets validate-compatibility \
+  --project-root "$PROJECT_ROOT" \
+  --config "$OLD_RESOLVED_CONFIG" \
+  --expected-config-sha256 "$OLD_CONFIG_SHA256" \
+  --expected-asset-marker-sha256 "$OLD_ASSET_MARKER_SHA256" \
+  --expected-producer-commit "$EXPECTED_COMMIT" \
+  --hub-cache "$HUB_CACHE" --output "$LOG_ROOT/prior-compatibility.json" \
+  > "$LOG_ROOT/prior-compatibility.stdout" \
+  2> "$LOG_ROOT/prior-compatibility.stderr"
+COMPATIBILITY_EXIT="$?"
+set -e
+if [[ "$COMPATIBILITY_EXIT" -ne 1 ]] || \
+   [[ "$(jq -r '.status' "$LOG_ROOT/prior-compatibility.json" 2>/dev/null)" != "mismatch" ]] || \
+   [[ "$(jq -r '(.checks.registry_identity == false) or (.checks.fragment_map_identity == false)' "$LOG_ROOT/prior-compatibility.json" 2>/dev/null)" != "true" ]]; then
+  echo "prior asset compatibility did not produce the frozen mismatch" >&2
+  exit 65
+fi
+
 "$PYTHON" -m fsbdd.auxiliary.stage1.assets prepare \
   --config configs/stage1/s1_13_stage1_close.json \
   --hub-cache "$HUB_CACHE" --output "$OUTPUT_ROOT" \
-  --reuse-gpt-train runtime_runs/S1-06/materialized/gpt2-wikitext \
-  --reuse-pythia-smoke runtime_runs/S1-06/materialized/pythia160m-fineweb \
+  --producer-commit "$EXPECTED_COMMIT" \
+  --reuse-gpt-train "$OLD_ASSET_ROOT/datasets/gpt2-train" \
+  --reuse-gpt-validation "$OLD_ASSET_ROOT/datasets/gpt2-validation" \
+  --reuse-pythia-smoke "$OLD_ASSET_ROOT/datasets/pythia-smoke" \
+  --reuse-pythia-long "$OLD_ASSET_ROOT/datasets/pythia-long" \
   > "$LOG_ROOT/prepare.json" 2> "$LOG_ROOT/prepare.err"
 
-hostname > "$LOG_ROOT/hostname.txt"
-qstat -f "$PBS_JOBID" > "$LOG_ROOT/qstat.txt"
+NEW_MARKER_SHA256="$(sha256sum "$OUTPUT_ROOT/complete.json" | awk '{print $1}')"
+for WORKLOAD in nine_node long_run; do
+  NEW_CONFIG="$OUTPUT_ROOT/resolved/${WORKLOAD}.json"
+  NEW_CONFIG_SHA256="$(sha256sum "$NEW_CONFIG" | awk '{print $1}')"
+  "$PYTHON" -m fsbdd.auxiliary.stage1.assets validate-compatibility \
+    --project-root "$PROJECT_ROOT" \
+    --config "$NEW_CONFIG" \
+    --expected-config-sha256 "$NEW_CONFIG_SHA256" \
+    --expected-asset-marker-sha256 "$NEW_MARKER_SHA256" \
+    --expected-producer-commit "$EXPECTED_COMMIT" \
+    --hub-cache "$HUB_CACHE" \
+    --output "$LOG_ROOT/new-${WORKLOAD}-compatibility.json" \
+    > "$LOG_ROOT/new-${WORKLOAD}-compatibility.stdout" \
+    2> "$LOG_ROOT/new-${WORKLOAD}-compatibility.stderr"
+done
+
 sha256sum "$OUTPUT_ROOT/manifest.json" "$OUTPUT_ROOT/complete.json" \
-  > "$LOG_ROOT/checksums.txt"
+  "$OUTPUT_ROOT/resolved/nine_node.json" \
+  "$OUTPUT_ROOT/resolved/long_run.json" > "$LOG_ROOT/asset-authorities.sha256"
+(
+  cd "$LOG_ROOT"
+  find . -type f ! -name checksums.sha256 -printf '%P\0' \
+    | sort -z | xargs -0 sha256sum > checksums.sha256
+  sha256sum -c checksums.sha256 > /dev/null
+)

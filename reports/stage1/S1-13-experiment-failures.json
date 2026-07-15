@@ -332,6 +332,78 @@
         "pbs_stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
         "raw_failure_sha256": "a89a449793b0e6c34e85aa6cbc4b59d8ee67810b8e7bcdde080f323cce350408"
       }
+    },
+    {
+      "experiment_id": "s1-13-corrected-2n-20260715T202343Z-6a4e465",
+      "analysis_status": "reviewed_asset_code_compatibility_correction_required",
+      "workload": "two-node one-real-GPT-2-learner plus CPU-only NumPy syncer shared-filesystem correction reproduction",
+      "pbs_job_id": "2392852.opbs",
+      "code_commit": "6a4e465ce43830c28a56508ca66304cb43fb62b5",
+      "queued_at_utc": "2026-07-15T20:24:04Z",
+      "failed_at_utc": "2026-07-15T20:24:45Z",
+      "raw_evidence_root": "runtime_runs/S1-13/reproduction-2n-s1-13-corrected-2n-20260715T202343Z-6a4e465",
+      "shared_evidence_root": "runtime_runs/S1-13/shared-2n-s1-13-corrected-2n-20260715T202343Z-6a4e465",
+      "failure": {
+        "summary": "The final Checker-authorized L2 reproduction stopped during learner initialization because the model registry and/or fragment map derived by current code did not match the immutable asset bootstrap.",
+        "exception": "Stage1CloseError: learner model registry differs from immutable bootstrap",
+        "exit_code": 1,
+        "observed_progress": {
+          "distinct_compute_hosts": ["mg0012", "mg0014"],
+          "learner_host": "mg0012",
+          "syncer_host": "mg0014",
+          "syncer_bootstrap_completed": true,
+          "learner_ready_record_created": false,
+          "proposal_publications": 0,
+          "fragment_outer_updates": 0,
+          "scheduler_exit_status": 1,
+          "scheduler_walltime": "00:00:38",
+          "scheduler_peak_resident_kb": 5784192,
+          "abnormal_nodes": "none"
+        },
+        "automatic_capture": "The shared ERR trap wrote failures/raw-2392852.opbs-2608588.json after the bounded MPI launcher returned nonzero."
+      },
+      "cause": {
+        "status": "diagnosed_to_asset_runtime_compatibility_boundary_exact_digest_difference_not_yet_emitted",
+        "summary": "The current learner rebuilt its logical registry and fragment map from the pinned GPT-2 model, then correctly rejected them because at least one digest differed from the immutable bootstrap in asset bundle 2389469. The asset package does not record its producer commit, and the exception does not expose expected versus actual digests, so the exact changed registry/map field cannot yet be attributed from retained evidence alone.",
+        "direct_evidence": [
+          "stderr/mpirun.log contains the Stage1CloseError at close.py's exact registry.digest/fragment_map.digest comparison and no later learner runtime event.",
+          "The shared root contains a complete version-zero syncer bootstrap and initial evaluation snapshot but no learner ready record, proposal, or outer update.",
+          "The frozen nine-node asset manifest records registry digest 27b639fb857a7a9fb7112f78920aa753c8949f4e403ee626e3c892aa0d84552a and fragment-map digest 58dc07dc880ea13b582edcd1ca6316fa03ac3b574d44c73184b10500f398de75.",
+          "Asset job 2389469 completed successfully but its retained manifest and scheduler Variable_List contain no producer code commit or EXPECTED_COMMIT binding.",
+          "The lower-level reproduction preflight verified source/package structure and unit fixtures but did not load the pinned real model and compare its derived registry/map to the asset bootstrap."
+        ],
+        "secondary_review_finding": "Open MPI accepted --bind-to none --report-bindings but emitted an empty env/mpi-bindings.txt on this site, so the current analyzer would also have rejected the final package even if role execution had completed.",
+        "scope": "The failure happened before training, proposal publication, or merge. No 9N, long-smoke, or formal run was launched."
+      },
+      "expected_solution": {
+        "status": "implementation_static_review_and_new_authorization_required",
+        "changes": [
+          "Add a real-model asset-compatibility validator that emits expected and actual registry and fragment-map digests and fails before any multi-node learner/syncer launch.",
+          "Make registry/map mismatch errors retain exact expected and actual identities rather than a combined opaque message.",
+          "Bind asset materialization to an exact clean producer commit and record that commit in the asset manifest and completion marker.",
+          "If the compatibility validator confirms stale assets, regenerate the immutable bundle under current code, regenerate resolved configs, and refreeze every dependent contract hash; never bypass the mismatch.",
+          "Capture effective per-rank CPU affinity from inside both MPI processes while retaining the explicit --bind-to none and --report-bindings invocation, because this site's report stream was empty."
+        ],
+        "validation_before_next_experiment": [
+          "Complete code and contract review and pass login-node static checks without running project tests there.",
+          "Use at most the already-registered second and final asset_stage attempt for the real-model compatibility diagnosis and immutable rebuild; it does not amend or authorize any exhausted L2 or reproduction-preflight budget.",
+          "Before any later reproduction preflight or L2 run, persist a reasoned budget amendment and obtain separate exact-commit authorization because both prior budgets are exhausted.",
+          "Return this immutable failure package, reviewed diagnosis, exact correction, and proposed smallest real-model compatibility check to the same Checker.",
+          "Do not submit another two-node, 9N, long-smoke, or formal run without new explicit authorization."
+        ]
+      },
+      "evidence_integrity": {
+        "checksum_inventory_sha256": "352602910872ca2fcf3c701b659096746790464ecdb3fca35f6333bff4e8142b",
+        "shared_root_checksum_inventory_sha256": "f4fa46e2e9d6162b17406caa82e72c58940483e7e7b50ad8bcb5a7e6207948d7",
+        "tracejob_sha256": "23f79ba725589fa6bafca458d6e60fc0f35fa5ccdd04e827a5eb8440b014b31a",
+        "qstat_final_sha256": "12a4f2407ff85ef2583b6d4ee0648a031a47be9212643ff9752a0d0f806c1700",
+        "mpirun_stderr_sha256": "c70a982d514310b563786396af498fd64b578efec499e15dc576dbd13cdc79ec",
+        "pbs_stderr_sha256": "0e5e44219445b65d85c9fad631cf351ab7bf42d5ba8793dc97657bdac7a2fb6b",
+        "raw_failure_sha256": "bb5b5c216c40132d26d5011d66af28298ccb2d0c5ae964924be9984ac21f4b76",
+        "empty_binding_report_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "asset_job_qstat_sha256": "e7c9e87a91b4f8aa18d1aa419904ee2d51ee0824d3d988f55bb765f78c070891",
+        "asset_job_tracejob_sha256": "2493493fd7a54bcfec1744657efd6d78c912ff7ad773a0505ce2bf6a3e64ac94"
+      }
     }
   ]
 }

@@ -120,6 +120,49 @@ def _identity_pass(
     )
 
 
+def _effective_mpi_bindings(
+    value: str, *, expected_hosts: Mapping[int, str]
+) -> list[dict[str, Any]]:
+    lines = [line.strip() for line in value.splitlines() if line.strip()]
+    if len(lines) != len(expected_hosts):
+        return []
+    records: dict[int, dict[str, Any]] = {}
+    for line in lines:
+        fields = line.split()
+        if (
+            len(fields) != 8
+            or fields[0] != "rank"
+            or not fields[1].isdigit()
+            or fields[2] != "host"
+            or fields[4:7] != ["bind-policy", "none", "cpus_allowed_list"]
+        ):
+            return []
+        rank = int(fields[1])
+        host = fields[3]
+        cpus_allowed_list = fields[7]
+        if (
+            rank in records
+            or expected_hosts.get(rank) != host
+            or not cpus_allowed_list
+            or not cpus_allowed_list[0].isdigit()
+            or not cpus_allowed_list[-1].isdigit()
+            or any(
+                character not in "0123456789,-"
+                for character in cpus_allowed_list
+            )
+        ):
+            return []
+        records[rank] = {
+            "rank": rank,
+            "host": host,
+            "bind_policy": "none",
+            "cpus_allowed_list": cpus_allowed_list,
+        }
+    if set(records) != set(expected_hosts):
+        return []
+    return [records[rank] for rank in sorted(records)]
+
+
 def _artifact_inventory(result_root: Path) -> list[dict[str, Any]]:
     excluded = {
         "checksums.sha256",
@@ -276,6 +319,9 @@ def validate_preflight(
         "--bind-to none --report-bindings",
         '"$RESULT_ROOT/env/binding-hostnames.txt"',
         '"$RESULT_ROOT/env/mpi-bindings.txt"',
+        '"$RESULT_ROOT/env/mpi-report-bindings.txt"',
+        "bind-policy none",
+        "cpus_allowed_list",
         "timeout --signal=TERM --kill-after=30s 900s",
         "mpirun -np 2 --map-by ppr:1:node --bind-to none",
         "--learner-count-override 1 --timeout-seconds 720",
@@ -322,7 +368,7 @@ def validate_preflight(
         and topology.get("distinct_compute_hosts") == 2
         and topology.get("launcher_ranks") == 2
         and topology.get("mpi_binding_policy")
-        == "none_with_report_bindings_evidence",
+        == "none_with_report_bindings_and_rank_affinity_evidence",
         "bounded_deadlines": isinstance(runtime, dict)
         and runtime.get("internal_role_timeout_seconds") == 720
         and runtime.get("supervisor_term_seconds") == 900
@@ -457,17 +503,23 @@ def analyze_reproduction(
         binding_report = (result_root / "env" / "mpi-bindings.txt").read_text(
             encoding="utf-8"
         )
+        openmpi_binding_report = (
+            result_root / "env" / "mpi-report-bindings.txt"
+        ).read_text(encoding="utf-8")
     except OSError as error:
         raise ReproductionError("MPI binding evidence is unreadable") from error
     expected_binding_hosts = {str(learner_host), str(syncer_host)}
+    expected_rank_hosts = {0: str(learner_host), 1: str(syncer_host)}
+    effective_bindings = _effective_mpi_bindings(
+        binding_report, expected_hosts=expected_rank_hosts
+    )
     binding_pass = (
         len(binding_hosts) == 2
         and all(
             isinstance(value, str) and value for value in (learner_host, syncer_host)
         )
         and set(binding_hosts) == expected_binding_hosts
-        and all(f"rank {rank}" in binding_report for rank in range(2))
-        and ("not bound" in binding_report or "bound to" in binding_report)
+        and len(effective_bindings) == 2
     )
     learner_gpu = learner_identity.get("gpu")
     if not isinstance(learner_gpu, dict):
@@ -491,7 +543,7 @@ def analyze_reproduction(
         and topology.get("application_data_plane") == "shared_filesystem_only"
         and topology.get("launcher_ranks") == 2
         and topology.get("mpi_binding_policy")
-        == "none_with_report_bindings_evidence"
+        == "none_with_report_bindings_and_rank_affinity_evidence"
         and learner_host != syncer_host
         and all(
             isinstance(value, str) and value for value in (learner_host, syncer_host)
@@ -808,7 +860,13 @@ def analyze_reproduction(
         "mpi_binding": {
             "policy": "none",
             "hostnames": binding_hosts,
-            "report_sha256": _hash_file(result_root / "env" / "mpi-bindings.txt"),
+            "effective_rank_affinity": effective_bindings,
+            "effective_rank_affinity_sha256": _hash_file(
+                result_root / "env" / "mpi-bindings.txt"
+            ),
+            "openmpi_report_sha256": hashlib.sha256(
+                openmpi_binding_report.encode("utf-8")
+            ).hexdigest(),
         },
         "fragment_payload_bytes": fragment_bytes,
         "publication": {
