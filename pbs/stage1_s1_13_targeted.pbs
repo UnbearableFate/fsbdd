@@ -9,7 +9,10 @@ set -eEuo pipefail
 trap 'echo "[ERROR] line=$LINENO command=$BASH_COMMAND" >&2' ERR
 
 : "${PROJECT_ROOT:=/work/xg24i002/x10041/fsbdd}"
+: "${MAIN_ROOT:=/work/xg24i002/x10041/fsbdd}"
 : "${OUTPUT_ROOT:=$PROJECT_ROOT/runtime_runs/S1-13/targeted-${PBS_JOBID}}"
+
+PYTHON="$MAIN_ROOT/.venv/bin/python"
 
 module load nv-hpcx/25.9
 mkdir -p "$OUTPUT_ROOT"
@@ -18,9 +21,9 @@ export PYTHONPATH="$PROJECT_ROOT/src"
 export OMP_NUM_THREADS=1 TOKENIZERS_PARALLELISM=false
 export HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 HF_DATASETS_OFFLINE=1
 
-"$PROJECT_ROOT/.venv/bin/python" -m pytest -q tests/stage1 \
+"$PYTHON" -m pytest -q tests/stage1 \
   > "$OUTPUT_ROOT/pytest.log" 2> "$OUTPUT_ROOT/pytest.err"
-"$PROJECT_ROOT/.venv/bin/python" -m py_compile \
+"$PYTHON" -m py_compile \
   src/fsbdd/stage1_assets.py src/fsbdd/stage1_close.py src/fsbdd/stage1_gate.py \
   src/fsbdd/stage1_package.py src/fsbdd/stage1_submit.py \
   > "$OUTPUT_ROOT/compile.log" 2> "$OUTPUT_ROOT/compile.err"
