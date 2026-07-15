@@ -29,8 +29,8 @@ orient:
   raw_evidence_on_demand: [runtime_runs/S1-07, runtime_runs/S1-08, runtime_runs/S1-09, runtime_runs/S1-11]
   resource_level: L2
   available_resources: Miyabi debug-g up to four compute nodes with one local GPU per learner and shared POSIX runtime root
-  recent_failure: Formal job 2388799.opbs completed the four-node runtime and all 288 Stage 1 tests but the analyzer rejected speed records because distributed_initialized stored an all-not-initialized audit result true instead of the actual runtime state false. The preserved roles show exact 128/128/128/128 control and 128/128/128/64 injected rates with integrated syncer counts 8/10. The correction stores LearnerRunSummary.distributed_initialized directly and must pass one-node replay over these exact formal inputs before Checker readmission and one formal retry.
-  attempt_budget: {red: 1, targeted: 8, l1_compute: 9, analyzer_repro: 1, formal_l2_batch: 2}
+  recent_failure: Formal job 2388799.opbs completed the four-node runtime and all 288 Stage 1 tests but emitted the all-not-initialized audit result true in a field denoting actual distributed state false. Analyzer replay 2388820.opbs correctly continued to reject that immutable old role record and therefore cannot validate the producer-side correction. One final one-node role reproduction now asserts newly emitted false state before Checker readmission and one unchanged formal retry.
+  attempt_budget: {red: 1, targeted: 9, l1_compute: 10, analyzer_repro: 1, role_producer_repro: 1, formal_l2_batch: 2}
   failure_ladder: preserve the first L2 failure then reproduce the failing role or analyzer on one compute node before resubmission
   nine_node_gate_required: false
   goal_tokens_start: 4645261
@@ -58,6 +58,6 @@ harden:
   evidence_paths: [runtime_runs/S1-12/targeted-2387668.opbs, runtime_runs/S1-12/targeted-2387680.opbs, runtime_runs/S1-12/targeted-2387700.opbs, runtime_runs/S1-12/targeted-2388610.opbs, runtime_runs/S1-12/targeted-2388627.opbs, runtime_runs/S1-12/targeted-2388641.opbs, runtime_runs/S1-12/targeted-2388765.opbs, runtime_runs/S1-12/targeted-2388775.opbs]
   formal_result: job 2388799.opbs failed analyzer-only after the four-node runtime and 288 tests; preserved at runtime_runs/S1-12/formal-l2
 nine_node_gate: {required: false, run_id: null, topology_gate: null, loss_gate: null, runtime_gate: null}
-checker: {context_id: s1_12_checker, maker_chat_inherited: false, phase_a_verdict: ADMISSIBLE_BEFORE_ANALYZER_ONLY_FORMAL_FAILURE, verdict: null, report_path: reports/checkers/S1-12.md, cycles: [phase_a_blocked_integrated_timing_raw_numeric_and_evaluation_access_audit, phase_a_admissible_candidate_395ff04, formal_2388799_analyzer_only_failure_pending_readmission]}
+checker: {context_id: s1_12_checker, maker_chat_inherited: false, phase_a_verdict: ADMISSIBLE_BEFORE_ANALYZER_ONLY_FORMAL_FAILURE, verdict: null, report_path: reports/checkers/S1-12.md, cycles: [phase_a_blocked_integrated_timing_raw_numeric_and_evaluation_access_audit, phase_a_admissible_candidate_395ff04, formal_2388799_analyzer_only_failure, analyzer_repro_2388820_rejected_immutable_old_record, role_producer_repro_pending_readmission]}
 persist: {evidence_index: evidence/indexes/S1-12.md, raw_evidence_root: runtime_runs/S1-12, acceptance_traceability_updated: false, next_gap: S1-13 baseline training and one-billion-token run, handoff: null}
 blocker: null

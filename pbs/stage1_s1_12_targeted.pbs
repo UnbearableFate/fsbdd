@@ -80,6 +80,7 @@ assert evaluation.access_audit["latest_resolution_reads"] == 0
 for learner in learners:
     for phase in ("control", "injected"):
         measured = learner["speed"][phase]
+        assert measured["distributed_initialized"] is False
         assert measured["publication_count_delta"] > 0
         assert measured["adoption_count_after"] > measured["adoption_count_before"]
         assert len(measured["step_completion_unix_ns"]) == measured["completed_steps"]
