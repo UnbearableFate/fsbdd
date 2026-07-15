@@ -2,7 +2,7 @@ schema_version: 2
 loop_id: S1-11
 title: Atomic global commit and consumed frontier
 stage: stage1
-status: green
+status: pass
 source_hashes:
   research_plan: 2c0db3148110da10ea62f445c189d2d53b405527d8da264b9af9817f5ca9d835
   stage0_4_spec: 1ea71fb6e34fef0d7b5558d8e7999dfdedeb82957f4331afcf6f80279d1f5a7d
@@ -42,7 +42,7 @@ preflight:
   package_contract: reports/stage1/S1-11-evidence-contract.json
   fault_injection_contract: reports/stage1/S1-11-publication-injection-points.json
   package_validator_command: fsbdd evidence validate runtime_runs/S1-11/formal-l2
-  package_validator_result: admissible pre-submission package at runtime_runs/S1-11/preflight-validator-5b06623 (15/15 payload files; manifest 9447526c267ff6a611bbe2a1a504d77cc227116cafcb89be2a56527d78e6d1b9)
+  package_validator_result: exact-candidate pre-submission package admissible 16/16 at runtime_runs/S1-11/preflight-validator-bc3a89e then selected formal package admissible 383/383 with manifest 21b986a803a103098bfa92ffec63aee8819c7c95ef4e9118e68c0496658fcdfa
   checker_phase_a: required
   success_boundary: atomic replacement of the one fixed current visibility record
   replay_observation: reconstruct the complete authority from the fixed current record then rerun the exact immutable request
@@ -60,13 +60,14 @@ harden:
   - exact duplicate retry version skip rollback same-version conflict and same-base repeat rejection
   - eight concurrent readers late proposal freeze stability restart and 10000 frontier advances
   - fail-closed envelope identity checksum schema selected-weight frontier and analyzer mutations
-  evidence_paths: [runtime_runs/S1-11/l1-targeted-2386911.opbs, runtime_runs/S1-11/l1-targeted-2387272.opbs, runtime_runs/S1-11/preflight-validator-5b06623]
+  evidence_paths: [runtime_runs/S1-11/l1-targeted-2387272.opbs, runtime_runs/S1-11/preflight-validator-bc3a89e, runtime_runs/S1-11/formal-l2, runtime_runs/S1-11/scheduler-2387333.opbs]
+  formal_result: 267 Stage1 tests pass; two fragments reach contiguous version twenty; all sixteen fault replays pass; 3141 reader observations are complete; exact retry and late-arrival transitions pass
 nine_node_gate: {required: false, run_id: null, topology_gate: null, loss_gate: null, runtime_gate: null}
 checker:
   context_id: /root/s1_11_checker
   maker_chat_inherited: false
-  phase_a_verdict: BLOCKED_PRECHECK on ce25022; corrections implemented on 5b06623 and pending same-context recheck
-  verdict: pending
+  phase_a_verdict: BLOCKED_PRECHECK on ce25022 followed by ADMISSIBLE on bc3a89e after reader-boundary analyzer and exact-candidate package corrections
+  verdict: PASS_WITH_FOLLOWUPS
   report_path: reports/checkers/S1-11.md
   cycles:
   - cycle: 1
@@ -74,10 +75,21 @@ checker:
     checked_candidate: ce250225e63ab1681057dea9050538c6faf2208b
     verdict: BLOCKED_PRECHECK
     correction: require each concurrent reader to span bootstrap through final authority on both fragments; independently bind every fault replay request to its final authority and add consistent-fingerprint mutations; finalize and validate a frozen pre-submission evidence package before L2 submission
+  - cycle: 2
+    phase: A
+    checked_candidate: bc3a89e5d286982cec4987e98e5a893ebf73bfae
+    verdict: ADMISSIBLE
+    correction: all prior blockers corrected; 32 targeted tests and exact-candidate admissible 16/16 pre-submission package verified before the one formal L2 submission
+  - cycle: 3
+    phase: B
+    checked_candidate: bc3a89e5d286982cec4987e98e5a893ebf73bfae
+    verdict: PASS_WITH_FOLLOWUPS
+    report_sha256: b88482571238280ead4c88bbcbf0f820c604183b084e7aa47d562b1eb879009b
+    followup: bounded physical reclamation of unreferenced immutable payloads remains designated FS-06 and FS-09 work and does not affect authority correctness
 persist:
   evidence_index: evidence/indexes/S1-11.md
   raw_evidence_root: runtime_runs/S1-11
-  acceptance_traceability_updated: false
-  next_gap: null
-  handoff: null
+  acceptance_traceability_updated: true
+  next_gap: S1-12 Profile A numeric end-to-end and frozen evaluation snapshot
+  handoff: S1-11 passes at checked candidate bc3a89e with formal job 2387333.opbs on mg0032 and mg0034; selected package formal-l2 is admissible 383/383 and Checker PASS_WITH_FOLLOWUPS; start S1-12 from the S1-11 closure commit and retain physical orphan GC as a later nonblocking followup
 blocker: null
