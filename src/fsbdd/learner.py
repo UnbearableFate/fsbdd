@@ -8,7 +8,7 @@ import os
 import time
 from collections.abc import Iterable, Iterator, Mapping, Sequence
 from pathlib import Path
-from typing import Any, Protocol
+from typing import Any, Callable, Protocol
 
 import numpy as np
 
@@ -518,6 +518,8 @@ class LearnerRuntime:
         comparison: Mapping[str, Any],
         logger: StructuredLogger | None = None,
         safe_boundary_observers: Sequence[Any] = (),
+        update_norm_interval: int = 1,
+        retain_events: bool = True,
         clock_ns: Any = time.monotonic_ns,
     ) -> None:
         import torch
@@ -570,6 +572,16 @@ class LearnerRuntime:
         if any(not callable(observer) for observer in safe_boundary_observers):
             raise LearnerError("safe-boundary observers must be callable")
         self.safe_boundary_observers = tuple(safe_boundary_observers)
+        if (
+            not isinstance(update_norm_interval, int)
+            or isinstance(update_norm_interval, bool)
+            or update_norm_interval <= 0
+        ):
+            raise LearnerError("update_norm_interval must be positive")
+        if not isinstance(retain_events, bool):
+            raise LearnerError("retain_events must be boolean")
+        self.update_norm_interval = update_norm_interval
+        self.retain_events = retain_events
         self.clock_ns = clock_ns
 
     def _autocast(self, torch: Any) -> Any:
@@ -593,11 +605,23 @@ class LearnerRuntime:
             moved[key] = value.to(self.device, non_blocking=False)
         return moved
 
-    def run(self, batches: Iterable[Mapping[str, Any]], *, optimizer_steps: int) -> LearnerRunSummary:
+    def run(
+        self,
+        batches: Iterable[Mapping[str, Any]],
+        *,
+        optimizer_steps: int,
+        stop_requested: Callable[[], bool] | None = None,
+    ) -> LearnerRunSummary:
+        if stop_requested is not None and not callable(stop_requested):
+            raise LearnerError("stop_requested must be callable")
         state_before = self.rng.state_sha256()
         activation_before = self.rng.activation_count
         with self.rng.activate():
-            result = self._run_owned(batches, optimizer_steps=optimizer_steps)
+            result = self._run_owned(
+                batches,
+                optimizer_steps=optimizer_steps,
+                stop_requested=stop_requested,
+            )
         return dataclasses.replace(
             result,
             rng={
@@ -615,7 +639,13 @@ class LearnerRuntime:
             },
         )
 
-    def _run_owned(self, batches: Iterable[Mapping[str, Any]], *, optimizer_steps: int) -> LearnerRunSummary:
+    def _run_owned(
+        self,
+        batches: Iterable[Mapping[str, Any]],
+        *,
+        optimizer_steps: int,
+        stop_requested: Callable[[], bool] | None,
+    ) -> LearnerRunSummary:
         import torch
 
         if not isinstance(optimizer_steps, int) or isinstance(optimizer_steps, bool) or optimizer_steps <= 0:
@@ -627,6 +657,7 @@ class LearnerRuntime:
         self.optimizer.zero_grad(set_to_none=True)
         training_start = self.clock_ns()
         events: list[SafeBoundaryEvent] = []
+        last_event: SafeBoundaryEvent | None = None
         run_loss_numerator = 0.0
         run_target_tokens = 0
         run_input_tokens = 0
@@ -635,10 +666,19 @@ class LearnerRuntime:
 
         for _ in range(optimizer_steps):
             step_start = self.clock_ns()
-            before = [
-                [parameter.detach().clone() for parameter in group]
-                for group in self.fragment_parameters
-            ]
+            relative_step = self.progress.local_optimizer_steps - initial_step + 1
+            sample_update_norm = (
+                relative_step == 1
+                or relative_step % self.update_norm_interval == 0
+            )
+            before = (
+                [
+                    [parameter.detach().clone() for parameter in group]
+                    for group in self.fragment_parameters
+                ]
+                if sample_update_norm
+                else None
+            )
             step_loss_numerator = 0.0
             step_targets = 0
             step_inputs = 0
@@ -692,15 +732,18 @@ class LearnerRuntime:
             if getattr(self.device, "type", None) == "cuda":
                 torch.cuda.synchronize(self.device)
             fragment_norms: list[float] = []
-            for group, originals in zip(self.fragment_parameters, before, strict=True):
-                squared = 0.0
-                for parameter, original in zip(group, originals, strict=True):
-                    delta = parameter.detach().float() - original.float()
-                    squared += float(torch.sum(delta * delta).item())
-                if not math.isfinite(squared) or squared < 0:
-                    raise LearnerError("fragment update norm is nonfinite")
-                fragment_norms.append(math.sqrt(squared))
-                total_update_squared += squared
+            if before is not None:
+                for group, originals in zip(
+                    self.fragment_parameters, before, strict=True
+                ):
+                    squared = 0.0
+                    for parameter, original in zip(group, originals, strict=True):
+                        delta = parameter.detach().float() - original.float()
+                        squared += float(torch.sum(delta * delta).item())
+                    if not math.isfinite(squared) or squared < 0:
+                        raise LearnerError("fragment update norm is nonfinite")
+                    fragment_norms.append(math.sqrt(squared))
+                    total_update_squared += squared
 
             self.progress.local_optimizer_steps += 1
             self.progress.processed_input_tokens += step_inputs
@@ -774,14 +817,20 @@ class LearnerRuntime:
                     },
                     active_metrics=active_metrics,
                 )
-            events.append(event)
+            last_event = event
+            if self.retain_events:
+                events.append(event)
             if self.logger is not None:
                 self.logger.emit("safe_boundary", **event.to_dict())
             run_loss_numerator += step_loss_numerator
             run_target_tokens += step_targets
             run_input_tokens += step_inputs
+            if stop_requested is not None and stop_requested():
+                break
 
-        training_end = events[-1].safe_boundary_monotonic_ns
+        if last_event is None:  # pragma: no cover - optimizer_steps is positive
+            raise LearnerError("learner produced no safe boundary")
+        training_end = last_event.safe_boundary_monotonic_ns
         interval_seconds = (training_end - training_start) / 1_000_000_000
         if interval_seconds <= 0:
             raise LearnerError("training observation interval must be positive")

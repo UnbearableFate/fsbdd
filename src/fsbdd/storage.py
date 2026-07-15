@@ -259,6 +259,171 @@ class PosixStorageBackend:
     def root(self) -> Path:
         return self._root
 
+    def read_record(
+        self,
+        slot: str,
+        expectation: ReadExpectation,
+        *,
+        timeout_seconds: float = 5.0,
+        poll_interval_seconds: float = 0.01,
+    ) -> PublicationRecord:
+        """Read and validate one fixed visibility record without its payload."""
+
+        slot = _validate_slot(slot)
+        if (
+            not isinstance(timeout_seconds, (int, float))
+            or isinstance(timeout_seconds, bool)
+            or timeout_seconds < 0
+        ):
+            raise PublicationError("timeout_seconds must be nonnegative")
+        if (
+            not isinstance(poll_interval_seconds, (int, float))
+            or isinstance(poll_interval_seconds, bool)
+            or poll_interval_seconds < 0
+        ):
+            raise PublicationError("poll_interval_seconds must be nonnegative")
+        deadline = time.monotonic() + float(timeout_seconds)
+        visibility_path = self._visibility_root / f"{slot}.json"
+        while True:
+            try:
+                record = _parse_record(visibility_path.read_bytes())
+            except FileNotFoundError:
+                if time.monotonic() >= deadline:
+                    raise PublicationNotFound(
+                        "visibility record did not become readable before timeout"
+                    )
+                time.sleep(float(poll_interval_seconds))
+                continue
+            except OSError as error:
+                raise PublicationError(
+                    f"visibility record read failed: {error}"
+                ) from error
+            _validate_expectation(record, expectation)
+            return record
+
+    def inspect_inventory(self) -> dict[str, int]:
+        """Classify every mutable POSIX container without reading tensor bytes."""
+
+        records = []
+        for path in self._visibility_root.glob("*.json"):
+            try:
+                records.append(_parse_record(path.read_bytes()))
+            except (OSError, PublicationError):
+                continue
+        referenced = {record.payload_relative_path for record in records}
+        payloads = tuple(path for path in self._payload_root.iterdir() if path.is_file())
+        temporary = tuple(
+            path for path in self._record_temp_root.iterdir() if path.is_file()
+        )
+        referenced_bytes = sum(
+            path.stat().st_size
+            for path in payloads
+            if f"payloads/{path.name}" in referenced
+        )
+        orphan_bytes = sum(
+            path.stat().st_size
+            for path in payloads
+            if f"payloads/{path.name}" not in referenced
+        )
+        return {
+            "visibility_records": len(records),
+            "physical_payloads": len(payloads),
+            "referenced_payloads": sum(
+                f"payloads/{path.name}" in referenced for path in payloads
+            ),
+            "orphan_payloads": sum(
+                f"payloads/{path.name}" not in referenced for path in payloads
+            ),
+            "referenced_payload_bytes": referenced_bytes,
+            "orphan_payload_bytes": orphan_bytes,
+            "record_temp_files": len(temporary),
+            "record_temp_bytes": sum(path.stat().st_size for path in temporary),
+        }
+
+    def reclaim_unreferenced_payloads(
+        self,
+        *,
+        retain_recent: int,
+        minimum_age_seconds: float,
+    ) -> dict[str, int]:
+        """Best-effort bounded reclamation outside the visibility critical path.
+
+        Current payloads are never removed.  A fixed number of the newest
+        unreferenced payloads and every payload younger than the frozen safety
+        age are retained so readers that observed the immediately previous
+        record can finish.
+        """
+
+        if (
+            not isinstance(retain_recent, int)
+            or isinstance(retain_recent, bool)
+            or retain_recent < 0
+        ):
+            raise PublicationError("retain_recent must be a nonnegative integer")
+        if (
+            not isinstance(minimum_age_seconds, (int, float))
+            or isinstance(minimum_age_seconds, bool)
+            or minimum_age_seconds < 0
+        ):
+            raise PublicationError("minimum_age_seconds must be nonnegative")
+        records = []
+        for path in self._visibility_root.glob("*.json"):
+            try:
+                records.append(_parse_record(path.read_bytes()))
+            except (OSError, PublicationError):
+                continue
+        referenced = {record.payload_relative_path for record in records}
+        unreferenced = sorted(
+            (
+                path
+                for path in self._payload_root.iterdir()
+                if path.is_file() and f"payloads/{path.name}" not in referenced
+            ),
+            key=lambda path: (path.stat().st_mtime_ns, path.name),
+            reverse=True,
+        )
+        now_ns = time.time_ns()
+        minimum_age_ns = int(float(minimum_age_seconds) * 1_000_000_000)
+        reclaimed_files = 0
+        reclaimed_bytes = 0
+        for path in unreferenced[retain_recent:]:
+            try:
+                stat = path.stat()
+                if now_ns - stat.st_mtime_ns < minimum_age_ns:
+                    continue
+                size = stat.st_size
+                path.unlink()
+            except FileNotFoundError:
+                continue
+            except OSError:
+                continue
+            reclaimed_files += 1
+            reclaimed_bytes += size
+        reclaimed_temp_files = 0
+        reclaimed_temp_bytes = 0
+        for path in self._record_temp_root.iterdir():
+            if not path.is_file():
+                continue
+            try:
+                stat = path.stat()
+                if now_ns - stat.st_mtime_ns < minimum_age_ns:
+                    continue
+                size = stat.st_size
+                path.unlink()
+            except FileNotFoundError:
+                continue
+            except OSError:
+                continue
+            reclaimed_temp_files += 1
+            reclaimed_temp_bytes += size
+        return {
+            "reclaimed_payload_files": reclaimed_files,
+            "reclaimed_payload_bytes": reclaimed_bytes,
+            "reclaimed_record_temp_files": reclaimed_temp_files,
+            "reclaimed_record_temp_bytes": reclaimed_temp_bytes,
+            **self.inspect_inventory(),
+        }
+
     def publish(
         self,
         slot: str,
@@ -364,23 +529,13 @@ class PosixStorageBackend:
         ):
             raise PublicationError("poll_interval_seconds must be nonnegative")
         deadline = time.monotonic() + float(timeout_seconds)
-        visibility_path = self._visibility_root / f"{slot}.json"
         while True:
-            try:
-                record_content = visibility_path.read_bytes()
-            except FileNotFoundError:
-                if time.monotonic() >= deadline:
-                    raise PublicationNotFound(
-                        "visibility record did not become readable before timeout"
-                    )
-                time.sleep(float(poll_interval_seconds))
-                continue
-            except OSError as error:
-                raise PublicationError(
-                    f"visibility record read failed: {error}"
-                ) from error
-            record = _parse_record(record_content)
-            _validate_expectation(record, expectation)
+            record = self.read_record(
+                slot,
+                expectation,
+                timeout_seconds=max(0.0, deadline - time.monotonic()),
+                poll_interval_seconds=poll_interval_seconds,
+            )
             payload_path = self._root / record.payload_relative_path
             try:
                 payload = payload_path.read_bytes()

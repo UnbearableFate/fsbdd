@@ -213,6 +213,9 @@ class ReadinessSnapshot:
     fixed_slot_reads: int
     claims: int
     resident_selected_proposals: int
+    resident_latest_proposals: int
+    proposal_payload_cache_hits: int
+    proposal_payload_cache_misses: int
     transition_counts: tuple[tuple[str, int], ...]
     fragments: tuple[FragmentReadinessView, ...]
 
@@ -275,6 +278,10 @@ class SyncerReadinessMachine:
         self._poll_cycles = 0
         self._fixed_slot_reads = 0
         self._claim_ordinal = 0
+        self._proposal_cache: dict[tuple[str, int], Proposal] = {}
+        self._proposal_payload_identities: dict[tuple[str, int], str] = {}
+        self._payload_cache_misses = 0
+        self._payload_cache_hits = 0
         self._transition_counts = {
             "waiting_to_grace": 0,
             "grace_to_waiting": 0,
@@ -509,25 +516,38 @@ class SyncerReadinessMachine:
             )
 
     def poll_store(self, *, observed_ns: int | None = None) -> PollReport:
-        proposals: list[Proposal] = []
         missing = 0
         transient = 0
         reads = 0
         for learner_id in self.store.learner_ids:
             for descriptor in self.store.descriptors:
                 reads += 1
+                key = (learner_id, descriptor.index)
                 try:
-                    proposals.append(
-                        self.store.load_latest(
-                            learner_id, descriptor.index, timeout_seconds=0
-                        )
+                    record, proposal = self.store.load_latest_if_changed(
+                        learner_id,
+                        descriptor.index,
+                        known_payload_identity=self._proposal_payload_identities.get(
+                            key
+                        ),
+                        timeout_seconds=0,
                     )
                 except PublicationNotFound:
                     missing += 1
+                    continue
                 except PublicationNotReady:
                     transient += 1
+                    continue
+                if proposal is None:
+                    self._payload_cache_hits += 1
+                    continue
+                self._proposal_cache[key] = proposal
+                self._proposal_payload_identities[key] = record.payload_identity
+                self._payload_cache_misses += 1
         with self._lock:
-            report = self.observe(proposals, observed_ns=observed_ns)
+            report = self.observe(
+                tuple(self._proposal_cache.values()), observed_ns=observed_ns
+            )
             self._fixed_slot_reads += reads
             return dataclasses.replace(
                 report,
@@ -681,6 +701,9 @@ class SyncerReadinessMachine:
                     0 if item.selection is None else len(item.selection.proposals)
                     for item in self._rounds
                 ),
+                resident_latest_proposals=len(self._proposal_cache),
+                proposal_payload_cache_hits=self._payload_cache_hits,
+                proposal_payload_cache_misses=self._payload_cache_misses,
                 transition_counts=tuple(sorted(self._transition_counts.items())),
                 fragments=fragments,
             )

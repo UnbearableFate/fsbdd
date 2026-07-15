@@ -226,6 +226,7 @@ class LatestFragmentPoller:
         self._repeated_current_count = 0
         self._ignored_stale_count = 0
         self._transient_read_retry_count = 0
+        self._unchanged_record_count = 0
         self._errors: list[BaseException] = []
         self._started = False
         self._closed = False
@@ -317,6 +318,22 @@ class LatestFragmentPoller:
             for index in range(len(self.store.descriptors)):
                 started = self.clock_ns()
                 try:
+                    record = self.store.peek_fragment_record(index, timeout_seconds=0)
+                    with self._condition:
+                        pending = self._pending[index]
+                        known_version = max(
+                            self._adopted_versions[index],
+                            -1 if pending is None else pending.state.version,
+                        )
+                    if record.version <= known_version:
+                        with self._condition:
+                            self._read_count += 1
+                            self._unchanged_record_count += 1
+                            if record.version == known_version:
+                                self._repeated_current_count += 1
+                            else:
+                                self._ignored_stale_count += 1
+                        continue
                     state = self.store.load_fragment(index, timeout_seconds=0)
                 except PublicationNotReady:
                     with self._condition:
@@ -428,6 +445,7 @@ class LatestFragmentPoller:
                 "repeated_current_count": self._repeated_current_count,
                 "ignored_stale_count": self._ignored_stale_count,
                 "transient_read_retry_count": self._transient_read_retry_count,
+                "unchanged_record_count": self._unchanged_record_count,
                 "errors": [
                     f"{type(error).__name__}: {error}" for error in self._errors
                 ],

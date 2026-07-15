@@ -1,0 +1,38 @@
+#!/bin/bash
+#PBS -q debug-g
+#PBS -l select=1
+#PBS -l walltime=00:20:00
+#PBS -W group_list=xg24i002
+#PBS -N fsbdd-s1-13-smoke1
+
+set -eEuo pipefail
+trap 'echo "[ERROR] line=$LINENO command=$BASH_COMMAND" >&2' ERR
+
+: "${PROJECT_ROOT:=/work/xg24i002/x10041/fsbdd}"
+: "${HF_HOME:=/work/xg24i002/x10041/hf_home}"
+: "${ASSET_ROOT:?ASSET_ROOT is required}"
+: "${OUTPUT_ROOT:=$PROJECT_ROOT/runtime_runs/S1-13/smoke-1n-${PBS_JOBID}}"
+
+module load nv-hpcx/25.9
+if [[ -e "$OUTPUT_ROOT" ]]; then
+  echo "refusing to reuse S1-13 one-node smoke output" >&2
+  exit 73
+fi
+mkdir -p "$OUTPUT_ROOT"
+cd "$PROJECT_ROOT"
+export PYTHONPATH="$PROJECT_ROOT/src"
+export OMP_NUM_THREADS=1 TOKENIZERS_PARALLELISM=false
+export HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 HF_DATASETS_OFFLINE=1
+
+"$PROJECT_ROOT/.venv/bin/python" -m fsbdd.learner_smoke run-real \
+  --profile configs/stage1/s1_06_gpt2_wikitext_smoke.json \
+  --hub-cache "$HF_HOME/hub" --materialized-root "$ASSET_ROOT/datasets/gpt2-train" \
+  --output "$OUTPUT_ROOT/gpt2.json" --log "$OUTPUT_ROOT/gpt2.jsonl" \
+  > "$OUTPUT_ROOT/gpt2.stdout" 2> "$OUTPUT_ROOT/gpt2.stderr"
+"$PROJECT_ROOT/.venv/bin/python" -m fsbdd.learner_smoke run-real \
+  --profile configs/stage1/s1_06_pythia160m_fineweb_smoke.json \
+  --hub-cache "$HF_HOME/hub" --materialized-root "$ASSET_ROOT/datasets/pythia-smoke" \
+  --output "$OUTPUT_ROOT/pythia.json" --log "$OUTPUT_ROOT/pythia.jsonl" \
+  > "$OUTPUT_ROOT/pythia.stdout" 2> "$OUTPUT_ROOT/pythia.stderr"
+hostname > "$OUTPUT_ROOT/hostname.txt"
+qstat -f "$PBS_JOBID" > "$OUTPUT_ROOT/qstat.txt"

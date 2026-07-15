@@ -442,6 +442,72 @@ class ProposalStore:
         )
         return self._validate_published(published, learner_id, descriptor)
 
+    def peek_latest_record(
+        self,
+        learner_id: str,
+        fragment_index: int,
+        *,
+        timeout_seconds: float = 0,
+    ) -> PublicationRecord:
+        """Validate a fixed proposal record without rereading unchanged bytes."""
+
+        descriptor = self._validate_address(learner_id, fragment_index)
+        read_record = getattr(self._backend, "read_record", None)
+        if callable(read_record):
+            return read_record(
+                proposal_slot(learner_id, fragment_index),
+                self._expectation(descriptor),
+                timeout_seconds=timeout_seconds,
+            )
+        return self._backend.read(
+            proposal_slot(learner_id, fragment_index),
+            self._expectation(descriptor),
+            timeout_seconds=timeout_seconds,
+        ).record
+
+    def load_latest_if_changed(
+        self,
+        learner_id: str,
+        fragment_index: int,
+        *,
+        known_payload_identity: str | None,
+        timeout_seconds: float = 0,
+    ) -> tuple[PublicationRecord, Proposal | None]:
+        """Read metadata on POSIX and decode payload only when its identity changed.
+
+        Backends without a metadata-only operation retain the original one-read
+        behavior, which keeps the generic storage protocol and its tests stable.
+        """
+
+        descriptor = self._validate_address(learner_id, fragment_index)
+        slot = proposal_slot(learner_id, fragment_index)
+        read_record = getattr(self._backend, "read_record", None)
+        if callable(read_record):
+            record = read_record(
+                slot,
+                self._expectation(descriptor),
+                timeout_seconds=timeout_seconds,
+            )
+            if record.payload_identity == known_payload_identity:
+                return record, None
+            published = self._backend.read(
+                slot,
+                self._expectation(descriptor),
+                timeout_seconds=timeout_seconds,
+            )
+        else:
+            published = self._backend.read(
+                slot,
+                self._expectation(descriptor),
+                timeout_seconds=timeout_seconds,
+            )
+            record = published.record
+            if record.payload_identity == known_payload_identity:
+                return record, None
+        return published.record, self._validate_published(
+            published, learner_id, descriptor
+        )
+
     def discover_latest(self, *, timeout_seconds: float = 0) -> tuple[Proposal, ...]:
         discovered: list[Proposal] = []
         for learner_id in self.learner_ids:
@@ -501,17 +567,22 @@ class ProposalStore:
             )
         try:
             try:
-                current = self.load_latest(
+                current_record = self.peek_latest_record(
                     proposal.learner_id,
                     proposal.descriptor.index,
                     timeout_seconds=0,
                 )
             except PublicationNotFound:
-                current = None
-            if current is not None:
-                if current.sequence > proposal.sequence:
+                current_record = None
+            if current_record is not None:
+                if current_record.sequence > proposal.sequence:
                     raise ProposalError("proposal sequence would regress latest")
-                if current.sequence == proposal.sequence:
+                if current_record.sequence == proposal.sequence:
+                    current = self.load_latest(
+                        proposal.learner_id,
+                        proposal.descriptor.index,
+                        timeout_seconds=0,
+                    )
                     if current.content_identity == proposal.content_identity:
                         return current
                     raise ProposalError(

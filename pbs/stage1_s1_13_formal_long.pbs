@@ -1,0 +1,95 @@
+#!/bin/bash
+#PBS -q regular-g
+#PBS -l select=5
+#PBS -l walltime=08:00:00
+#PBS -W group_list=xg24i002
+#PBS -N fsbdd-s1-13-long
+
+set -eEuo pipefail
+trap 'echo "[ERROR] line=$LINENO command=$BASH_COMMAND" >&2' ERR
+
+: "${PROJECT_ROOT:?PROJECT_ROOT is required}"
+: "${MAIN_ROOT:=/work/xg24i002/x10041/fsbdd}"
+: "${HF_HOME:=/work/xg24i002/x10041/hf_home}"
+: "${EXPECTED_COMMIT:?EXPECTED_COMMIT is required}"
+: "${RESOLVED_CONFIG:?RESOLVED_CONFIG is required}"
+: "${CONFIG_SHA256:?CONFIG_SHA256 is required}"
+: "${ASSET_ROOT:?ASSET_ROOT is required}"
+: "${ASSET_MARKER_SHA256:?ASSET_MARKER_SHA256 is required}"
+: "${SHARED_ROOT:?SHARED_ROOT is required}"
+: "${RESULT_ROOT:?RESULT_ROOT is required}"
+: "${EVIDENCE_ROOT:?EVIDENCE_ROOT is required}"
+: "${RUN_ID:?RUN_ID is required}"
+
+PYTHON="$MAIN_ROOT/.venv/bin/python"
+module load nv-hpcx/25.9
+if [[ "$(git -C "$PROJECT_ROOT" rev-parse HEAD)" != "$EXPECTED_COMMIT" ]] || \
+   [[ -n "$(git -C "$PROJECT_ROOT" status --porcelain)" ]]; then
+  echo "formal clean worktree identity mismatch" >&2
+  exit 65
+fi
+if [[ "$(sha256sum "$RESOLVED_CONFIG" | awk '{print $1}')" != "$CONFIG_SHA256" ]] || \
+   [[ "$(sha256sum "$ASSET_ROOT/complete.json" | awk '{print $1}')" != "$ASSET_MARKER_SHA256" ]]; then
+  echo "formal resolved config or asset identity mismatch" >&2
+  exit 65
+fi
+if [[ -e "$SHARED_ROOT" || -e "$RESULT_ROOT" || -e "$EVIDENCE_ROOT" ]]; then
+  echo "refusing to reuse formal long-run roots" >&2
+  exit 73
+fi
+mkdir "$SHARED_ROOT"
+mkdir -p "$RESULT_ROOT"/{roles,logs,env,stdout,stderr}
+cd "$PROJECT_ROOT"
+export PYTHONPATH="$PROJECT_ROOT/src"
+export OMP_NUM_THREADS=1 TOKENIZERS_PARALLELISM=false
+export HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 HF_DATASETS_OFFLINE=1
+
+sort -u "$PBS_NODEFILE" > "$RESULT_ROOT/env/compute-hosts.txt"
+if [[ "$(wc -l < "$RESULT_ROOT/env/compute-hosts.txt")" -ne 5 ]]; then
+  echo "formal long run requires five distinct compute hosts" >&2
+  exit 66
+fi
+cp "$PBS_NODEFILE" "$RESULT_ROOT/env/pbs-nodefile.txt"
+qstat -f "$PBS_JOBID" > "$RESULT_ROOT/env/qstat.txt"
+module -t list > "$RESULT_ROOT/env/modules.txt" 2>&1
+ROLE_QTIME_RAW="$(awk -F' = ' '/^[[:space:]]*qtime =/{print $2}' "$RESULT_ROOT/env/qstat.txt")"
+export PBS_QTIME_UTC="$(date -u -d "$ROLE_QTIME_RAW JST" '+%Y-%m-%dT%H:%M:%SZ')"
+mpirun -np 5 --map-by ppr:1:node --hostfile "$PBS_NODEFILE" nvidia-smi -L \
+  > "$RESULT_ROOT/env/nvidia-smi-all-nodes.txt" 2>&1
+
+"$PYTHON" -m pytest -q tests/stage1 \
+  > "$RESULT_ROOT/stdout/pytest.log" 2> "$RESULT_ROOT/stderr/pytest.log"
+"$PYTHON" -m fsbdd.cli requirements \
+  plans/FS_DILOCO_CODEX_EXECUTION_PLAN/loops/stage1/S1-13.md \
+  reports/stage1/S1-13-requirement-matrix.csv \
+  > "$RESULT_ROOT/requirements.json" 2> "$RESULT_ROOT/stderr/requirements.log"
+
+mpirun -np 5 --map-by ppr:1:node --hostfile "$PBS_NODEFILE" \
+  /usr/bin/env PYTHONPATH="$PYTHONPATH" OMP_NUM_THREADS=1 TOKENIZERS_PARALLELISM=false \
+  HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 HF_DATASETS_OFFLINE=1 \
+  "$PYTHON" -m fsbdd.stage1_close mpi \
+  --shared-root "$SHARED_ROOT" --result-root "$RESULT_ROOT" --run-id "$RUN_ID" \
+  --config-path "$RESOLVED_CONFIG" --config-sha256 "$CONFIG_SHA256" \
+  --asset-marker-sha256 "$ASSET_MARKER_SHA256" --hub-cache "$HF_HOME/hub" \
+  --timeout-seconds 21600 \
+  > "$RESULT_ROOT/stdout/mpirun.log" 2> "$RESULT_ROOT/stderr/mpirun.log"
+
+QTIME_RAW="$(awk -F' = ' '/^[[:space:]]*qtime =/{print $2}' "$RESULT_ROOT/env/qstat.txt")"
+QTIME_UTC="$(date -u -d "$QTIME_RAW JST" '+%Y-%m-%dT%H:%M:%SZ')"
+QUEUE="$(awk -F' = ' '/^[[:space:]]*queue =/{print $2}' "$RESULT_ROOT/env/qstat.txt")"
+"$PYTHON" -m fsbdd.stage1_package \
+  --project-root "$PROJECT_ROOT" --evidence-root "$EVIDENCE_ROOT" \
+  --result-root "$RESULT_ROOT" --shared-root "$SHARED_ROOT" --asset-root "$ASSET_ROOT" \
+  --config "$RESOLVED_CONFIG" --requirements "$RESULT_ROOT/requirements.json" \
+  --env-root "$RESULT_ROOT/env" --stdout-root "$RESULT_ROOT/stdout" \
+  --stderr-root "$RESULT_ROOT/stderr" --run-id "$RUN_ID" \
+  --repository https://github.com/UnbearableFate/fsbdd.git \
+  --branch codex/S1-13-stage1-close-9n --commit "$EXPECTED_COMMIT" \
+  --research-sha256 2c0db3148110da10ea62f445c189d2d53b405527d8da264b9af9817f5ca9d835 \
+  --spec-sha256 1ea71fb6e34fef0d7b5558d8e7999dfdedeb82957f4331afcf6f80279d1f5a7d \
+  --skill-repository https://github.com/UnbearableFate/miyabi-development \
+  --skill-commit c3ddfa47cadfd9132edf939d359b90b28ab5f8ed \
+  --initial-hostname miyabi-g1 --job-id "$PBS_JOBID" --queue "$QUEUE" \
+  --timestamp-utc "$QTIME_UTC" --scheduler-qtime-utc "$QTIME_UTC" \
+  --time-source pbs_qtime \
+  > "$RESULT_ROOT/package.json" 2> "$RESULT_ROOT/package.err"

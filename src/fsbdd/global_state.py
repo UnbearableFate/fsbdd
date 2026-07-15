@@ -532,6 +532,25 @@ class GlobalStateStore:
         )
         return self._validate_published(published, descriptor)
 
+    def peek_fragment_record(
+        self, index: int, *, timeout_seconds: float = 0
+    ) -> PublicationRecord:
+        """Validate one current record without loading an unchanged state payload."""
+
+        descriptor = self._descriptor(index)
+        read_record = getattr(self._backend, "read_record", None)
+        if callable(read_record):
+            return read_record(
+                current_slot(index),
+                self._expectation(descriptor),
+                timeout_seconds=timeout_seconds,
+            )
+        return self._backend.read(
+            current_slot(index),
+            self._expectation(descriptor),
+            timeout_seconds=timeout_seconds,
+        ).record
+
     def load_snapshot(self, *, timeout_seconds: float = 0) -> GlobalSnapshot:
         states = tuple(
             self.load_fragment(index, timeout_seconds=timeout_seconds)

@@ -551,8 +551,14 @@ class ProfileAFragmentExecutor:
     def poll(self, *, observed_ns: int | None = None) -> PollReport:
         return self.readiness.poll_store(observed_ns=observed_ns)
 
-    def execute_next(self, *, observed_ns: int | None = None) -> ProfileAUpdate | None:
-        self.poll(observed_ns=observed_ns)
+    def execute_next(
+        self,
+        *,
+        observed_ns: int | None = None,
+        poll_store: bool = True,
+    ) -> ProfileAUpdate | None:
+        if poll_store:
+            self.poll(observed_ns=observed_ns)
         lease = self.readiness.claim_next()
         if lease is None:
             return None

@@ -450,13 +450,30 @@ def materialize_packed_shards(
             for batch in file.iter_batches(columns=[str(profile.dataset["text_field"])], batch_size=256):
                 texts = batch.column(0).to_pylist()
                 for text in texts:
-                    total_rows += 1
                     if not isinstance(text, str):
                         raise LearnerAssetError("dataset text field must contain strings")
+                nonempty_texts = [text for text in texts if text != ""]
+                encoded_rows = (
+                    tokenizer(
+                        nonempty_texts,
+                        add_special_tokens=False,
+                        return_attention_mask=False,
+                        return_token_type_ids=False,
+                    )["input_ids"]
+                    if callable(tokenizer)
+                    else [
+                        tokenizer.encode(text, add_special_tokens=False)
+                        for text in nonempty_texts
+                    ]
+                )
+                encoded_index = 0
+                for text in texts:
+                    total_rows += 1
                     if text == "":
                         continue
                     nonempty_rows += 1
-                    encoded = tokenizer.encode(text, add_special_tokens=False)
+                    encoded = encoded_rows[encoded_index]
+                    encoded_index += 1
                     row_tokens = [*encoded, expected_eos]
                     if any(token < 0 or token > np.iinfo(np.uint32).max for token in row_tokens):
                         raise LearnerAssetError("token ID does not fit uint32")

@@ -1,0 +1,61 @@
+#!/bin/bash
+#PBS -q debug-g
+#PBS -l select=2
+#PBS -l walltime=00:30:00
+#PBS -W group_list=xg24i002
+#PBS -N fsbdd-s1-13-smoke2
+
+set -eEuo pipefail
+trap 'echo "[ERROR] line=$LINENO command=$BASH_COMMAND" >&2' ERR
+
+: "${PROJECT_ROOT:=/work/xg24i002/x10041/fsbdd}"
+: "${HF_HOME:=/work/xg24i002/x10041/hf_home}"
+: "${RESOLVED_CONFIG:?RESOLVED_CONFIG is required}"
+: "${CONFIG_SHA256:?CONFIG_SHA256 is required}"
+: "${ASSET_MARKER_SHA256:?ASSET_MARKER_SHA256 is required}"
+: "${OUTPUT_ROOT:=$PROJECT_ROOT/runtime_runs/S1-13/smoke-2n-${PBS_JOBID}}"
+
+module load nv-hpcx/25.9
+if [[ -e "$OUTPUT_ROOT" ]]; then
+  echo "refusing to reuse S1-13 two-node smoke output" >&2
+  exit 73
+fi
+mkdir -p "$OUTPUT_ROOT"/{results,stdout,stderr}
+SHARED="$PROJECT_ROOT/runtime_runs/S1-13/shared-smoke-2n-${PBS_JOBID}"
+mkdir "$SHARED"
+cd "$PROJECT_ROOT"
+export PYTHONPATH="$PROJECT_ROOT/src"
+export OMP_NUM_THREADS=1 TOKENIZERS_PARALLELISM=false
+export HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 HF_DATASETS_OFFLINE=1
+mapfile -t HOSTS < <(sort -u "$PBS_NODEFILE")
+if [[ "${#HOSTS[@]}" -ne 2 ]]; then
+  echo "two-node smoke requires two distinct compute hosts" >&2
+  exit 66
+fi
+RUN_ID="s1-13-smoke-2n-${PBS_JOBID}"
+
+mpirun -np 1 --host "${HOSTS[1]}" /usr/bin/env \
+  PYTHONPATH="$PYTHONPATH" OMP_NUM_THREADS=1 TOKENIZERS_PARALLELISM=false \
+  HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 HF_DATASETS_OFFLINE=1 CUDA_VISIBLE_DEVICES="" \
+  "$PROJECT_ROOT/.venv/bin/python" -m fsbdd.stage1_close syncer \
+  --shared-root "$SHARED" --result-root "$OUTPUT_ROOT/results" --run-id "$RUN_ID" \
+  --config-path "$RESOLVED_CONFIG" --config-sha256 "$CONFIG_SHA256" \
+  --asset-marker-sha256 "$ASSET_MARKER_SHA256" --learner-count-override 1 \
+  --timeout-seconds 1200 \
+  > "$OUTPUT_ROOT/stdout/syncer.log" 2> "$OUTPUT_ROOT/stderr/syncer.log" &
+SYNCER_PID=$!
+
+mpirun -np 1 --host "${HOSTS[0]}" /usr/bin/env \
+  PYTHONPATH="$PYTHONPATH" OMP_NUM_THREADS=1 TOKENIZERS_PARALLELISM=false \
+  HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 HF_DATASETS_OFFLINE=1 CUDA_VISIBLE_DEVICES=0 \
+  "$PROJECT_ROOT/.venv/bin/python" -m fsbdd.stage1_close learner \
+  --shared-root "$SHARED" --result-root "$OUTPUT_ROOT/results" --run-id "$RUN_ID" \
+  --config-path "$RESOLVED_CONFIG" --config-sha256 "$CONFIG_SHA256" \
+  --asset-marker-sha256 "$ASSET_MARKER_SHA256" --hub-cache "$HF_HOME/hub" \
+  --learner-index 0 --learner-count-override 1 --timeout-seconds 1200 \
+  > "$OUTPUT_ROOT/stdout/learner.log" 2> "$OUTPUT_ROOT/stderr/learner.log"
+wait "$SYNCER_PID"
+
+hostname > "$OUTPUT_ROOT/hostname.txt"
+printf '%s\n' "${HOSTS[@]}" > "$OUTPUT_ROOT/hosts.txt"
+qstat -f "$PBS_JOBID" > "$OUTPUT_ROOT/qstat.txt"
