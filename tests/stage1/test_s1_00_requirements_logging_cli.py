@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import pytest
@@ -50,6 +51,23 @@ def test_structured_logging_and_dry_run_roles(
 
     with pytest.raises(ValueError, match="reserved"):
         logger.emit("spoof", role="syncer", timestamp_utc="invalid")
+
+
+def test_structured_logger_serializes_concurrent_role_threads(tmp_path: Path) -> None:
+    path = tmp_path / "concurrent.jsonl"
+    logger = StructuredLogger(path, role="learner", run_id="concurrent")
+
+    def emit(worker: int) -> None:
+        for sequence in range(25):
+            logger.emit("thread_event", worker=worker, sequence=sequence)
+
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        list(pool.map(emit, range(4)))
+    records = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
+    assert len(records) == 100
+    assert {(item["worker"], item["sequence"]) for item in records} == {
+        (worker, sequence) for worker in range(4) for sequence in range(25)
+    }
 
 
 def test_evidence_init_cli_is_fail_if_exists(

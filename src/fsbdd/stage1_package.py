@@ -97,6 +97,28 @@ def package(arguments: argparse.Namespace) -> dict[str, Any]:
                     raise Stage1PackageError(f"formal role produced non-empty stderr: {source}")
                 _copy_file(source, arguments.evidence_root / "stderr" / source.relative_to(arguments.stderr_root))
     analyze(arguments.result_root, arguments.config, arguments.evidence_root / "analysis")
+    runtime_source = (arguments.project_root / "src/fsbdd/stage1_close.py").read_text(encoding="utf-8")
+    forbidden_api_tokens = (
+        "init_process_group(",
+        "DistributedDataParallel(",
+        "init_rpc(",
+        "torchrun",
+        "nccl",
+    )
+    matches = [token for token in forbidden_api_tokens if token in runtime_source]
+    evidence.write_json(
+        "analysis/static-no-network.json",
+        {
+            "schema_version": 1,
+            "status": "pass" if not matches else "fail",
+            "scope": "src/fsbdd/stage1_close.py",
+            "forbidden_application_data_plane_api_matches": matches,
+            "mpi_usage": "launcher_only_in_five_node_long_run",
+            "algorithm_coordination": "shared_filesystem_only",
+        },
+    )
+    if matches:
+        raise Stage1PackageError("formal runtime source contains a forbidden network data-plane API")
     requirements = json.loads(arguments.requirements.read_text(encoding="utf-8"))
     evidence.write_json("analysis/requirements.json", requirements)
     nodefile = arguments.evidence_root / "env" / "manifest-role-hosts.txt"

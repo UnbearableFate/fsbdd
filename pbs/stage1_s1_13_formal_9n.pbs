@@ -47,6 +47,9 @@ cp "$PBS_NODEFILE" "$RESULT_ROOT/env/role-${ROLE_INDEX}-nodefile.txt"
 qstat -f "$PBS_JOBID" > "$RESULT_ROOT/env/role-${ROLE_INDEX}-qstat.txt"
 module -t list > "$RESULT_ROOT/env/role-${ROLE_INDEX}-modules.txt" 2>&1
 findmnt -T "$SHARED_ROOT" > "$RESULT_ROOT/env/role-${ROLE_INDEX}-findmnt.txt"
+if [[ "$ROLE_INDEX" -eq 8 ]]; then
+  cp "$PROJECT_ROOT/pbs/stage1_s1_13_formal_9n.pbs" "$RESULT_ROOT/env/formal-pbs-script.pbs"
+fi
 ROLE_QTIME_RAW="$(awk -F' = ' '/^[[:space:]]*qtime =/{print $2}' "$RESULT_ROOT/env/role-${ROLE_INDEX}-qstat.txt")"
 export PBS_QTIME_UTC="$(date -u -d "$ROLE_QTIME_RAW JST" '+%Y-%m-%dT%H:%M:%SZ')"
 

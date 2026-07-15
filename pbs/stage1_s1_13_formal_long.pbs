@@ -53,6 +53,7 @@ cp "$PBS_NODEFILE" "$RESULT_ROOT/env/pbs-nodefile.txt"
 qstat -f "$PBS_JOBID" > "$RESULT_ROOT/env/qstat.txt"
 module -t list > "$RESULT_ROOT/env/modules.txt" 2>&1
 findmnt -T "$SHARED_ROOT" > "$RESULT_ROOT/env/findmnt.txt"
+cp "$PROJECT_ROOT/pbs/stage1_s1_13_formal_long.pbs" "$RESULT_ROOT/env/formal-pbs-script.pbs"
 ROLE_QTIME_RAW="$(awk -F' = ' '/^[[:space:]]*qtime =/{print $2}' "$RESULT_ROOT/env/qstat.txt")"
 export PBS_QTIME_UTC="$(date -u -d "$ROLE_QTIME_RAW JST" '+%Y-%m-%dT%H:%M:%SZ')"
 mpirun -np 5 --map-by ppr:1:node --hostfile "$PBS_NODEFILE" nvidia-smi -L \

@@ -3,6 +3,7 @@ from __future__ import annotations
 import datetime as dt
 import json
 import os
+import threading
 import time
 from pathlib import Path
 from typing import Any
@@ -13,6 +14,7 @@ class StructuredLogger:
         self.path = path
         self.role = role
         self.run_id = run_id
+        self._lock = threading.Lock()
         path.parent.mkdir(parents=True, exist_ok=True)
 
     def emit(self, event: str, **fields: Any) -> dict[str, Any]:
@@ -32,8 +34,9 @@ class StructuredLogger:
             "event": event,
         }
         record.update(fields)
-        with self.path.open("a", encoding="utf-8") as stream:
-            stream.write(json.dumps(record, sort_keys=True, separators=(",", ":")) + "\n")
-            stream.flush()
-            os.fsync(stream.fileno())
+        with self._lock:
+            with self.path.open("a", encoding="utf-8") as stream:
+                stream.write(json.dumps(record, sort_keys=True, separators=(",", ":")) + "\n")
+                stream.flush()
+                os.fsync(stream.fileno())
         return record
