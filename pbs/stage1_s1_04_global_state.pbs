@@ -20,6 +20,8 @@ trap 'echo "[ERROR] line=$LINENO command=$BASH_COMMAND" >&2' ERR
 PYTHON="$MAIN_ROOT/.venv/bin/python"
 CONFIG_SOURCE="configs/stage1/profile_a_skeleton.json"
 CONFIG_SHA256="dd1dc08de331759cc49de1959bc1f2d9ba305ff985b07c2efb9084746fda3c50"
+STATE_MODEL_IDENTITY="d91a92be805f856514a9f13ac049e5c91ba8489bc415e2bf12c4bbadc3082100"
+STATE_FRAGMENT_MAP_IDENTITY="d1fb096403b6c0043570e3784cbaffce8c625bc48a98a5fdb37e06ef1d03b2ab"
 RESEARCH_SHA256="2c0db3148110da10ea62f445c189d2d53b405527d8da264b9af9817f5ca9d835"
 SPEC_SHA256="1ea71fb6e34fef0d7b5558d8e7999dfdedeb82957f4331afcf6f80279d1f5a7d"
 SKILL_REPOSITORY="https://github.com/UnbearableFate/miyabi-development"
@@ -104,6 +106,8 @@ printf '%q ' mpirun -np 2 --map-by ppr:1:node --hostfile "$PBS_NODEFILE" \
   --result-root "$EVIDENCE_ROOT/runtime/roles" --run-id "$RUN_ID" \
   --fragment-count "$FRAGMENT_COUNT" --payload-bytes "$PAYLOAD_BYTES" \
   --history-objects "$HISTORY_OBJECTS" --interrupt-after "$INTERRUPT_AFTER" --s-max "$S_MAX" \
+  --config-identity "$CONFIG_SHA256" --model-identity "$STATE_MODEL_IDENTITY" \
+  --fragment-map-identity "$STATE_FRAGMENT_MAP_IDENTITY" \
   >> "$EVIDENCE_ROOT/commands.log"
 printf '\n' >> "$EVIDENCE_ROOT/commands.log"
 
@@ -113,19 +117,26 @@ mpirun -np 2 --map-by ppr:1:node --hostfile "$PBS_NODEFILE" \
   --result-root "$EVIDENCE_ROOT/runtime/roles" --run-id "$RUN_ID" \
   --fragment-count "$FRAGMENT_COUNT" --payload-bytes "$PAYLOAD_BYTES" \
   --history-objects "$HISTORY_OBJECTS" --interrupt-after "$INTERRUPT_AFTER" --s-max "$S_MAX" \
+  --config-identity "$CONFIG_SHA256" --model-identity "$STATE_MODEL_IDENTITY" \
+  --fragment-map-identity "$STATE_FRAGMENT_MAP_IDENTITY" \
   > "$EVIDENCE_ROOT/stdout/mpirun.log" 2> "$EVIDENCE_ROOT/stderr/mpirun.log"
 
 "$PYTHON" -m fsbdd.global_state_stress summarize --root "$TEST_ROOT" \
   --result-root "$EVIDENCE_ROOT/runtime/roles" --run-id "$RUN_ID" \
   --fragment-count "$FRAGMENT_COUNT" --history-objects "$HISTORY_OBJECTS" \
   --interrupt-after "$INTERRUPT_AFTER" --s-max "$S_MAX" \
+  --config-identity "$CONFIG_SHA256" --model-identity "$STATE_MODEL_IDENTITY" \
+  --fragment-map-identity "$STATE_FRAGMENT_MAP_IDENTITY" \
   --output "$EVIDENCE_ROOT/analysis/global-state-summary.json" \
   > "$EVIDENCE_ROOT/stdout/global-state-summary.json" \
   2> "$EVIDENCE_ROOT/stderr/global-state-summary.log"
 
 "$PYTHON" -m fsbdd.global_state_stress manifest \
   --repository "$REPOSITORY" --branch "$BRANCH" --commit "$EXPECTED_COMMIT" \
+  --run-id "$RUN_ID" \
   --config-sha256 "$CONFIG_SHA256" --research-sha256 "$RESEARCH_SHA256" \
+  --state-model-identity "$STATE_MODEL_IDENTITY" \
+  --state-fragment-map-identity "$STATE_FRAGMENT_MAP_IDENTITY" \
   --spec-sha256 "$SPEC_SHA256" --skill-repository "$SKILL_REPOSITORY" \
   --skill-commit "$MIYABI_SKILL_COMMIT" --initial-hostname "$INITIAL_HOSTNAME" \
   --project-root "$PROJECT_ROOT" --evidence-root "$EVIDENCE_ROOT" \

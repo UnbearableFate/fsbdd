@@ -20,6 +20,13 @@
     "bootstrap_interruption_after_fragments": 2,
     "payload_bytes_per_fragment": 65536
   },
+  "state_identities": {
+    "run_identity": "s1-04-${PBS_JOBID}; byte-identical to manifest run_identity.identity and every role/summary record",
+    "config_identity": "dd1dc08de331759cc49de1959bc1f2d9ba305ff985b07c2efb9084746fda3c50",
+    "synthetic_model_identity": "d91a92be805f856514a9f13ac049e5c91ba8489bc415e2bf12c4bbadc3082100",
+    "synthetic_fragment_map_identity": "d1fb096403b6c0043570e3784cbaffce8c625bc48a98a5fdb37e06ef1d03b2ab",
+    "derivation": "canonical SHA-256 over the frozen deterministic fragment descriptors and per-fragment parameter/outer-state checksums; role startup recomputes and rejects mismatch"
+  },
   "authoritative_observation": {
     "startup_interval": "one complete GlobalStateStore.load_snapshot call over the frozen four-fragment descriptor set",
     "startup_io_counter": "CountingStorageBackend read invocations at the global-state API boundary",
@@ -27,6 +34,7 @@
     "partial_bootstrap": "snapshot load before every frozen current slot exists must raise and return no version vector",
     "idempotence": "identical repeated bootstrap creates zero new referenced or immutable payloads and preserves all content identities",
     "conflict": "same run/map/config/model identities with different initial fragment content must reject before changing any current record",
+    "identity_binding": "writer reader analyzer and manifest builder must agree on the frozen config synthetic-model and synthetic-fragment-map identities reported in every role result and the summary",
     "bounded_authority": "current_records == referenced_payloads == fragment_count and total embedded base entries <= fragment_count * (S_max + 1)",
     "version_rule": "bootstrap version is zero and successor version plus outer_update_count are derived as previous plus one"
   },

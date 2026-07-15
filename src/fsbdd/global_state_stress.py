@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import dataclasses
+import hashlib
 import json
 import os
 import shutil
@@ -19,14 +20,9 @@ from .global_state import (
     GlobalStateIdentities,
     GlobalStateStore,
 )
-from .identity import file_digest
+from .identity import canonical_digest, file_digest
 from .manifest import build_manifest
 from .storage import PosixStorageBackend, PublicationNotFound
-
-
-_CONFIG_ID = "c" * 64
-_MODEL_ID = "d" * 64
-_MAP_ID = "a" * 64
 
 
 def _write_json_new(path: Path, value: Any) -> None:
@@ -60,12 +56,17 @@ def _wait(path: Path, timeout_seconds: float = 180.0) -> dict[str, Any]:
         return value
 
 
-def _identities(run_id: str) -> GlobalStateIdentities:
+def _identities(
+    run_id: str,
+    config_identity: str,
+    model_identity: str,
+    fragment_map_identity: str,
+) -> GlobalStateIdentities:
     return GlobalStateIdentities(
         run_identity=run_id,
-        config_identity=_CONFIG_ID,
-        model_identity=_MODEL_ID,
-        fragment_map_identity=_MAP_ID,
+        config_identity=config_identity,
+        model_identity=model_identity,
+        fragment_map_identity=fragment_map_identity,
     )
 
 
@@ -94,12 +95,53 @@ def _fragments(
     )
 
 
+def derive_stress_identities(
+    config_identity: str,
+    initial: tuple[BootstrapFragment, ...],
+) -> tuple[str, str]:
+    fragment_map_identity = canonical_digest(
+        {
+            "schema_version": 1,
+            "kind": "s1-04-deterministic-stress-fragment-map",
+            "descriptors": [item.descriptor.to_dict() for item in initial],
+        }
+    )
+    model_identity = canonical_digest(
+        {
+            "schema_version": 1,
+            "kind": "s1-04-deterministic-stress-model",
+            "config_identity": config_identity,
+            "fragment_map_identity": fragment_map_identity,
+            "fragments": [
+                {
+                    "index": item.descriptor.index,
+                    "parameters_sha256": hashlib.sha256(item.parameters).hexdigest(),
+                    "outer_state_sha256": hashlib.sha256(item.outer_state).hexdigest(),
+                }
+                for item in initial
+            ],
+        }
+    )
+    return model_identity, fragment_map_identity
+
+
 def _store(
-    backend, run_id: str, initial: tuple[BootstrapFragment, ...], s_max: int
+    backend,
+    run_id: str,
+    initial: tuple[BootstrapFragment, ...],
+    s_max: int,
+    config_identity: str,
+    model_identity: str,
+    fragment_map_identity: str,
 ) -> GlobalStateStore:
     return GlobalStateStore(
         backend,
-        identities=_identities(run_id),
+        identities=_identities(
+            run_id,
+            config_identity,
+            model_identity,
+            fragment_map_identity,
+        ),
         descriptors=tuple(item.descriptor for item in initial),
         s_max=s_max,
     )
@@ -115,6 +157,9 @@ def run_role(
     history_objects: int,
     interrupt_after: int,
     s_max: int,
+    config_identity: str,
+    model_identity: str,
+    fragment_map_identity: str,
 ) -> dict[str, Any]:
     try:
         rank = int(os.environ["OMPI_COMM_WORLD_RANK"])
@@ -128,12 +173,35 @@ def run_role(
     if not 0 < interrupt_after < fragment_count:
         raise ValueError("interrupt_after must split the frozen fragment set")
     initial = _fragments(fragment_count, payload_bytes)
+    derived_model_identity, derived_map_identity = derive_stress_identities(
+        config_identity, initial
+    )
+    if model_identity != derived_model_identity:
+        raise ValueError("declared synthetic model identity differs from the workload")
+    if fragment_map_identity != derived_map_identity:
+        raise ValueError(
+            "declared synthetic fragment-map identity differs from the workload"
+        )
+    frozen_identities = {
+        "run_identity": run_id,
+        "config_identity": config_identity,
+        "model_identity": model_identity,
+        "fragment_map_identity": fragment_map_identity,
+    }
     backend_root = root / "backend"
     coordination = root / "coordination"
     hostname = socket.gethostname().split(".")[0]
 
     if rank == 0:
-        store = _store(PosixStorageBackend(backend_root), run_id, initial, s_max)
+        store = _store(
+            PosixStorageBackend(backend_root),
+            run_id,
+            initial,
+            s_max,
+            config_identity,
+            model_identity,
+            fragment_map_identity,
+        )
         try:
             store.bootstrap(initial, interrupt_after_fragments=interrupt_after)
         except BootstrapInterrupted:
@@ -195,11 +263,20 @@ def run_role(
             "conflict_rejected": conflict_rejected,
             "live_set": live_set.to_dict(),
             "history_objects": history_objects,
+            "state_identities": frozen_identities,
         }
         _write_json_new(result_root / "bootstrap_writer.json", result)
         return result
 
-    partial_store = _store(PosixStorageBackend(backend_root), run_id, initial, s_max)
+    partial_store = _store(
+        PosixStorageBackend(backend_root),
+        run_id,
+        initial,
+        s_max,
+        config_identity,
+        model_identity,
+        fragment_map_identity,
+    )
     _wait(coordination / "partial-ready.json")
     try:
         partial_store.load_snapshot(timeout_seconds=0)
@@ -210,7 +287,15 @@ def run_role(
     _replace_json(coordination / "partial-observed.json", {"complete": True})
     _wait(coordination / "complete-ready.json")
     counting = CountingStorageBackend(PosixStorageBackend(backend_root))
-    reader_store = _store(counting, run_id, initial, s_max)
+    reader_store = _store(
+        counting,
+        run_id,
+        initial,
+        s_max,
+        config_identity,
+        model_identity,
+        fragment_map_identity,
+    )
     counting.reset_counts()
     baseline = reader_store.load_snapshot(timeout_seconds=30)
     baseline_reads = counting.read_calls
@@ -233,6 +318,7 @@ def run_role(
         "baseline_version_vector": baseline.version_vector,
         "post_history_version_vector": after_history.version_vector,
         "snapshot_digest": baseline.digest,
+        "state_identities": frozen_identities,
     }
     _write_json_new(result_root / "snapshot_reader.json", result)
     _replace_json(coordination / "reader-done.json", {"complete": True})
@@ -248,6 +334,9 @@ def summarize(
     history_objects: int,
     interrupt_after: int,
     s_max: int,
+    config_identity: str,
+    model_identity: str,
+    fragment_map_identity: str,
     output: Path,
 ) -> dict[str, Any]:
     writer = json.loads(
@@ -259,6 +348,20 @@ def summarize(
     if writer["hostname"] == reader["hostname"]:
         raise AssertionError(
             "two-node global-state run used the same host for both roles"
+        )
+    expected_identities = {
+        "run_identity": run_id,
+        "config_identity": config_identity,
+        "model_identity": model_identity,
+        "fragment_map_identity": fragment_map_identity,
+    }
+    if writer.get("state_identities") != expected_identities:
+        raise AssertionError(
+            "writer global-state identities differ from the frozen workload"
+        )
+    if reader.get("state_identities") != expected_identities:
+        raise AssertionError(
+            "reader global-state identities differ from the frozen workload"
         )
     if (
         not writer["partial_interrupted"]
@@ -316,6 +419,7 @@ def summarize(
             "bootstrap_writer": [writer["hostname"]],
             "snapshot_reader": [reader["hostname"]],
         },
+        "state_identities": expected_identities,
         "bootstrap": {
             "fragment_count": fragment_count,
             "interrupted_after_fragments": interrupt_after,
@@ -361,6 +465,16 @@ def write_manifest(args: argparse.Namespace) -> None:
     }
     if set(role_map["bootstrap_writer"] + role_map["snapshot_reader"]) != set(hosts):
         raise ValueError("actual global-state roles do not match allocated hosts")
+    expected_state_identities = {
+        "run_identity": args.run_id,
+        "config_identity": args.config_sha256,
+        "model_identity": args.state_model_identity,
+        "fragment_map_identity": args.state_fragment_map_identity,
+    }
+    if writer.get("state_identities") != expected_state_identities:
+        raise ValueError("writer state identities do not match manifest inputs")
+    if reader.get("state_identities") != expected_state_identities:
+        raise ValueError("reader state identities do not match manifest inputs")
     identities = {
         "code": {
             "repository": args.repository,
@@ -375,7 +489,7 @@ def write_manifest(args: argparse.Namespace) -> None:
         },
         "skill": {"repository": args.skill_repository, "commit": args.skill_commit},
         "execution": {
-            "identity": f"pbs-{args.job_id}",
+            "identity": args.run_id,
             "initial_hostname": args.initial_hostname,
             "compute_hostname": socket.gethostname().split(".")[0],
             "workflow": "two-node-global-state-bootstrap-batch",
@@ -413,6 +527,9 @@ def main(argv: list[str] | None = None) -> int:
         ("history-objects", int),
         ("interrupt-after", int),
         ("s-max", int),
+        ("config-identity", str),
+        ("model-identity", str),
+        ("fragment-map-identity", str),
     ):
         role.add_argument(f"--{name}", required=True, type=value_type)
     analysis = commands.add_parser("summarize")
@@ -424,6 +541,9 @@ def main(argv: list[str] | None = None) -> int:
         ("history-objects", int),
         ("interrupt-after", int),
         ("s-max", int),
+        ("config-identity", str),
+        ("model-identity", str),
+        ("fragment-map-identity", str),
         ("output", Path),
     ):
         analysis.add_argument(f"--{name}", required=True, type=value_type)
@@ -432,7 +552,10 @@ def main(argv: list[str] | None = None) -> int:
         "repository",
         "branch",
         "commit",
+        "run-id",
         "config-sha256",
+        "state-model-identity",
+        "state-fragment-map-identity",
         "research-sha256",
         "spec-sha256",
         "skill-repository",
@@ -461,6 +584,9 @@ def main(argv: list[str] | None = None) -> int:
             history_objects=args.history_objects,
             interrupt_after=args.interrupt_after,
             s_max=args.s_max,
+            config_identity=args.config_identity,
+            model_identity=args.model_identity,
+            fragment_map_identity=args.fragment_map_identity,
         )
         print(json.dumps(result, sort_keys=True))
         return 0
@@ -473,6 +599,9 @@ def main(argv: list[str] | None = None) -> int:
             history_objects=args.history_objects,
             interrupt_after=args.interrupt_after,
             s_max=args.s_max,
+            config_identity=args.config_identity,
+            model_identity=args.model_identity,
+            fragment_map_identity=args.fragment_map_identity,
             output=args.output,
         )
         print(

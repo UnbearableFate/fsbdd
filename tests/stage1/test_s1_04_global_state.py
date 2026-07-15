@@ -337,6 +337,8 @@ def test_tiny_real_hugging_face_model_round_trips_exact_fragment_tensors(
 
 
 def test_pbs_contract_is_two_node_and_bootstrap_focused() -> None:
+    from fsbdd.global_state_stress import _fragments, derive_stress_identities
+
     project_root = Path(__file__).resolve().parents[2]
     script = project_root / "pbs" / "stage1_s1_04_global_state.pbs"
     subprocess.run(["bash", "-n", str(script)], check=True)
@@ -346,6 +348,17 @@ def test_pbs_contract_is_two_node_and_bootstrap_focused() -> None:
     assert "fsbdd.global_state_stress role" in content
     assert "HISTORY_OBJECTS=10000" in content
     assert "fsbdd.cli evidence finalize" in content
+    assert "--config-identity" in content
+    assert "--model-identity" in content
+    assert "--fragment-map-identity" in content
+    assert '--run-id "$RUN_ID"' in content
+    assert derive_stress_identities(
+        "dd1dc08de331759cc49de1959bc1f2d9ba305ff985b07c2efb9084746fda3c50",
+        _fragments(4, 65536),
+    ) == (
+        "d91a92be805f856514a9f13ac049e5c91ba8489bc415e2bf12c4bbadc3082100",
+        "d1fb096403b6c0043570e3784cbaffce8c625bc48a98a5fdb37e06ef1d03b2ab",
+    )
     assert 'date -u -d "$QTIME_RAW JST"' in content
     assert "torchrun" not in content
     assert "nccl" not in content.lower()
