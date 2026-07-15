@@ -174,6 +174,7 @@ def package(arguments: argparse.Namespace) -> dict[str, Any]:
     role_map = {"learners": learner_hosts, "syncer": [syncer_host]}
     for relative in (
         "reports/stage1/S1-13-evidence-contract.json",
+        "reports/stage1/S1-13-long-schedule-adr.md",
         "reports/stage1/S1-13-requirement-matrix.csv",
         "plans/FS_DILOCO_CODEX_EXECUTION_PLAN/loops/stage1/S1-13.md",
     ):

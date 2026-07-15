@@ -84,6 +84,10 @@ def test_frozen_gate_contract_covers_heartbeat_stalls_and_long_capacity_smoke() 
     assert smoke["minimum_global_cycles"] == 59
     assert smoke["minimum_cycle_to_publication_opportunity_ratio"] >= 59 / 60
     assert contract["long_run"]["minimum_step_seconds"] == 0.16
+    overlay = contract["protocol"]["long_run_learner_phase_overlay"]
+    assert overlay["algorithm"] == "aligned_zero_for_q_equals_m_capacity_v1"
+    assert overlay["learner_phase_offsets"] == [0, 0, 0, 0]
+    assert overlay["learner_waits_for_syncer"] is False
 
 
 def test_resolved_configs_bind_the_complete_immutable_asset_bundle() -> None:
@@ -112,3 +116,9 @@ def test_resolved_configs_bind_the_complete_immutable_asset_bundle() -> None:
     )["workloads"]["long_run"]
     assert long["optimizer_steps_per_learner"] == 122071
     assert long["expected_aggregate_processed_input_tokens"] == 1_000_005_632
+    resolved = json.loads(
+        (ROOT / "configs/stage1/s1_13_long_run_resolved.json").read_text(
+            encoding="utf-8"
+        )
+    )["resolved_runtime_fields"]
+    assert resolved["per_learner_offsets"] == [resolved["fragment_offsets"]] * 4

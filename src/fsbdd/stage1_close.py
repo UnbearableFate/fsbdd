@@ -390,7 +390,7 @@ def run_learner(
     )
     workload = str(config["selected_workload"])
     workload_config = config["workloads"][workload]
-    _gate_contract, execution_contract = _load_gate_contract(
+    gate_contract, execution_contract = _load_gate_contract(
         gate_contract_path,
         expected_sha256=gate_contract_sha256,
         workload=workload,
@@ -433,12 +433,30 @@ def run_learner(
     progress = LearnerProgress.initialize(role_id, tuple(item.version for item in initial))
     logger = StructuredLogger(result_root / "logs" / f"{role_id}.jsonl", role="learner", run_id=run_id)
     schedule_row = bootstrap["per_learner_schedules"][learner_index]
+    schedule_offsets = tuple(int(item) for item in schedule_row["offsets"])
+    learner_phase_offset = int(schedule_row["learner_phase_offset"])
+    if workload == "long_run":
+        phase_overlay = gate_contract["protocol"]["long_run_learner_phase_overlay"]
+        phases = phase_overlay["learner_phase_offsets"]
+        if (
+            phase_overlay.get("algorithm")
+            != "aligned_zero_for_q_equals_m_capacity_v1"
+            or phases != [0] * learner_count
+        ):
+            raise Stage1CloseError("invalid frozen long-run learner phase overlay")
+        schedule_offsets = tuple(
+            int(item)
+            for item in config["resolved_runtime_fields"]["per_learner_offsets"][
+                learner_index
+            ]
+        )
+        learner_phase_offset = int(phases[learner_index])
     schedule = FragmentPublicationSchedule(
         fragment_bytes=tuple(int(item) for item in schedule_row["fragment_bytes"]),
         intervals=tuple(int(item) for item in schedule_row["intervals"]),
-        offsets=tuple(int(item) for item in schedule_row["offsets"]),
+        offsets=schedule_offsets,
         offset_algorithm=str(schedule_row["offset_algorithm"]),
-        learner_phase_offset=int(schedule_row["learner_phase_offset"]),
+        learner_phase_offset=learner_phase_offset,
     )
     publisher = FragmentSnapshotCoordinator(
         identities=atomic.store.identities,

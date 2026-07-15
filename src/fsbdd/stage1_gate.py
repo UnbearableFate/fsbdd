@@ -485,6 +485,7 @@ def _protocol_gate(
     *,
     workload: str,
     config: Mapping[str, Any],
+    gate_contract: Mapping[str, Any],
     execution_contract: Mapping[str, Any],
 ) -> dict[str, Any]:
     learner_count = len(roles)
@@ -606,6 +607,18 @@ def _protocol_gate(
         == "byte_weighted_midpoint_nearest_free_v1"
         for item in roles
     )
+    expected_phase_offsets = (
+        None
+        if workload == "nine_node"
+        else gate_contract["protocol"]["long_run_learner_phase_overlay"][
+            "learner_phase_offsets"
+        ]
+    )
+    phase_overlay_pass = expected_phase_offsets is None or all(
+        int(item["publication"]["schedule"]["learner_phase_offset"])
+        == int(expected_phase_offsets[int(item["learner_index"])])
+        for item in roles
+    )
     publication_opportunities: list[dict[str, Any]] = []
     if workload == "long_run":
         for item in roles:
@@ -668,6 +681,7 @@ def _protocol_gate(
         and forbidden_pass
         and frozen_asset_identity_pass
         and schedule_pass
+        and phase_overlay_pass
         and progress_reconciliation_pass
         and opportunity_pass
         and (expected_tokens is None or tokens == expected_tokens)
@@ -697,6 +711,8 @@ def _protocol_gate(
         "forbidden_runtime_pass": forbidden_pass,
         "frozen_model_dataset_identity_pass": frozen_asset_identity_pass,
         "resolved_publication_schedule_pass": schedule_pass,
+        "expected_learner_phase_offsets": expected_phase_offsets,
+        "learner_phase_overlay_pass": phase_overlay_pass,
         "progress_reconciliation_pass": progress_reconciliation_pass,
         "publication_opportunities": publication_opportunities,
         "minimum_publication_opportunities": minimum_opportunities,
@@ -770,6 +786,7 @@ def analyze(
         syncer,
         workload=workload,
         config=config,
+        gate_contract=gate_contract,
         execution_contract=execution_contract,
     )
     for name, value in (("topology", topology), ("loss", loss), ("runtime", runtime), ("protocol", protocol)):

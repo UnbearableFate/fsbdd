@@ -73,7 +73,30 @@
       "syncer_fragment_selected_count": 0
     }
   },
-  "protocol": {"profile": "A", "Q_equals_M": true, "Q_fresh_equals_M": true, "S_max": 0, "lambda_s": 1.0, "grace_seconds": 0.0, "fragment_count": 4, "outer_merge": "direct_weighted_average", "outer_optimizer": {"learning_rate": 0.1, "momentum": 0.9, "nesterov": true, "accumulation_dtype": "float32"}, "offset_algorithm": "byte_weighted_midpoint_nearest_free_v1", "application_data_plane": "shared_filesystem_only"},
+  "protocol": {
+    "profile": "A",
+    "Q_equals_M": true,
+    "Q_fresh_equals_M": true,
+    "S_max": 0,
+    "lambda_s": 1.0,
+    "grace_seconds": 0.0,
+    "fragment_count": 4,
+    "outer_merge": "direct_weighted_average",
+    "outer_optimizer": {
+      "learning_rate": 0.1,
+      "momentum": 0.9,
+      "nesterov": true,
+      "accumulation_dtype": "float32"
+    },
+    "offset_algorithm": "byte_weighted_midpoint_nearest_free_v1",
+    "long_run_learner_phase_overlay": {
+      "algorithm": "aligned_zero_for_q_equals_m_capacity_v1",
+      "learner_phase_offsets": [0, 0, 0, 0],
+      "reason": "Q=M requires the full H=50 interval between complete same-fragment quorums instead of a burst after the latest staggered learner",
+      "learner_waits_for_syncer": false
+    },
+    "application_data_plane": "shared_filesystem_only"
+  },
   "bounded_state": {"proposal_current_slots": "M_times_F", "global_current_slots": 4, "retained_base_versions_per_fragment": 1, "maximum_pending_publications_per_learner_fragment": 1, "minimum_unreferenced_payload_age_seconds": 30, "retained_recent_unreferenced_payloads_per_backend": 64, "history_scan_allowed": false},
   "failure_policy": "preserve first L3 or L4 failure and reproduce at the smallest real topology before retry"
 }
