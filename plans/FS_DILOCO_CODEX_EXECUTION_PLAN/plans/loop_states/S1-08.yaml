@@ -1,0 +1,66 @@
+schema_version: 2
+loop_id: S1-08
+title: Latest-only adoption mixed-version model and inner moments
+stage: stage1
+status: green_local
+source_hashes:
+  research_plan: 2c0db3148110da10ea62f445c189d2d53b405527d8da264b9af9817f5ca9d835
+  stage0_4_spec: 1ea71fb6e34fef0d7b5558d8e7999dfdedeb82957f4331afcf6f80279d1f5a7d
+git:
+  integration_branch: master
+  branch: codex/S1-08-latest-adoption
+  base_commit: 36487f874c97039c98ab7c18d5f75b8c284cf847
+  result_commit: null
+  dirty_at_start: true
+dependencies: [S1-04, S1-06, S1-03, S1-02]
+requirements: [LEARN-08, LEARN-09, LEARN-10, LEARN-11, GLOBAL-04, INV-09]
+acceptance_ids: [A-LEARN-02, A-LEARN-03]
+orient:
+  unique_failing_gap: The learner has no background verified latest-fragment discovery or safe-boundary target-only adoption path and therefore cannot preserve inner moments while sustaining independently versioned fragments.
+  planned_files: [src/fsbdd/learner.py, src/fsbdd/learner_publish.py, src/fsbdd/learner_adopt.py, src/fsbdd/learner_adopt_stress.py, configs/stage1/s1_08_latest_adoption.json, tests/stage1/test_s1_08_learner_adopt.py, tests/stage1/test_s1_08_adoption_stress_static.py, tests/red_cases/s1_08_naive_adoption_surrogate.py, pbs/stage1_s1_08_targeted.pbs, pbs/stage1_s1_08_latest_adoption.pbs, reports/stage1/S1-08-requirement-matrix.csv, reports/stage1/S1-08-evidence-contract.json]
+  model_data_profile: Seeded tiny real transformers GPT-NeoX causal LM and deterministic integer-token batches with AdamW moments initialized by real inner steps; no external model or dataset asset is required for this protocol loop.
+  miyabi_skill_commit: c3ddfa47cadfd9132edf939d359b90b28ab5f8ed
+  initial_hostname: miyabi-g1
+  workflow: login-node pure Python and static implementation followed by compute-node Torch tests Checker Phase A and one formal two-node learner/writer batch
+  context_inputs: [plans/PROGRESS.yaml, loops/stage1/S1-08.md, evidence/indexes/S1-04.md, evidence/indexes/S1-06.md, evidence/indexes/S1-07.md]
+  raw_evidence_on_demand: [runtime_runs/S1-08]
+  resource_level: L2
+  attempt_budget: {red: 1, targeted: 3, l1_compute: 2, formal_l2_batch: 1}
+  failure_ladder: preserve first L2 failure then reproduce both roles on one compute node before any resubmission
+  goal_tokens_start: 2465368
+  soft_token_budget: 90000
+preflight:
+  requirement_matrix: reports/stage1/S1-08-requirement-matrix.csv
+  requirements_complete: true
+  measurement_contract: reports/stage1/S1-08-evidence-contract.json
+  package_contract: reports/stage1/S1-08-evidence-contract.json
+  package_validator_command: fsbdd evidence validate runtime_runs/S1-08/formal-l2
+  package_validator_result: pending
+  checker_phase_a: required
+  parameter_comparison: per-fragment ordered little-endian fp32 SHA-256 immediately around safe-boundary apply
+  moment_comparison: canonical per-fragment optimizer-state SHA-256 immediately around safe-boundary apply
+  finite_loss_window: first post-adoption mixed-version optimizer step through the final requested step with at least five consecutive finite losses
+red:
+  command: PYTHONPATH=src .venv/bin/python tests/red_cases/s1_08_naive_adoption_surrogate.py
+  exit_code: 1
+  evidence_path: runtime_runs/S1-08/red-36487f8
+green:
+  command: PYTHONPATH=src .venv/bin/python -m pytest -q tests/stage1/test_s1_08_learner_adopt.py
+  evidence_path: runtime_runs/S1-08/l1-targeted-2385721.opbs
+harden:
+  commands:
+  - target-only latest-only counter moment mixed-version tied-ownership and old-base coexistence tests
+  - fail-closed wrong-map malformed-payload active-gradient manifest and analyzer fixtures
+  - login-node ruff py_compile bash-n JSON YAML requirement-matrix hash and diff checks
+  evidence_paths:
+  - runtime_runs/S1-08/l1-targeted-2385717.opbs
+  - runtime_runs/S1-08/l1-targeted-2385721.opbs
+nine_node_gate: {required: false, run_id: null, topology_gate: null, loss_gate: null, runtime_gate: null}
+checker: {context_id: null, maker_chat_inherited: false, phase_a_verdict: null, verdict: null, report_path: reports/checkers/S1-08.md, cycles: []}
+persist:
+  evidence_index: evidence/indexes/S1-08.md
+  raw_evidence_root: runtime_runs/S1-08
+  acceptance_traceability_updated: false
+  next_gap: null
+  handoff: null
+blocker: null

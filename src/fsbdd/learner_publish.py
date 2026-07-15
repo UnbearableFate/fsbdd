@@ -858,6 +858,34 @@ class FragmentSnapshotCoordinator:
             fragment.local_steps_since_adoption = 0
             fragment.processed_input_tokens_since_adoption = 0
 
+    def update_adopted_base_context(
+        self,
+        fragment_index: int,
+        version: int,
+        content_identity: str,
+    ) -> None:
+        """Advance snapshot metadata after an adoption-owned counter reset."""
+
+        index = _nonnegative_int(fragment_index, "fragment index")
+        base = AdoptedFragmentBase(version, content_identity)
+        with self._capture_lock:
+            try:
+                current = self._bases[index]
+                fragment = self.progress.fragments[index]
+            except IndexError as error:
+                raise SnapshotPublishError(f"unknown fragment index: {index}") from error
+            if base.version <= current.version:
+                raise SnapshotPublishError("adopted base version must increase")
+            if (
+                fragment.global_version != base.version
+                or fragment.local_steps_since_adoption != 0
+                or fragment.processed_input_tokens_since_adoption != 0
+            ):
+                raise SnapshotPublishError(
+                    "adoption must update target progress before snapshot base context"
+                )
+            self._bases[index] = base
+
     def drain(self, timeout_seconds: float = 60.0) -> None:
         self.publisher.drain(timeout_seconds)
 

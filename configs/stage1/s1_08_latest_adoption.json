@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "profile_id": "s1-08-latest-adoption-formal-v1",
+  "model": {
+    "family": "gpt_neox",
+    "vocab_size": 64,
+    "hidden_size": 24,
+    "intermediate_size": 48,
+    "num_hidden_layers": 4,
+    "num_attention_heads": 4,
+    "max_position_embeddings": 16,
+    "use_cache": false,
+    "initialization_seed": 1808
+  },
+  "training": {
+    "learner_id": "learner-00",
+    "fragment_count": 4,
+    "batch_size": 4,
+    "sequence_length": 8,
+    "optimizer_steps": 20,
+    "minimum_mixed_version_steps": 5,
+    "gradient_accumulation_steps": 1,
+    "precision": "fp32",
+    "optimizer": {
+      "class": "AdamW",
+      "lr": 0.001,
+      "weight_decay": 0.01,
+      "grad_clip_norm": 1.0
+    }
+  },
+  "adoption": {
+    "poll_interval_seconds": 0.005,
+    "batch_delay_seconds": 0.03,
+    "writer_start_delay_seconds": 0.15,
+    "maximum_pending_per_fragment": 1,
+    "identity_audit": true,
+    "updates": [
+      {"fragment_index": 0, "successor_count": 3, "delta_per_version": 0.01},
+      {"fragment_index": 2, "successor_count": 1, "delta_per_version": 0.02}
+    ],
+    "expected_final_version_vector": [3, 0, 1, 0],
+    "reader_timeout_seconds": 180
+  }
+}

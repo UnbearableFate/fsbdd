@@ -1,0 +1,89 @@
+{
+  "schema_version": 1,
+  "resource_level": "L2",
+  "selected_evidence_root": "/work/xg24i002/x10041/fsbdd/runtime_runs/S1-08/formal-l2",
+  "target_shared_root": "/work/xg24i002/x10041/fsbdd/runtime_runs",
+  "code_identity_contract": {
+    "submission_value": "EXPECTED_COMMIT is the full 40-character candidate SHA supplied to qsub",
+    "required_equality": "EXPECTED_COMMIT == clean worktree HEAD == manifest identities.code.commit",
+    "dirty_allowed": false
+  },
+  "topology": {
+    "pbs_queue": "debug-g",
+    "pbs_group": "xg24i002",
+    "nodes": 2,
+    "ranks": 2,
+    "ranks_per_node": 1,
+    "gpus_used": 1,
+    "roles": ["mixed_version_learner", "global_fragment_writer"],
+    "application_coordination": "filesystem_only",
+    "mpi_usage": "launcher_only",
+    "learner_waits_for_writer_or_version_alignment": false
+  },
+  "frozen_workload": {
+    "config_source": "configs/stage1/s1_08_latest_adoption.json",
+    "model": "seeded transformers GPTNeoXForCausalLM fixture",
+    "learner_count": 1,
+    "fragment_count": 4,
+    "optimizer_steps": 20,
+    "minimum_post_adoption_mixed_version_steps": 5,
+    "precision": "fp32",
+    "optimizer": "AdamW with initialized first and second moments",
+    "poll_interval_seconds": 0.005,
+    "maximum_pending_per_fragment": 1,
+    "writer_updates": {"fragment_0": 3, "fragment_2": 1},
+    "expected_direct_jump": {"fragment_index": 0, "from_version": 0, "to_version": 3},
+    "unchanged_fragments": [1, 3]
+  },
+  "adoption_boundary": {
+    "event": "LearnerRuntime invokes adoption only after backward clipping optimizer.step scheduler.step and zero_grad",
+    "copy_scope": "ordered parameters of one verified target fragment",
+    "counter_reset_scope": "target fragment local steps and processed input tokens only",
+    "moment_policy": "preserve all optimizer state by default",
+    "forbidden_conditions": [
+      "full version-vector equality before apply",
+      "waiting for a writer syncer quorum or other fragment",
+      "default optimizer-state reset",
+      "application data exchange through MPI collectives sockets RPC or NCCL"
+    ]
+  },
+  "identity_audit": {
+    "parameter_hash": "SHA-256 of each ordered fragment serialized as little-endian fp32 immediately before and after application",
+    "optimizer_hash": "canonical SHA-256 over every ordered parameter optimizer-state key type shape dtype and exact tensor bytes immediately before and after application",
+    "comparison_points": "inside the same safe-boundary callback around the target-only parameter copy and counter transition",
+    "target_rule": "target after hash equals SHA-256 of the verified FragmentGlobalState parameters",
+    "non_target_rule": "all non-target parameter hashes and all optimizer hashes remain identical"
+  },
+  "latest_only_and_bounded_state": {
+    "polling": "one background worker reads only the F fixed global-current slots and verifies compound payload identities and checksums",
+    "pending_bound": "one latest-wins complete pending state per fragment",
+    "repeated_current": "ignored and counted",
+    "direct_jump": "one application may advance v directly to any observed v+k and reports k-1 skipped intermediate versions",
+    "resident_trace_bound": "one latest adoption trace per fragment plus aggregate counters"
+  },
+  "mixed_version_loss_window": {
+    "start": "the first optimizer step whose pre-step model version vector is mixed after an adoption",
+    "end": "the final requested optimizer step",
+    "minimum_steps": 5,
+    "predicate": "every token-weighted loss is finite and local optimizer steps are consecutive",
+    "forbidden_aggregation": ["discarding nonfinite steps", "using the adoption boundary's pre-adoption loss as post-adoption evidence"]
+  },
+  "adoption_lag": {
+    "production_trace_join_key": "fragment index target version and global content identity",
+    "step_lag": "safe-boundary local step minus first verified-discovery completed-step snapshot",
+    "time_lag": "writer publication-completion time.time_ns joined to adoption time.time_ns in the formal analyzer",
+    "transfer_intervals": {
+      "fs_to_cpu_seconds": "monotonic duration of fixed-slot read plus payload verification",
+      "cpu_to_gpu_seconds": "monotonic duration of validated target-fragment tensor copies with CUDA synchronization when applicable"
+    }
+  },
+  "run_identity": {
+    "config_identity": "raw SHA-256 of the frozen JSON profile",
+    "model_identity": "runtime logical-layer registry digest from the frozen seeded model",
+    "fragment_map_identity": "runtime FragmentMap digest from the same registry and fragment count",
+    "state_identity": "run config model map descriptor version and content identities validated by GlobalStateStore"
+  },
+  "formal_package": "S1-00 builder finalizer and validator with clean code config source skill scheduler GPU role path and checksum identities plus fail-if-exists root",
+  "attempt_budget": {"red": 1, "targeted": 3, "l1_compute": 2, "formal_l2_batch": 1},
+  "failure_ladder": "preserve the first formal L2 package; reproduce writer and learner on one compute node with the same candidate and profile before any resubmission"
+}

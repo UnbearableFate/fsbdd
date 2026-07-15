@@ -1,0 +1,36 @@
+#!/bin/bash
+#PBS -q debug-g
+#PBS -l select=1
+#PBS -l walltime=00:30:00
+#PBS -W group_list=xg24i002
+#PBS -N fsbdd-s1-08-targeted
+
+set -eEuo pipefail
+trap 'echo "[ERROR] line=$LINENO command=$BASH_COMMAND" >&2' ERR
+
+: "${MAIN_ROOT:=/work/xg24i002/x10041/fsbdd}"
+: "${MODULE_NAME:=nv-hpcx/25.9}"
+
+export PAGER=cat MODULES_PAGER=cat LMOD_PAGER=cat
+module load "$MODULE_NAME"
+cd "$MAIN_ROOT"
+export PYTHONPATH="$MAIN_ROOT/src"
+export OMP_NUM_THREADS=1
+
+ROOT="$MAIN_ROOT/runtime_runs/S1-08/l1-targeted-${PBS_JOBID}"
+if [[ -e "$ROOT" ]]; then
+  echo "refusing to reuse targeted evidence root: $ROOT" >&2
+  exit 73
+fi
+mkdir -p "$ROOT"/{env,stdout,stderr}
+hostname > "$ROOT/env/hostname.txt"
+cp "$PBS_NODEFILE" "$ROOT/env/pbs-nodefile.txt"
+module -t list > "$ROOT/env/modules.txt" 2>&1
+qstat -f "$PBS_JOBID" > "$ROOT/env/qstat.txt"
+nvidia-smi -L > "$ROOT/env/nvidia-smi.txt" 2>&1
+"$MAIN_ROOT/.venv/bin/python" -c \
+  'import torch, transformers; print(torch.__version__); print(transformers.__version__)' \
+  > "$ROOT/env/torch-transformers.txt" 2>&1
+"$MAIN_ROOT/.venv/bin/python" -m pytest -q \
+  tests/stage1/test_s1_08_learner_adopt.py \
+  > "$ROOT/stdout/pytest.log" 2> "$ROOT/stderr/pytest.log"

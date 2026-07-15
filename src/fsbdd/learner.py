@@ -765,19 +765,12 @@ class LearnerRuntime:
                     )
                 active_metrics.update(observed)
             if active_metrics:
-                exercised = {
-                    "gpu_to_cpu_seconds",
-                    "cpu_to_fs_seconds",
-                    "snapshot_skip_count",
-                    "snapshot_replacement_count",
-                    "pending_upload_count",
-                }
                 event = dataclasses.replace(
                     event,
                     inactive_metrics={
                         key: value
                         for key, value in event.inactive_metrics.items()
-                        if key not in exercised
+                        if key not in active_metrics
                     },
                     active_metrics=active_metrics,
                 )
