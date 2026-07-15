@@ -16,6 +16,10 @@ class PublicationError(RuntimeError):
     pass
 
 
+class PublicationNotFound(PublicationError):
+    """The requested fixed visibility slot was absent at the read deadline."""
+
+
 class PublicationInterrupted(PublicationError):
     pass
 
@@ -128,7 +132,10 @@ def _require_shape(value: object) -> tuple[int, ...]:
     if not isinstance(value, (tuple, list)):
         raise PublicationError("shape must be an integer sequence")
     shape = tuple(value)
-    if any(not isinstance(item, int) or isinstance(item, bool) or item < 0 for item in shape):
+    if any(
+        not isinstance(item, int) or isinstance(item, bool) or item < 0
+        for item in shape
+    ):
         raise PublicationError("shape must contain only nonnegative integers")
     return shape
 
@@ -151,14 +158,18 @@ def _validate_slot(slot: str) -> str:
 
 
 def _canonical_record_bytes(record: PublicationRecord) -> bytes:
-    return (json.dumps(record.to_dict(), sort_keys=True, separators=(",", ":")) + "\n").encode("utf-8")
+    return (
+        json.dumps(record.to_dict(), sort_keys=True, separators=(",", ":")) + "\n"
+    ).encode("utf-8")
 
 
 def _parse_record(content: bytes) -> PublicationRecord:
     try:
         value = json.loads(content)
     except (UnicodeDecodeError, json.JSONDecodeError) as error:
-        raise PublicationError("visibility record is not complete canonical JSON") from error
+        raise PublicationError(
+            "visibility record is not complete canonical JSON"
+        ) from error
     expected = {field.name for field in dataclasses.fields(PublicationRecord)}
     if not isinstance(value, dict) or set(value) != expected:
         raise PublicationError("visibility record schema mismatch")
@@ -169,20 +180,32 @@ def _parse_record(content: bytes) -> PublicationRecord:
             schema_version=1,
             complete=True,
             run_identity=_require_text(value["run_identity"], "run_identity"),
-            fragment_map_identity=_require_hex64(value["fragment_map_identity"], "fragment_map_identity"),
-            fragment_identity=_require_text(value["fragment_identity"], "fragment_identity"),
+            fragment_map_identity=_require_hex64(
+                value["fragment_map_identity"], "fragment_map_identity"
+            ),
+            fragment_identity=_require_text(
+                value["fragment_identity"], "fragment_identity"
+            ),
             version=_require_ordinal(value["version"], "version"),
             sequence=_require_ordinal(value["sequence"], "sequence"),
             dtype=_require_text(value["dtype"], "dtype"),
             shape=_require_shape(value["shape"]),
-            base_content_identity=_require_hex64(value["base_content_identity"], "base_content_identity"),
-            payload_relative_path=_require_text(value["payload_relative_path"], "payload_relative_path"),
+            base_content_identity=_require_hex64(
+                value["base_content_identity"], "base_content_identity"
+            ),
+            payload_relative_path=_require_text(
+                value["payload_relative_path"], "payload_relative_path"
+            ),
             payload_bytes=_require_ordinal(value["payload_bytes"], "payload_bytes"),
             payload_sha256=_require_hex64(value["payload_sha256"], "payload_sha256"),
-            payload_identity=_require_hex64(value["payload_identity"], "payload_identity"),
+            payload_identity=_require_hex64(
+                value["payload_identity"], "payload_identity"
+            ),
         )
     except KeyError as error:
-        raise PublicationError("visibility record is missing a required field") from error
+        raise PublicationError(
+            "visibility record is missing a required field"
+        ) from error
     if record.payload_identity != record.payload_sha256:
         raise PublicationError("payload identity and checksum differ")
     payload_path = PurePosixPath(record.payload_relative_path)
@@ -192,11 +215,15 @@ def _parse_record(content: bytes) -> PublicationRecord:
         or payload_path.parts[0] != "payloads"
         or not payload_path.parts[1].endswith(".bin")
     ):
-        raise PublicationError("visibility record payload path is outside the immutable payload area")
+        raise PublicationError(
+            "visibility record payload path is outside the immutable payload area"
+        )
     return record
 
 
-def _validate_expectation(record: PublicationRecord, expectation: ReadExpectation) -> None:
+def _validate_expectation(
+    record: PublicationRecord, expectation: ReadExpectation
+) -> None:
     exact = {
         "run_identity": expectation.run_identity,
         "fragment_map_identity": expectation.fragment_map_identity,
@@ -224,6 +251,10 @@ class PosixStorageBackend:
         self._visibility_root.mkdir(parents=True, exist_ok=True)
         self._record_temp_root.mkdir(parents=True, exist_ok=True)
 
+    @property
+    def root(self) -> Path:
+        return self._root
+
     def publish(
         self,
         slot: str,
@@ -249,14 +280,23 @@ class PosixStorageBackend:
             with payload_path.open("xb") as stream:
                 stream.write(payload)
         except OSError as error:
-            raise PublicationError(f"failed to write unique payload: {error}") from error
+            raise PublicationError(
+                f"failed to write unique payload: {error}"
+            ) from error
         payload_sha256 = hashlib.sha256(payload).hexdigest()
         try:
             verified = payload_path.read_bytes()
         except OSError as error:
-            raise PublicationError(f"completed payload is not readable: {error}") from error
-        if len(verified) != len(payload) or hashlib.sha256(verified).hexdigest() != payload_sha256:
-            raise PublicationError("completed payload failed size/checksum verification")
+            raise PublicationError(
+                f"completed payload is not readable: {error}"
+            ) from error
+        if (
+            len(verified) != len(payload)
+            or hashlib.sha256(verified).hexdigest() != payload_sha256
+        ):
+            raise PublicationError(
+                "completed payload failed size/checksum verification"
+            )
         if crash_at == "after_payload_write":
             raise PublicationInterrupted(crash_at)
 
@@ -281,7 +321,9 @@ class PosixStorageBackend:
             with record_temp.open("xb") as stream:
                 stream.write(_canonical_record_bytes(record))
         except OSError as error:
-            raise PublicationError(f"failed to stage visibility record: {error}") from error
+            raise PublicationError(
+                f"failed to stage visibility record: {error}"
+            ) from error
         if crash_at == "before_record_replace":
             raise PublicationInterrupted(crash_at)
         if visibility_hook is not None:
@@ -289,7 +331,9 @@ class PosixStorageBackend:
         try:
             os.replace(record_temp, self._visibility_root / f"{slot}.json")
         except OSError as error:
-            raise PublicationError(f"atomic visibility record replacement failed: {error}") from error
+            raise PublicationError(
+                f"atomic visibility record replacement failed: {error}"
+            ) from error
         if crash_at == "after_record_replace":
             raise PublicationInterrupted(crash_at)
         return record
@@ -303,7 +347,11 @@ class PosixStorageBackend:
         poll_interval_seconds: float = 0.01,
     ) -> PublishedPayload:
         slot = _validate_slot(slot)
-        if not isinstance(timeout_seconds, (int, float)) or isinstance(timeout_seconds, bool) or timeout_seconds < 0:
+        if (
+            not isinstance(timeout_seconds, (int, float))
+            or isinstance(timeout_seconds, bool)
+            or timeout_seconds < 0
+        ):
             raise PublicationError("timeout_seconds must be nonnegative")
         if (
             not isinstance(poll_interval_seconds, (int, float))
@@ -318,11 +366,15 @@ class PosixStorageBackend:
                 record_content = visibility_path.read_bytes()
             except FileNotFoundError:
                 if time.monotonic() >= deadline:
-                    raise PublicationError("visibility record did not become readable before timeout")
+                    raise PublicationNotFound(
+                        "visibility record did not become readable before timeout"
+                    )
                 time.sleep(float(poll_interval_seconds))
                 continue
             except OSError as error:
-                raise PublicationError(f"visibility record read failed: {error}") from error
+                raise PublicationError(
+                    f"visibility record read failed: {error}"
+                ) from error
             record = _parse_record(record_content)
             _validate_expectation(record, expectation)
             payload_path = self._root / record.payload_relative_path
@@ -332,9 +384,14 @@ class PosixStorageBackend:
                 payload = b""
             except OSError as error:
                 raise PublicationError(f"payload read failed: {error}") from error
-            valid = len(payload) == record.payload_bytes and hashlib.sha256(payload).hexdigest() == record.payload_sha256
+            valid = (
+                len(payload) == record.payload_bytes
+                and hashlib.sha256(payload).hexdigest() == record.payload_sha256
+            )
             if valid:
                 return PublishedPayload(record=record, payload=payload)
             if time.monotonic() >= deadline:
-                raise PublicationError("payload did not become complete and readable before timeout")
+                raise PublicationError(
+                    "payload did not become complete and readable before timeout"
+                )
             time.sleep(float(poll_interval_seconds))
