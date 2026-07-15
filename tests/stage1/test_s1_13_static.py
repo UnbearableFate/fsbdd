@@ -19,7 +19,7 @@ def test_closure_runtime_has_no_application_network_data_plane() -> None:
         assert token not in source
     assert '"network_data_plane": False' in source
     assert '"application_coordination": "shared_filesystem_only"' in source
-    assert 'minimum_step_seconds=0.5 if workload == "nine_node" else None' in source
+    assert 'minimum_step_seconds=float(execution_contract["minimum_step_seconds"])' in source
     assert 'merge_backend="numpy"' in source
 
 
@@ -30,10 +30,18 @@ def test_formal_topologies_freeze_independent_9n_and_coallocated_4_plus_1() -> N
     assert "#PBS -l select=1" in nine
     assert "PBS_ARRAY_INDEX" in nine
     assert "mpirun" not in nine
+    assert "stage1_submit validate-nine" in nine
+    assert "SUBMISSION_MARKER_SHA256" in nine
     assert "#PBS -l select=5" in long
     assert "mpirun -np 5 --map-by ppr:1:node" in long
     assert "CUDA_VISIBLE_DEVICES" in long or "stage1_close mpi" in long
     assert (ROOT / "pbs/stage1_s1_13_numpy_correction.pbs").is_file()
+    smoke = (ROOT / "pbs/stage1_s1_13_long_smoke.pbs").read_text(
+        encoding="utf-8"
+    )
+    assert "#PBS -l select=5" in smoke
+    assert "--non-formal-long-smoke" in smoke
+    assert "stage1_gate" in smoke
 
 
 def test_formal_package_retains_current_protocol_samples_and_rejects_placeholders() -> None:
@@ -41,6 +49,8 @@ def test_formal_package_retains_current_protocol_samples_and_rejects_placeholder
     assert "_reject_placeholders(resolved_config)" in source
     assert "_capture_current_protocol_samples(arguments.shared_root, evidence)" in source
     assert "raw-metadata/classified-current-inventory.json" in source
+    assert "nine-node package requires a submission marker" in source
+    assert '"gate_contract_sha256"' in source
 
 
 def test_unresolved_contract_freezes_both_non_substitutable_workloads() -> None:
@@ -57,6 +67,23 @@ def test_unresolved_contract_freezes_both_non_substitutable_workloads() -> None:
     assert long["minimum_global_cycles"] == 2400
     assert config["protocol"]["H"] == 50
     assert config["protocol"]["torch_distributed"] is False
+
+
+def test_frozen_gate_contract_covers_heartbeat_stalls_and_long_capacity_smoke() -> None:
+    contract = json.loads(
+        (ROOT / "reports/stage1/S1-13-gate-contract.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    runtime = contract["runtime"]
+    smoke = contract["long_run"]["preflight_smoke"]
+    assert runtime["maximum_unexpected_heartbeat_gap_multiple"] == 2.0
+    assert runtime["pending_stall_rejection"]["learner_publication_pending_upload_count"] == 0
+    assert smoke["optimizer_steps_per_learner"] == 3000
+    assert smoke["publication_opportunities_per_fragment_per_learner"] == 60
+    assert smoke["minimum_global_cycles"] == 59
+    assert smoke["minimum_cycle_to_publication_opportunity_ratio"] >= 59 / 60
+    assert contract["long_run"]["minimum_step_seconds"] == 0.15
 
 
 def test_resolved_configs_bind_the_complete_immutable_asset_bundle() -> None:

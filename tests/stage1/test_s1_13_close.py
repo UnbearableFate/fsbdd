@@ -13,8 +13,13 @@ from fsbdd.global_state import BootstrapFragment, FragmentStateDescriptor, Globa
 from fsbdd.proposal import ConsumptionFrontiers, Proposal, ProposalStore
 from fsbdd.storage import PosixStorageBackend, PublicationSpec, ReadExpectation
 from fsbdd.syncer_readiness import FragmentReadinessAuthority, ReadinessConfig, SyncerReadinessMachine
-from fsbdd.stage1_gate import _topology_gate
+from fsbdd.stage1_gate import _runtime_gate, _topology_gate
 from fsbdd.stage1_package import Stage1PackageError, _capture_current_protocol_samples, _reject_placeholders
+from fsbdd.stage1_submit import (
+    Stage1SubmissionError,
+    prepare_nine_node_roots,
+    validate_nine_node_roots,
+)
 from fsbdd.evidence import EvidencePackage
 
 
@@ -234,3 +239,151 @@ def test_numpy_syncer_probe_imports_no_torch() -> None:
     )
     assert completed.returncode == 0, completed.stderr
     assert "torch_module_imported=false" in completed.stdout
+
+
+def test_nine_node_submission_roots_are_exclusive_and_identity_bound(
+    tmp_path: Path,
+) -> None:
+    values = {
+        "shared_root": tmp_path / "shared",
+        "result_root": tmp_path / "result",
+        "evidence_root": tmp_path / "evidence",
+        "run_id": "s1-13-nine-test",
+        "submission_utc": "2026-07-15T00:00:00Z",
+        "code_commit": "1" * 64,
+        "config_sha256": "2" * 64,
+        "asset_marker_sha256": "3" * 64,
+        "gate_contract_sha256": "4" * 64,
+    }
+    prepared = prepare_nine_node_roots(**values)
+    assert not values["evidence_root"].exists()
+    assert (values["shared_root"] / "submission-root.json").read_bytes() == (
+        values["result_root"] / "submission-root.json"
+    ).read_bytes()
+    validated = validate_nine_node_roots(
+        **values,
+        submission_marker_sha256=prepared["submission_marker_sha256"],
+    )
+    assert validated == prepared
+    with pytest.raises(Stage1SubmissionError, match="refusing to reuse"):
+        prepare_nine_node_roots(**values)
+    with pytest.raises(Stage1SubmissionError, match="checksum mismatch"):
+        validate_nine_node_roots(
+            **values,
+            submission_marker_sha256="5" * 64,
+        )
+
+
+def _runtime_fixture(tmp_path: Path) -> tuple[list[dict[str, object]], dict[str, object]]:
+    log_root = tmp_path / "logs"
+    log_root.mkdir()
+    with (log_root / "learner-00.jsonl").open("w", encoding="utf-8") as stream:
+        for step in range(1, 6):
+            stream.write(
+                json.dumps(
+                    {
+                        "event": "safe_boundary",
+                        "local_optimizer_step": step,
+                        "step_latency_seconds": 0.1,
+                    }
+                )
+                + "\n"
+            )
+    role: dict[str, object] = {
+        "_result_root": str(tmp_path),
+        "learner_id": "learner-00",
+        "publication": {
+            "publication": {
+                "pending_upload_count": 0,
+                "in_flight_publication_count": 0,
+                "terminal_emits_in_progress": 0,
+                "errors": [],
+                "maximum_pending_per_fragment": [1, 1, 1, 1],
+                "maximum_in_flight_per_fragment": [1, 1, 1, 1],
+            }
+        },
+        "adoption": {
+            "poller": {
+                "pending_count": 0,
+                "errors": [],
+                "closed": True,
+                "maximum_pending_per_fragment": [1, 1, 1, 1],
+            }
+        },
+    }
+    updates = [
+        {
+            "fragment_index": index % 4,
+            "global_cycle_after": (index + 1) // 4,
+            "completed_unix_ns": (index + 1) * 1_000_000_000,
+            "update_latency_seconds": 0.2,
+        }
+        for index in range(8)
+    ]
+    syncer: dict[str, object] = {
+        "active": {"active_start_unix_ns": 1},
+        "completion": {"active_end_unix_ns": 9_000_000_000},
+        "updates": updates,
+        "readiness": {
+            "active_fragment": None,
+            "resident_selected_proposals": 0,
+            "resident_latest_proposals": 4,
+            "fragments": [
+                {
+                    "phase": "waiting",
+                    "selected_count": 0,
+                    "selection_identity": None,
+                }
+                for _ in range(4)
+            ],
+        },
+    }
+    return [role], syncer
+
+
+def test_runtime_gate_rejects_heartbeat_gap_and_pending_stall(tmp_path: Path) -> None:
+    roles, syncer = _runtime_fixture(tmp_path)
+    contract = json.loads(
+        (
+            Path(__file__).resolve().parents[2]
+            / "reports/stage1/S1-13-gate-contract.json"
+        ).read_text(encoding="utf-8")
+    )
+    execution = {
+        "runtime_budget_seconds": 100,
+        "pbs_walltime_seconds": 200,
+        "minimum_global_cycles": 2,
+    }
+    config = {"bounded_state": {"inventory_every_global_cycles": 10}}
+    passed = _runtime_gate(
+        roles,
+        syncer,
+        workload="long_run",
+        config=config,
+        gate_contract=contract,
+        execution_contract=execution,
+    )
+    assert passed["status"] == "pass"
+    syncer["updates"][7]["completed_unix_ns"] = 100_000_000_000
+    heartbeat_failure = _runtime_gate(
+        roles,
+        syncer,
+        workload="long_run",
+        config=config,
+        gate_contract=contract,
+        execution_contract=execution,
+    )
+    assert heartbeat_failure["status"] == "fail"
+    assert heartbeat_failure["progress_heartbeat"]["pass"] is False
+    syncer["updates"][7]["completed_unix_ns"] = 8_000_000_000
+    roles[0]["publication"]["publication"]["pending_upload_count"] = 1
+    stall_failure = _runtime_gate(
+        roles,
+        syncer,
+        workload="long_run",
+        config=config,
+        gate_contract=contract,
+        execution_contract=execution,
+    )
+    assert stall_failure["status"] == "fail"
+    assert stall_failure["pending_stall"]["pass"] is False

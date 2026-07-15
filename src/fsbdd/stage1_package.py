@@ -46,6 +46,39 @@ def _reject_placeholders(value: Any, *, path: str = "config") -> None:
         raise Stage1PackageError(f"unresolved placeholder in {path}")
 
 
+def _validate_submission_marker(arguments: argparse.Namespace) -> None:
+    marker_path = arguments.submission_marker
+    if marker_path is None or not marker_path.is_file() or marker_path.is_symlink():
+        raise Stage1PackageError("nine-node package requires a safe submission marker")
+    marker = _read(marker_path)
+    expected = {
+        "complete": True,
+        "kind": "s1_13_nine_node_exclusive_submission_roots",
+        "workload": "nine_node",
+        "run_id": arguments.run_id,
+        "submission_utc": arguments.timestamp_utc,
+        "code_commit": arguments.commit,
+        "config_sha256": file_digest(arguments.config),
+        "asset_marker_sha256": file_digest(arguments.asset_root / "complete.json"),
+        "gate_contract_sha256": file_digest(arguments.gate_contract),
+        "shared_root": str(arguments.shared_root.resolve()),
+        "result_root": str(arguments.result_root.resolve()),
+        "evidence_root": str(arguments.evidence_root.resolve()),
+        "creation_semantics": "each raw root created by one exclusive mkdir before qsub",
+        "fail_if_exists": True,
+        "schema_version": 1,
+    }
+    if marker != expected:
+        raise Stage1PackageError("submission marker differs from package identities")
+    shared_marker = arguments.shared_root / "submission-root.json"
+    if (
+        not shared_marker.is_file()
+        or shared_marker.is_symlink()
+        or shared_marker.read_bytes() != marker_path.read_bytes()
+    ):
+        raise Stage1PackageError("shared and result submission markers differ")
+
+
 def _capture_current_protocol_samples(
     shared_root: Path,
     evidence: EvidencePackage,
@@ -141,11 +174,22 @@ def package(arguments: argparse.Namespace) -> dict[str, Any]:
     role_map = {"learners": learner_hosts, "syncer": [syncer_host]}
     for relative in (
         "reports/stage1/S1-13-evidence-contract.json",
-        "reports/stage1/S1-13-gate-contract.json",
         "reports/stage1/S1-13-requirement-matrix.csv",
         "plans/FS_DILOCO_CODEX_EXECUTION_PLAN/loops/stage1/S1-13.md",
     ):
         _copy_file(arguments.project_root / relative, arguments.evidence_root / "contracts" / Path(relative).name)
+    _copy_file(
+        arguments.gate_contract,
+        arguments.evidence_root / "contracts" / "S1-13-gate-contract.json",
+    )
+    if workload == "nine_node":
+        if arguments.submission_marker is None:
+            raise Stage1PackageError("nine-node package requires a submission marker")
+        _validate_submission_marker(arguments)
+        _copy_file(
+            arguments.submission_marker,
+            arguments.evidence_root / "contracts" / "submission-root.json",
+        )
     _copy_file(arguments.config, arguments.evidence_root / "configs" / "resolved-config.json")
     _copy_file(arguments.asset_root / "manifest.json", arguments.evidence_root / "assets" / "manifest.json")
     _copy_file(arguments.asset_root / "complete.json", arguments.evidence_root / "assets" / "complete.json")
@@ -198,7 +242,12 @@ def package(arguments: argparse.Namespace) -> dict[str, Any]:
                 if source.stat().st_size:
                     raise Stage1PackageError(f"formal role produced non-empty stderr: {source}")
                 _copy_file(source, arguments.evidence_root / "stderr" / source.relative_to(arguments.stderr_root))
-    analyze(arguments.result_root, arguments.config, arguments.evidence_root / "analysis")
+    analyze(
+        arguments.result_root,
+        arguments.config,
+        arguments.gate_contract,
+        arguments.evidence_root / "analysis",
+    )
     runtime_source = (arguments.project_root / "src/fsbdd/stage1_close.py").read_text(encoding="utf-8")
     forbidden_api_tokens = (
         "init_process_group(",
@@ -233,7 +282,10 @@ def package(arguments: argparse.Namespace) -> dict[str, Any]:
             "commit": arguments.commit,
             "dirty": False,
         },
-        "config": {"sha256": file_digest(arguments.config)},
+        "config": {
+            "sha256": file_digest(arguments.config),
+            "gate_contract_sha256": file_digest(arguments.gate_contract),
+        },
         "source": {
             "research_plan_sha256": arguments.research_sha256,
             "stage0_4_spec_sha256": arguments.spec_sha256,
@@ -273,6 +325,12 @@ def package(arguments: argparse.Namespace) -> dict[str, Any]:
     manifest["stage1_closure"] = {
         "workload": workload,
         "asset_marker_sha256": file_digest(arguments.asset_root / "complete.json"),
+        "gate_contract_sha256": file_digest(arguments.gate_contract),
+        "submission_marker_sha256": (
+            None
+            if arguments.submission_marker is None
+            else file_digest(arguments.submission_marker)
+        ),
         "hf_cli": {"skill": "hugging-face:hf-cli", "version": "1.23.0"},
         "raw_protocol_root": str(arguments.shared_root.resolve()),
         "role_scheduler_records": [
@@ -328,8 +386,10 @@ def _parser() -> argparse.ArgumentParser:
         "env-root",
         "stdout-root",
         "stderr-root",
+        "gate-contract",
     ):
         parser.add_argument(f"--{name}", type=Path, required=True)
+    parser.add_argument("--submission-marker", type=Path)
     return parser
 
 

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import math
 import statistics
@@ -11,6 +12,14 @@ from typing import Any
 
 class Stage1GateError(RuntimeError):
     pass
+
+
+def _file_sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as stream:
+        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
 
 
 def _read(path: Path) -> dict[str, Any]:
@@ -63,24 +72,27 @@ def _loss_gate(
     *,
     workload: str,
     config: Mapping[str, Any],
+    workload_gate_contract: Mapping[str, Any],
+    execution_contract: Mapping[str, Any],
 ) -> dict[str, Any]:
     if workload == "nine_node":
-        contract = config["loss_gate"]
+        contract = workload_gate_contract["loss"]
         warmup = int(contract["warmup_points"])
         window = int(contract["rolling_median_window"])
         initial_fraction = float(contract["initial_fraction"])
         final_fraction = float(contract["final_fraction"])
         maximum_ratio = float(contract["maximum_final_to_initial_median"])
         maximum_learner_ratio = float(contract["maximum_per_learner_final_to_initial"])
-        minimum_points = int(config["workloads"][workload]["minimum_loss_points"])
+        minimum_points = int(contract["minimum_points_per_learner"])
     else:
-        warmup = 100
-        window = 20
-        initial_fraction = 0.05
-        final_fraction = 0.05
-        maximum_ratio = 0.99
+        contract = workload_gate_contract["loss"]
+        warmup = int(contract["warmup_points"])
+        window = int(contract["rolling_median_window"])
+        initial_fraction = float(contract["initial_fraction"])
+        final_fraction = float(contract["final_fraction"])
+        maximum_ratio = float(contract["maximum_final_to_initial_median"])
         maximum_learner_ratio: float | None = None
-        minimum_points = int(config["workloads"][workload]["optimizer_steps_per_learner"])
+        minimum_points = int(execution_contract["optimizer_steps_per_learner"])
     learner_rows = []
     series = []
     for role in sorted(roles, key=lambda item: int(item["learner_index"])):
@@ -178,6 +190,8 @@ def _topology_gate(
     *,
     workload: str,
     expected_learners: int,
+    expected_gate_contract_sha256: str | None = None,
+    expected_execution_mode: str | None = None,
 ) -> dict[str, Any]:
     learner_hosts = [str(item["identity"]["hostname"]) for item in roles]
     syncer_host = str(syncer["identity"]["hostname"])
@@ -195,6 +209,18 @@ def _topology_gate(
     asset_identities = {str(item["identity"]["asset_marker_sha256"]) for item in roles} | {
         str(syncer["identity"]["asset_marker_sha256"])
     }
+    gate_identities = {
+        str(item["identity"].get("gate_contract_sha256")) for item in roles
+    } | {str(syncer["identity"].get("gate_contract_sha256"))}
+    execution_modes = {
+        str(item["identity"].get("execution_mode")) for item in roles
+    } | {str(syncer["identity"].get("execution_mode"))}
+    gate_identity_pass = expected_gate_contract_sha256 is None or gate_identities == {
+        expected_gate_contract_sha256
+    }
+    execution_mode_pass = expected_execution_mode is None or execution_modes == {
+        expected_execution_mode
+    }
     passed = (
         len(roles) == expected_learners
         and len(set(learner_hosts)) == expected_learners
@@ -204,6 +230,8 @@ def _topology_gate(
         and syncer["identity"]["torch_module_imported"] is False
         and syncer["identity"]["cuda_visible_devices"] in {"", "-1"}
         and len(run_ids) == len(config_identities) == len(asset_identities) == 1
+        and gate_identity_pass
+        and execution_mode_pass
         and (not require_independent or len(set(job_ids)) == expected_learners + 1)
         and all(isinstance(value, str) and value.endswith("Z") for value in qtimes)
         and len({int(item["identity"]["shared_device"]) for item in roles} | {int(syncer["identity"]["shared_device"])}) == 1
@@ -224,6 +252,10 @@ def _topology_gate(
         "run_ids": sorted(run_ids),
         "config_sha256": sorted(config_identities),
         "asset_marker_sha256": sorted(asset_identities),
+        "gate_contract_sha256": sorted(gate_identities),
+        "gate_contract_identity_pass": gate_identity_pass,
+        "execution_modes": sorted(execution_modes),
+        "execution_mode_pass": execution_mode_pass,
         "independent_job_ids_required": require_independent,
         "shared_filesystem_device_ids": sorted({int(item["identity"]["shared_device"]) for item in roles} | {int(syncer["identity"]["shared_device"])}),
         "syncer_cpu_only": (
@@ -239,20 +271,144 @@ def _runtime_gate(
     *,
     workload: str,
     config: Mapping[str, Any],
+    gate_contract: Mapping[str, Any],
+    execution_contract: Mapping[str, Any],
 ) -> dict[str, Any]:
     start = int(syncer["active"]["active_start_unix_ns"])
     end = int(syncer["completion"]["active_end_unix_ns"])
     active_seconds = (end - start) / 1e9
-    budget = float(config["workloads"][workload]["runtime_budget_seconds"])
+    budget = float(
+        execution_contract.get(
+            "runtime_budget_seconds",
+            execution_contract.get("active_runtime_budget_seconds_absolute_ceiling"),
+        )
+    )
+    walltime = float(execution_contract["pbs_walltime_seconds"])
+    walltime_limit = float(
+        gate_contract["runtime"][
+            "active_runtime_must_be_below_pbs_walltime_fraction"
+        ]
+    )
+    target = int(
+        execution_contract.get(
+            "target_global_cycles", execution_contract.get("minimum_global_cycles")
+        )
+    )
     step_latencies = []
     for role in roles:
         events = _records(Path(role["_result_root"]) / "logs" / f"{role['learner_id']}.jsonl", "safe_boundary")
         step_latencies.extend(float(item["step_latency_seconds"]) for item in events)
     update_latencies = [float(item["update_latency_seconds"]) for item in syncer["updates"]]
+    target_updates = []
+    target_reached = False
+    for item in syncer["updates"]:
+        target_updates.append(item)
+        if int(item["global_cycle_after"]) >= target:
+            target_reached = True
+            break
+    completion_times = [int(item["completed_unix_ns"]) for item in target_updates]
+    inventory_interval = int(config["bounded_state"]["inventory_every_global_cycles"])
+    heartbeat_gaps = []
+    excluded_inventory_gaps = []
+    for index, (left, right) in enumerate(
+        zip(completion_times, completion_times[1:])
+    ):
+        gap = (right - left) / 1e9
+        previous_cycle = int(target_updates[index]["global_cycle_after"])
+        cycle_before_previous = (
+            -1
+            if index == 0
+            else int(target_updates[index - 1]["global_cycle_after"])
+        )
+        if (
+            previous_cycle > cycle_before_previous
+            and previous_cycle > 0
+            and previous_cycle % inventory_interval == 0
+        ):
+            excluded_inventory_gaps.append(gap)
+        else:
+            heartbeat_gaps.append(gap)
+    heartbeat_times_strict = all(item > 0 for item in heartbeat_gaps)
+    per_fragment_completion_times: dict[int, list[int]] = {}
+    for item in target_updates:
+        per_fragment_completion_times.setdefault(int(item["fragment_index"]), []).append(
+            int(item["completed_unix_ns"])
+        )
+    same_fragment_intervals = [
+        (right - left) / 1e9
+        for times in per_fragment_completion_times.values()
+        for left, right in zip(times, times[1:])
+    ]
+    normal_interval = (
+        float(statistics.median(same_fragment_intervals))
+        if same_fragment_intervals
+        else math.nan
+    )
+    maximum_gap = max(heartbeat_gaps) if heartbeat_gaps else math.inf
+    maximum_gap_multiple = float(
+        gate_contract["runtime"]["maximum_unexpected_heartbeat_gap_multiple"]
+    )
+    heartbeat_pass = (
+        target_reached
+        and heartbeat_times_strict
+        and math.isfinite(normal_interval)
+        and normal_interval > 0
+        and maximum_gap <= maximum_gap_multiple * normal_interval
+    )
+    learner_pending_rows = []
+    for role in roles:
+        publication = role["publication"]["publication"]
+        adoption = role["adoption"]["poller"]
+        row_pass = (
+            int(publication["pending_upload_count"]) == 0
+            and int(publication["in_flight_publication_count"]) == 0
+            and int(publication["terminal_emits_in_progress"]) == 0
+            and not publication["errors"]
+            and all(int(item) <= 1 for item in publication["maximum_pending_per_fragment"])
+            and all(int(item) <= 1 for item in publication["maximum_in_flight_per_fragment"])
+            and int(adoption["pending_count"]) == 0
+            and not adoption["errors"]
+            and bool(adoption["closed"])
+            and all(int(item) <= 1 for item in adoption["maximum_pending_per_fragment"])
+        )
+        learner_pending_rows.append(
+            {
+                "learner_id": role["learner_id"],
+                "publication_pending": int(publication["pending_upload_count"]),
+                "publication_in_flight": int(
+                    publication["in_flight_publication_count"]
+                ),
+                "terminal_emits_in_progress": int(
+                    publication["terminal_emits_in_progress"]
+                ),
+                "adoption_pending": int(adoption["pending_count"]),
+                "pass": row_pass,
+            }
+        )
+    readiness = syncer["readiness"]
+    syncer_pending_pass = (
+        readiness["active_fragment"] is None
+        and int(readiness["resident_selected_proposals"]) == 0
+        and int(readiness["resident_latest_proposals"]) <= len(roles) * 4
+        and all(
+            item["phase"] == "waiting"
+            and int(item["selected_count"]) == 0
+            and item["selection_identity"] is None
+            for item in readiness["fragments"]
+        )
+    )
+    pending_stall_pass = (
+        all(item["pass"] for item in learner_pending_rows) and syncer_pending_pass
+    )
     passed = (
         0 < active_seconds <= budget
+        and active_seconds / walltime < walltime_limit
+        and bool(step_latencies)
+        and bool(update_latencies)
         and all(math.isfinite(item) and item > 0 for item in step_latencies)
         and all(math.isfinite(item) and item > 0 for item in update_latencies)
+        and heartbeat_pass
+        and pending_stall_pass
     )
     return {
         "schema_version": 1,
@@ -264,15 +420,60 @@ def _runtime_gate(
         "active_runtime_seconds": active_seconds,
         "budget_seconds": budget,
         "budget_fraction": active_seconds / budget,
+        "pbs_walltime_seconds": walltime,
+        "pbs_walltime_fraction": active_seconds / walltime,
+        "maximum_pbs_walltime_fraction": walltime_limit,
         "learner_step_latency_seconds": {
             "points": len(step_latencies),
-            "median": statistics.median(step_latencies),
-            "maximum": max(step_latencies),
+            "median": statistics.median(step_latencies) if step_latencies else None,
+            "maximum": max(step_latencies) if step_latencies else None,
         },
         "syncer_fragment_update_latency_seconds": {
             "points": len(update_latencies),
-            "median": statistics.median(update_latencies),
-            "maximum": max(update_latencies),
+            "median": statistics.median(update_latencies) if update_latencies else None,
+            "maximum": max(update_latencies) if update_latencies else None,
+        },
+        "progress_heartbeat": {
+            "authority": gate_contract["runtime"]["progress_heartbeat_authority"],
+            "observation_window": gate_contract["runtime"][
+                "heartbeat_observation_window"
+            ],
+            "excluded_intervals": gate_contract["runtime"][
+                "heartbeat_excluded_intervals"
+            ],
+            "target_global_cycle": target,
+            "target_reached": target_reached,
+            "updates_in_window": len(target_updates),
+            "gap_points": len(heartbeat_gaps),
+            "same_fragment_interval_points": len(same_fragment_intervals),
+            "scheduled_inventory_gaps_excluded": len(excluded_inventory_gaps),
+            "maximum_excluded_inventory_gap_seconds": (
+                max(excluded_inventory_gaps) if excluded_inventory_gaps else None
+            ),
+            "normal_interval_statistic": gate_contract["runtime"][
+                "normal_fragment_update_interval_statistic"
+            ],
+            "normal_fragment_update_interval_seconds": normal_interval,
+            "maximum_gap_seconds": maximum_gap,
+            "maximum_allowed_gap_multiple": maximum_gap_multiple,
+            "maximum_allowed_gap_seconds": maximum_gap_multiple * normal_interval,
+            "strictly_increasing_completion_times": heartbeat_times_strict,
+            "pass": heartbeat_pass,
+        },
+        "pending_stall": {
+            "contract": gate_contract["runtime"]["pending_stall_rejection"],
+            "learners": learner_pending_rows,
+            "syncer": {
+                "active_fragment": readiness["active_fragment"],
+                "resident_selected_proposals": readiness[
+                    "resident_selected_proposals"
+                ],
+                "resident_latest_proposals": readiness[
+                    "resident_latest_proposals"
+                ],
+                "pass": syncer_pending_pass,
+            },
+            "pass": pending_stall_pass,
         },
         "queue_time_excluded": True,
     }
@@ -284,6 +485,7 @@ def _protocol_gate(
     *,
     workload: str,
     config: Mapping[str, Any],
+    execution_contract: Mapping[str, Any],
 ) -> dict[str, Any]:
     learner_count = len(roles)
     updates = syncer["updates"]
@@ -311,15 +513,15 @@ def _protocol_gate(
     global_cycle = int(syncer["progress"]["global_cycle"])
     recomputed_global_cycle = min((len(values) for values in per_fragment.values()), default=0)
     target = int(
-        config["workloads"][workload]["target_global_cycles"]
-        if workload == "nine_node"
-        else config["workloads"][workload]["minimum_global_cycles"]
+        execution_contract.get(
+            "target_global_cycles", execution_contract.get("minimum_global_cycles")
+        )
     )
     tokens = sum(int(item["progress"]["processed_input_tokens"]) for item in roles)
     expected_tokens = (
         None
         if workload == "nine_node"
-        else int(config["workloads"][workload]["expected_aggregate_processed_input_tokens"])
+        else int(execution_contract["expected_aggregate_processed_input_tokens"])
     )
     progress_fragments = {
         int(item["fragment_index"]): item for item in syncer["progress"]["fragments"]
@@ -404,6 +606,56 @@ def _protocol_gate(
         == "byte_weighted_midpoint_nearest_free_v1"
         for item in roles
     )
+    publication_opportunities: list[dict[str, Any]] = []
+    if workload == "long_run":
+        for item in roles:
+            steps = int(item["progress"]["local_optimizer_steps"])
+            offsets = item["publication"]["schedule"]["offsets"]
+            counts = [
+                0 if steps < int(offset) else 1 + (steps - int(offset)) // 50
+                for offset in offsets
+            ]
+            publication_opportunities.append(
+                {
+                    "learner_id": item["learner_id"],
+                    "optimizer_steps": steps,
+                    "per_fragment": counts,
+                }
+            )
+    minimum_opportunities = (
+        min(
+            count
+            for item in publication_opportunities
+            for count in item["per_fragment"]
+        )
+        if publication_opportunities
+        else None
+    )
+    required_opportunities = execution_contract.get(
+        "publication_opportunities_per_fragment_per_learner"
+    )
+    minimum_cycle_ratio = execution_contract.get(
+        "minimum_cycle_to_publication_opportunity_ratio"
+    )
+    opportunity_pass = (
+        workload != "long_run"
+        or (
+            minimum_opportunities is not None
+            and (
+                required_opportunities is None
+                or all(
+                    count == int(required_opportunities)
+                    for item in publication_opportunities
+                    for count in item["per_fragment"]
+                )
+            )
+            and (
+                minimum_cycle_ratio is None
+                or global_cycle / minimum_opportunities
+                >= float(minimum_cycle_ratio)
+            )
+        )
+    )
     passed = (
         len(per_fragment) == 4
         and contiguous
@@ -417,6 +669,7 @@ def _protocol_gate(
         and frozen_asset_identity_pass
         and schedule_pass
         and progress_reconciliation_pass
+        and opportunity_pass
         and (expected_tokens is None or tokens == expected_tokens)
     )
     return {
@@ -445,22 +698,80 @@ def _protocol_gate(
         "frozen_model_dataset_identity_pass": frozen_asset_identity_pass,
         "resolved_publication_schedule_pass": schedule_pass,
         "progress_reconciliation_pass": progress_reconciliation_pass,
+        "publication_opportunities": publication_opportunities,
+        "minimum_publication_opportunities": minimum_opportunities,
+        "required_publication_opportunities": required_opportunities,
+        "global_cycle_to_publication_opportunity_ratio": (
+            None
+            if minimum_opportunities is None
+            else global_cycle / minimum_opportunities
+        ),
+        "minimum_cycle_to_publication_opportunity_ratio": minimum_cycle_ratio,
+        "publication_opportunity_margin_pass": opportunity_pass,
         "readiness": syncer["readiness"],
     }
 
 
-def analyze(result_root: Path, config_path: Path, output_root: Path) -> dict[str, Any]:
+def analyze(
+    result_root: Path,
+    config_path: Path,
+    gate_contract_path: Path,
+    output_root: Path,
+    *,
+    non_formal_long_smoke: bool = False,
+) -> dict[str, Any]:
     config = _read(config_path)
+    gate_contract = _read(gate_contract_path)
+    if gate_contract.get("loop_id") != "S1-13" or gate_contract.get(
+        "schema_version"
+    ) != 1:
+        raise Stage1GateError("invalid S1-13 gate contract")
     workload = str(config["selected_workload"])
+    workload_gate_contract = gate_contract[workload]
+    if non_formal_long_smoke:
+        if workload != "long_run":
+            raise Stage1GateError("non-formal long smoke requires long_run")
+        execution_contract = workload_gate_contract["preflight_smoke"]
+        expected_execution_mode = "non_formal_long_profile_smoke"
+    else:
+        execution_contract = workload_gate_contract
+        expected_execution_mode = "formal_workload"
     count = int(config["workloads"][workload]["learner_count"])
     roles = [_read(result_root / "roles" / f"learner-{index:02d}.json") for index in range(count)]
     syncer = _read(result_root / "roles" / "syncer.json")
     for role in roles:
         role["_result_root"] = str(result_root)
-    topology = _topology_gate(roles, syncer, workload=workload, expected_learners=count)
-    loss = _loss_gate(result_root, roles, workload=workload, config=config)
-    runtime = _runtime_gate(roles, syncer, workload=workload, config=config)
-    protocol = _protocol_gate(roles, syncer, workload=workload, config=config)
+    topology = _topology_gate(
+        roles,
+        syncer,
+        workload=workload,
+        expected_learners=count,
+        expected_gate_contract_sha256=_file_sha256(gate_contract_path),
+        expected_execution_mode=expected_execution_mode,
+    )
+    loss = _loss_gate(
+        result_root,
+        roles,
+        workload=workload,
+        config=config,
+        workload_gate_contract=workload_gate_contract,
+        execution_contract=execution_contract,
+    )
+    runtime = _runtime_gate(
+        roles,
+        syncer,
+        workload=workload,
+        config=config,
+        gate_contract=gate_contract,
+        execution_contract=execution_contract,
+    )
+    protocol = _protocol_gate(
+        roles,
+        syncer,
+        workload=workload,
+        config=config,
+        execution_contract=execution_contract,
+    )
     for name, value in (("topology", topology), ("loss", loss), ("runtime", runtime), ("protocol", protocol)):
         _write_new(output_root / f"{name}_gate.json", value)
     passed = all(item["status"] == "pass" for item in (topology, loss, runtime, protocol))
@@ -468,6 +779,8 @@ def analyze(result_root: Path, config_path: Path, output_root: Path) -> dict[str
         "schema_version": 1,
         "status": "pass" if passed else "fail",
         "workload": workload,
+        "execution_mode": expected_execution_mode,
+        "gate_contract_sha256": _file_sha256(gate_contract_path),
         "gates": {name: value["status"] for name, value in (("topology", topology), ("loss", loss), ("runtime", runtime), ("protocol", protocol))},
     }
     _write_new(output_root / "gate_summary.json", summary)
@@ -480,9 +793,22 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Analyze S1-13 topology/loss/runtime/protocol gates")
     parser.add_argument("--result-root", type=Path, required=True)
     parser.add_argument("--config", type=Path, required=True)
+    parser.add_argument("--gate-contract", type=Path, required=True)
     parser.add_argument("--output-root", type=Path, required=True)
+    parser.add_argument("--non-formal-long-smoke", action="store_true")
     arguments = parser.parse_args(argv)
-    print(json.dumps(analyze(arguments.result_root, arguments.config, arguments.output_root), sort_keys=True))
+    print(
+        json.dumps(
+            analyze(
+                arguments.result_root,
+                arguments.config,
+                arguments.gate_contract,
+                arguments.output_root,
+                non_formal_long_smoke=arguments.non_formal_long_smoke,
+            ),
+            sort_keys=True,
+        )
+    )
     return 0
 
 

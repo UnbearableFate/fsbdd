@@ -22,6 +22,7 @@ export HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 HF_DATASETS_OFFLINE=1
   > "$OUTPUT_ROOT/pytest.log" 2> "$OUTPUT_ROOT/pytest.err"
 "$PROJECT_ROOT/.venv/bin/python" -m py_compile \
   src/fsbdd/stage1_assets.py src/fsbdd/stage1_close.py src/fsbdd/stage1_gate.py \
+  src/fsbdd/stage1_package.py src/fsbdd/stage1_submit.py \
   > "$OUTPUT_ROOT/compile.log" 2> "$OUTPUT_ROOT/compile.err"
 hostname > "$OUTPUT_ROOT/hostname.txt"
 qstat -f "$PBS_JOBID" > "$OUTPUT_ROOT/qstat.txt"

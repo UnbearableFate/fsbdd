@@ -164,6 +164,33 @@ def _load_contract(
     return config, asset_root, asset_manifest, bootstrap
 
 
+def _load_gate_contract(
+    path: Path,
+    *,
+    expected_sha256: str,
+    workload: str,
+    non_formal_long_smoke: bool,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    if _hash_file(path) != expected_sha256:
+        raise Stage1CloseError("gate contract identity mismatch")
+    contract = _read_json(path)
+    if contract.get("loop_id") != "S1-13" or contract.get("schema_version") != 1:
+        raise Stage1CloseError("invalid S1-13 gate contract")
+    if workload not in {"nine_node", "long_run"}:
+        raise Stage1CloseError("gate contract workload is invalid")
+    workload_contract = contract.get(workload)
+    if not isinstance(workload_contract, dict):
+        raise Stage1CloseError("gate contract omits the selected workload")
+    if non_formal_long_smoke:
+        if workload != "long_run":
+            raise Stage1CloseError("the non-formal long smoke requires long_run")
+        smoke = workload_contract.get("preflight_smoke")
+        if not isinstance(smoke, dict) or smoke.get("formal_evidence") is not False:
+            raise Stage1CloseError("gate contract omits the non-formal long smoke")
+        return contract, smoke
+    return contract, workload_contract
+
+
 def _stores(
     shared_root: Path,
     *,
@@ -346,6 +373,9 @@ def run_learner(
     config_path: Path,
     config_sha256: str,
     asset_marker_sha256: str,
+    gate_contract_path: Path,
+    gate_contract_sha256: str,
+    non_formal_long_smoke: bool,
     hub_cache: Path,
     learner_index: int,
     learner_count_override: int | None,
@@ -360,6 +390,12 @@ def run_learner(
     )
     workload = str(config["selected_workload"])
     workload_config = config["workloads"][workload]
+    _gate_contract, execution_contract = _load_gate_contract(
+        gate_contract_path,
+        expected_sha256=gate_contract_sha256,
+        workload=workload,
+        non_formal_long_smoke=non_formal_long_smoke,
+    )
     learner_count = int(workload_config["learner_count"] if learner_count_override is None else learner_count_override)
     if not 0 <= learner_index < learner_count:
         raise Stage1CloseError("learner index is outside the role topology")
@@ -451,6 +487,12 @@ def run_learner(
         "run_id": run_id,
         "config_sha256": config_sha256,
         "asset_marker_sha256": asset_marker_sha256,
+        "gate_contract_sha256": gate_contract_sha256,
+        "execution_mode": (
+            "non_formal_long_profile_smoke"
+            if non_formal_long_smoke
+            else "formal_workload"
+        ),
         "model_revision": profile.model["revision"],
         "dataset_revision": profile.dataset["revision"],
     }
@@ -477,19 +519,22 @@ def run_learner(
         retain_events=False,
     )
     requested_steps = (
-        int(workload_config["maximum_optimizer_steps"])
-        if workload == "nine_node"
-        else int(workload_config["optimizer_steps_per_learner"])
+        int(execution_contract["optimizer_steps_per_learner"])
+        if non_formal_long_smoke
+        else (
+            int(workload_config["maximum_optimizer_steps"])
+            if workload == "nine_node"
+            else int(workload_config["optimizer_steps_per_learner"])
+        )
     )
     completion_path = shared_root / "coordination" / "complete.json"
     minimum_points = int(workload_config.get("minimum_loss_points", 1))
     run = runtime.run(
         _batches(shard, int(config["training"]["batch_size"])),
         optimizer_steps=requested_steps,
-        # The short baseline has a hard 800-step ceiling.  Pace those steps so
-        # its asynchronous fixed slots remain observable instead of being
-        # overwritten by a GPU that can outrun large compound FS commits.
-        minimum_step_seconds=0.5 if workload == "nine_node" else None,
+        # The frozen gate contract paces each workload so fixed-slot proposals
+        # stay observable while retaining the exact optimizer-step/token budget.
+        minimum_step_seconds=float(execution_contract["minimum_step_seconds"]),
         stop_requested=(
             (lambda: completion_path.exists() and progress.local_optimizer_steps >= minimum_points)
             if workload == "nine_node"
@@ -535,10 +580,20 @@ def run_learner(
             "parameter_update_norm_is_sampled_diagnostic": True,
         },
         "step_pacing": {
-            "minimum_step_seconds": 0.5 if workload == "nine_node" else None,
-            "scope": "short_fixed-step-baseline_only",
-            "reason": "preserve_H50_fixed_slot_observability_below_the_800_step_ceiling",
+            "minimum_step_seconds": float(execution_contract["minimum_step_seconds"]),
+            "scope": (
+                "non_formal_long_profile_capacity_smoke"
+                if non_formal_long_smoke
+                else workload
+            ),
+            "reason": (
+                "prove_the_formal_long_schedule_can_sustain_its_frozen_cycle_margin"
+                if workload == "long_run"
+                else "preserve_H50_fixed_slot_observability_below_the_800_step_ceiling"
+            ),
         },
+        "gate_contract_sha256": gate_contract_sha256,
+        "non_formal_long_smoke": non_formal_long_smoke,
         "progress": progress.to_dict(),
         "data_state": shard.state_dict(),
         "publication": publisher.summary(),
@@ -585,6 +640,9 @@ def run_syncer(
     config_path: Path,
     config_sha256: str,
     asset_marker_sha256: str,
+    gate_contract_path: Path,
+    gate_contract_sha256: str,
+    non_formal_long_smoke: bool,
     learner_count_override: int | None,
     timeout_seconds: float,
 ) -> dict[str, Any]:
@@ -597,6 +655,12 @@ def run_syncer(
     )
     workload = str(config["selected_workload"])
     workload_config = config["workloads"][workload]
+    _gate_contract, execution_contract = _load_gate_contract(
+        gate_contract_path,
+        expected_sha256=gate_contract_sha256,
+        workload=workload,
+        non_formal_long_smoke=non_formal_long_smoke,
+    )
     learner_count = int(workload_config["learner_count"] if learner_count_override is None else learner_count_override)
     policy = _outer_policy(config)
     atomic, proposals, global_backend, proposal_backend = _stores(
@@ -616,6 +680,12 @@ def run_syncer(
         "run_id": run_id,
         "config_sha256": config_sha256,
         "asset_marker_sha256": asset_marker_sha256,
+        "gate_contract_sha256": gate_contract_sha256,
+        "execution_mode": (
+            "non_formal_long_profile_smoke"
+            if non_formal_long_smoke
+            else "formal_workload"
+        ),
         "version_vector": list(initial_plan.version_vector),
         "bootstrap_identity": bootstrap["bootstrap_identity"],
     }
@@ -670,11 +740,19 @@ def run_syncer(
         "history_scan_allowed": False,
     }
     target = int(
-        workload_config["target_global_cycles"]
-        if workload == "nine_node"
-        else workload_config["minimum_global_cycles"]
+        execution_contract["minimum_global_cycles"]
+        if non_formal_long_smoke
+        else (
+            workload_config["target_global_cycles"]
+            if workload == "nine_node"
+            else workload_config["minimum_global_cycles"]
+        )
     )
-    active_deadline = time.monotonic() + float(workload_config["runtime_budget_seconds"])
+    active_deadline = time.monotonic() + float(
+        execution_contract["runtime_budget_seconds"]
+        if non_formal_long_smoke
+        else workload_config["runtime_budget_seconds"]
+    )
     final_records: list[dict[str, Any]] = []
     while True:
         executor.poll(observed_ns=time.monotonic_ns())
@@ -769,6 +847,8 @@ def run_syncer(
         "complete": True,
         "workload": workload,
         "run_id": run_id,
+        "gate_contract_sha256": gate_contract_sha256,
+        "non_formal_long_smoke": non_formal_long_smoke,
         "identity": {
             **bootstrap_record,
             "cuda_visible_devices": os.environ.get("CUDA_VISIBLE_DEVICES"),
@@ -813,6 +893,9 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--config-path", type=Path, required=True)
     parser.add_argument("--config-sha256", required=True)
     parser.add_argument("--asset-marker-sha256", required=True)
+    parser.add_argument("--gate-contract", type=Path, required=True)
+    parser.add_argument("--gate-contract-sha256", required=True)
+    parser.add_argument("--non-formal-long-smoke", action="store_true")
     parser.add_argument("--hub-cache", type=Path)
     parser.add_argument("--learner-index", type=int)
     parser.add_argument("--learner-count-override", type=int)
@@ -853,6 +936,9 @@ def main(argv: Sequence[str] | None = None) -> int:
             config_path=arguments.config_path,
             config_sha256=arguments.config_sha256,
             asset_marker_sha256=arguments.asset_marker_sha256,
+            gate_contract_path=arguments.gate_contract,
+            gate_contract_sha256=arguments.gate_contract_sha256,
+            non_formal_long_smoke=arguments.non_formal_long_smoke,
             hub_cache=arguments.hub_cache,
             learner_index=arguments.learner_index,
             learner_count_override=arguments.learner_count_override,
@@ -866,6 +952,9 @@ def main(argv: Sequence[str] | None = None) -> int:
             config_path=arguments.config_path,
             config_sha256=arguments.config_sha256,
             asset_marker_sha256=arguments.asset_marker_sha256,
+            gate_contract_path=arguments.gate_contract,
+            gate_contract_sha256=arguments.gate_contract_sha256,
+            non_formal_long_smoke=arguments.non_formal_long_smoke,
             learner_count_override=arguments.learner_count_override,
             timeout_seconds=arguments.timeout_seconds,
         )

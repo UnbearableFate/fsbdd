@@ -13,6 +13,8 @@ trap 'echo "[ERROR] line=$LINENO command=$BASH_COMMAND" >&2' ERR
 : "${RESOLVED_CONFIG:?RESOLVED_CONFIG is required}"
 : "${CONFIG_SHA256:?CONFIG_SHA256 is required}"
 : "${ASSET_MARKER_SHA256:?ASSET_MARKER_SHA256 is required}"
+: "${GATE_CONTRACT:=$PROJECT_ROOT/reports/stage1/S1-13-gate-contract.json}"
+: "${GATE_CONTRACT_SHA256:?GATE_CONTRACT_SHA256 is required}"
 : "${OUTPUT_ROOT:=$PROJECT_ROOT/runtime_runs/S1-13/smoke-2n-${PBS_JOBID}}"
 
 module load nv-hpcx/25.9
@@ -41,6 +43,8 @@ mpirun -np 1 --host "${HOSTS[1]}" /usr/bin/env \
   --shared-root "$SHARED" --result-root "$OUTPUT_ROOT/results" --run-id "$RUN_ID" \
   --config-path "$RESOLVED_CONFIG" --config-sha256 "$CONFIG_SHA256" \
   --asset-marker-sha256 "$ASSET_MARKER_SHA256" --learner-count-override 1 \
+  --gate-contract "$GATE_CONTRACT" \
+  --gate-contract-sha256 "$GATE_CONTRACT_SHA256" \
   --timeout-seconds 1200 \
   > "$OUTPUT_ROOT/stdout/syncer.log" 2> "$OUTPUT_ROOT/stderr/syncer.log" &
 SYNCER_PID=$!
@@ -52,6 +56,8 @@ mpirun -np 1 --host "${HOSTS[0]}" /usr/bin/env \
   --shared-root "$SHARED" --result-root "$OUTPUT_ROOT/results" --run-id "$RUN_ID" \
   --config-path "$RESOLVED_CONFIG" --config-sha256 "$CONFIG_SHA256" \
   --asset-marker-sha256 "$ASSET_MARKER_SHA256" --hub-cache "$HF_HOME/hub" \
+  --gate-contract "$GATE_CONTRACT" \
+  --gate-contract-sha256 "$GATE_CONTRACT_SHA256" \
   --learner-index 0 --learner-count-override 1 --timeout-seconds 1200 \
   > "$OUTPUT_ROOT/stdout/learner.log" 2> "$OUTPUT_ROOT/stderr/learner.log"
 wait "$SYNCER_PID"
