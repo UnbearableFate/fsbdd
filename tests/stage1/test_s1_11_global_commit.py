@@ -380,9 +380,10 @@ def test_concurrent_readers_observe_only_complete_committed_authorities(
     complete: set[
         tuple[int, str, bytes, bytes, str, str, tuple[tuple[int, int], ...]]
     ] = set()
-    observations: list[
+    observations: set[
         tuple[int, str, bytes, bytes, str, str, tuple[tuple[int, int], ...]]
-    ] = []
+    ] = set()
+    observation_count = 0
     lock = threading.Lock()
     started = threading.Event()
     finished = threading.Event()
@@ -405,12 +406,18 @@ def test_concurrent_readers_observe_only_complete_committed_authorities(
     complete.add(facts(initial))
 
     def reader() -> None:
+        nonlocal observation_count
         started.wait()
-        local = []
-        while not finished.is_set() or len(local) < 50:
-            local.append(facts(store.load_fragment(0)))
+        local_observations = set()
+        local_count = 0
+        while not finished.is_set() or local_count < 50:
+            local_observations.add(facts(store.load_fragment(0)))
+            local_count += 1
+            if not finished.is_set():
+                finished.wait(0.0005)
         with lock:
-            observations.extend(local)
+            observations.update(local_observations)
+            observation_count += local_count
 
     with ThreadPoolExecutor(max_workers=9) as pool:
         readers = [pool.submit(reader) for _ in range(8)]
@@ -423,8 +430,8 @@ def test_concurrent_readers_observe_only_complete_committed_authorities(
         for future in readers:
             future.result()
 
-    assert len(observations) >= 400
-    assert set(observations) <= complete
+    assert observation_count >= 400
+    assert observations <= complete
     assert {item[0] for item in observations} <= set(range(21))
     assert store.load_fragment(0).version == 20
 

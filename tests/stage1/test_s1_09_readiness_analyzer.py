@@ -83,6 +83,7 @@ def _selection(
     ]
     authority_identity = hashlib.sha256(f"authority-{fragment}".encode()).hexdigest()
     selection = {
+        "logical_syncer_id": logical_syncer_id,
         "fragment_index": fragment,
         "current_version": 0,
         "authority_identity": authority_identity,
@@ -265,6 +266,9 @@ def test_analyzer_accepts_complete_frozen_fixture() -> None:
         ].__setitem__(0, "f" * 64),
         lambda writer, syncer: syncer["profile_a"]["selections"][0].__setitem__(
             "selection_identity", "0" * 64
+        ),
+        lambda writer, syncer: syncer["profile_a"]["selections"][0].__setitem__(
+            "logical_syncer_id", "wrong-syncer"
         ),
         lambda writer, syncer: writer.__setitem__("gpu_memory_after_bytes", 1),
         lambda writer, syncer: writer.__setitem__("profile_a_published", 31),

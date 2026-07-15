@@ -349,6 +349,9 @@ def test_stage1_pbs_failures_install_err_and_exit_capture() -> None:
     )
     assert "trap - ERR EXIT" in helper
     assert "record_experiment_exit" in helper
+    assert "record_experiment_signal" in helper
+    assert "scheduler signal" in helper
+    assert "TERM 143" in helper
     assert "FSBDD_FAILURE_OUTPUT_ROOT" in helper
     assert "runtime_runs/S1-13/rejected-submissions" in helper
     for path in sorted(root.glob("pbs/stage1_s1_13_*.pbs")):
@@ -363,6 +366,9 @@ def test_stage1_pbs_failures_install_err_and_exit_capture() -> None:
         assert source.index(authorization_anchor) < source.index(
             "FSBDD_FAILURE_OUTPUT_ROOT="
         )
+    targeted = (root / "pbs/stage1_s1_13_targeted.pbs").read_text(encoding="utf-8")
+    assert "timeout --signal=TERM --kill-after=30s 1200s" in targeted
+    assert "faulthandler_timeout=120" in targeted
 
 
 def test_syncer_role_references_durable_bounded_evidence_stream(tmp_path: Path) -> None:

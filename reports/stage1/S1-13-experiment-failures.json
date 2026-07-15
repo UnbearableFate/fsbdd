@@ -10,7 +10,7 @@
   "failures": [
     {
       "experiment_id": "s1-13-long-smoke-20260715T161208Z-0023c3d",
-      "analysis_status": "reviewed_corrections_static_pass_retry_not_authorized",
+      "analysis_status": "reviewed_corrections_static_pass_reduced_runtime_pending",
       "workload": "five-node four-learner plus CPU-only syncer long-run preflight smoke",
       "pbs_job_id": "2391236.opbs",
       "code_commit": "0023c3d05d978e659f9b11d233728b459fe156aa",
@@ -70,7 +70,7 @@
     },
     {
       "experiment_id": "fsbdd-s1-13-targeted-2392180.opbs",
-      "analysis_status": "reviewed_pending_solution_validation",
+      "analysis_status": "reviewed_corrections_static_pass_retry_failed",
       "workload": "one-node identity-bound static and complete Stage 1 targeted regression",
       "pbs_job_id": "2392180.opbs",
       "code_commit": "f0bb4fb5cbe6b2115eaf2b63db66a9732b4d70f6",
@@ -140,6 +140,70 @@
         "tracejob_sha256": "ebdaec75784502b57f975a2bd5626d9102da46651064c3302ce2015d77d0cdf6",
         "pytest_log_sha256": "635bb6561b00b404c786e74ecd9339dff3137833561ecc8326f2b16e1f06a9c8",
         "raw_failure_sha256": "5cb2180aa2ee2eb79e67cd76bf714a6e1a817df35a08ac75978f44ed5b7b6721"
+      }
+    },
+    {
+      "experiment_id": "fsbdd-s1-13-targeted-2392261.opbs",
+      "analysis_status": "reviewed_corrections_implemented_static_validation_pending",
+      "workload": "one-node identity-bound static and complete Stage 1 targeted regression retry",
+      "pbs_job_id": "2392261.opbs",
+      "code_commit": "681e013f55dba602ec9bb91b5c9d6bcc516168d5",
+      "queued_at_utc": "2026-07-15T18:25:01Z",
+      "failed_at_utc": "2026-07-15T18:55:51Z",
+      "raw_evidence_root": "runtime_runs/S1-13/targeted-681e013-20260715T182501Z",
+      "failure": {
+        "summary": "The Checker-authorized targeted retry produced one test failure and then PBS killed the still-incomplete pytest process at the 1800-second walltime limit.",
+        "exit_code": -29,
+        "observed_progress": {
+          "pytest_completion_markers": 263,
+          "stage1_tests_passed_before_stall": 262,
+          "stage1_tests_failed_before_stall": 1,
+          "suite_completed": false,
+          "compileall": "pass",
+          "ruff": "pass",
+          "pyright": "pass with zero errors and warnings",
+          "bash_syntax": "pass",
+          "scheduler_walltime_seconds": 1842,
+          "scheduler_cpu_time": "00:42:31",
+          "scheduler_peak_resident_kb": 12222272,
+          "abnormal_nodes": "none"
+        },
+        "failed_or_incomplete_tests": [
+          "tests/stage1/test_s1_09_readiness_analyzer.py::test_analyzer_accepts_complete_frozen_fixture",
+          "tests/stage1/test_s1_11_global_commit.py::test_concurrent_readers_observe_only_complete_committed_authorities"
+        ],
+        "automatic_capture": "PBS hard-killed the job before the shell EXIT trap could run; an immutable raw record was manually backfilled immediately after scheduler completion."
+      },
+      "cause": {
+        "status": "diagnosed_from_partial_pytest_progress_scheduler_metrics_and_code_review",
+        "summary": "One readiness fixture was not updated with the new exact selection field, and the concurrent-reader regression harness retained an unbounded tight-loop history until the writer finished, causing nondeterministic starvation, linear memory growth, and eventual PBS walltime termination.",
+        "root_causes": [
+          "The positive readiness analyzer fixture included logical_syncer_id in the selection digest but omitted the field from the frozen-selection object itself, so the exact schema validator correctly rejected the nominally valid fixture.",
+          "The S1-11 concurrent-reader test appended every observation to per-thread lists while readers tight-spun until the writer finished. Under this run, eight reader loops delayed writer completion and retained an ever-growing history; scheduler resident memory grew to 12,222,272 KB before the walltime kill.",
+          "The targeted PBS script used quiet pytest output without a faulthandler watchdog or a pre-PBS timeout, so the partial trace did not contain the active test stack and the scheduler kill bypassed the ordinary ERR/EXIT failure capture path."
+        ],
+        "scope": "No learner/syncer runtime reproduction, 9N run, long smoke, or formal long run was launched."
+      },
+      "expected_solution": {
+        "status": "implemented_pending_static_and_checker_validation",
+        "changes": [
+          "Add logical_syncer_id to the readiness analyzer's positive frozen-selection fixture and add a negative mutation proving mismatched syncer identity is rejected.",
+          "Replace the concurrent-reader test's append-only observation lists with bounded distinct-observation sets plus scalar counts, and yield briefly between polls so the writer cannot be starved by a synthetic zero-delay loop.",
+          "Add catchable scheduler signal capture to the shared failure helper.",
+          "Run targeted pytest under a pre-walltime timeout with verbose node IDs, a faulthandler timeout, and slow-test durations so future stalls are attributable and recorded before PBS termination."
+        ],
+        "validation_before_next_experiment": [
+          "Pass compileall, Ruff, Pyright, JSON/YAML/diff integrity, and every active S1-13 Bash syntax check.",
+          "Return the reviewed failure, correction diff, bounded-reader reasoning, and exact evidence hashes to the same Checker.",
+          "Do not submit another test until the same Checker authorizes the smallest focused verification or targeted retry at an exact clean commit."
+        ]
+      },
+      "evidence_integrity": {
+        "checksum_inventory_sha256": "99fbc6ec73c92678472f147d45c03cc9f43ba2a867898b85088018173e4f99af",
+        "tracejob_sha256": "fd23eaaecb24bc554f2dc199a7b2d4cb91897d9cbfb94bec3294ac31c39ebccc",
+        "pytest_log_sha256": "8651d3f6dd5c55516bc4c07005bc45cedd49782138bae9678f5078d711840195",
+        "pbs_stderr_sha256": "dac8df6bf9ff17dba50060447b2c11c842b6f1bdcd89a93100574ac3d946c7f1",
+        "raw_failure_sha256": "96c396bbde205404fc0eaf446921a6c48a6c4b1370108d11fb1562b6d0dfdd9b"
       }
     }
   ]

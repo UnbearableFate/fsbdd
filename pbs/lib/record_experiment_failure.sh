@@ -50,7 +50,19 @@ record_experiment_exit() {
   exit "$exit_code"
 }
 
+record_experiment_signal() {
+  local signal_name="$1"
+  local exit_code="$2"
+  local line_number="$3"
+  trap - ERR EXIT HUP INT TERM
+  record_experiment_failure \
+    "$exit_code" "$line_number" "received scheduler signal $signal_name"
+}
+
 install_experiment_failure_traps() {
   trap 'record_experiment_failure "$?" "$LINENO" "$BASH_COMMAND"' ERR
   trap 'record_experiment_exit "$?" "$LINENO" "$BASH_COMMAND"' EXIT
+  trap 'record_experiment_signal HUP 129 "$LINENO"' HUP
+  trap 'record_experiment_signal INT 130 "$LINENO"' INT
+  trap 'record_experiment_signal TERM 143 "$LINENO"' TERM
 }
