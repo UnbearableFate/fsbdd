@@ -1,0 +1,79 @@
+{
+  "schema_version": 1,
+  "resource_level": "L2",
+  "selected_evidence_root": "/work/xg24i002/x10041/fsbdd/runtime_runs/S1-07/formal-l2",
+  "target_shared_root": "/work/xg24i002/x10041/fsbdd/runtime_runs",
+  "code_identity_contract": {
+    "submission_value": "EXPECTED_COMMIT is the full 40-character candidate SHA supplied to qsub",
+    "required_equality": "EXPECTED_COMMIT == clean worktree HEAD == manifest identities.code.commit",
+    "dirty_allowed": false
+  },
+  "topology": {
+    "pbs_queue": "debug-g",
+    "pbs_group": "xg24i002",
+    "nodes": 2,
+    "ranks": 2,
+    "ranks_per_node": 1,
+    "gpus_used": 1,
+    "roles": ["snapshot_writer", "proposal_reader"],
+    "application_coordination": "filesystem_only",
+    "mpi_usage": "launcher_only",
+    "writer_waits_for_reader_or_syncer": false
+  },
+  "frozen_workload": {
+    "config_source": "configs/stage1/s1_07_snapshot_publish.json",
+    "model": "seeded transformers GPTNeoXForCausalLM fixture",
+    "learner_count": 1,
+    "fragment_count": 4,
+    "optimizer_steps": 20,
+    "unified_h": 4,
+    "offset_algorithm": "byte_weighted_midpoint_nearest_free_v1",
+    "learner_phase_offset": 0,
+    "maximum_pending_per_fragment": 1,
+    "maximum_in_flight_per_fragment": 1,
+    "snapshot_dtype": "float32",
+    "slow_fragment_index": 0,
+    "slow_fragment_release": "after_inner_training_returns",
+    "maximum_local_steps": 100,
+    "maximum_processed_tokens": 1000000
+  },
+  "safe_boundary_observation": {
+    "event": "LearnerRuntime emits the callback only after backward clipping optimizer.step scheduler.step and zero_grad",
+    "consistency_checks": [
+      "event learner step base versions local steps and processed tokens equal owned LearnerProgress",
+      "all trainable parameter gradients are absent",
+      "safe-boundary steps are strictly increasing and cannot be replayed"
+    ],
+    "mutation_counterexample": "a callback presented while a parameter gradient exists must fail before sequence reservation or staging"
+  },
+  "backpressure_observation": {
+    "per_fragment_pending_bound": 1,
+    "per_fragment_in_flight_bound": 1,
+    "replacement_rule": "a newer due snapshot replaces only a not-started pending snapshot",
+    "immutable_rule": "a publishing Proposal is a frozen value and base-context updates affect only later captures",
+    "slow_writer_gate": "fragment zero publication begins before training ends and cannot finish until training has returned"
+  },
+  "byte_and_frequency_accounting": {
+    "payload_bytes": "product(descriptor.shape) * 4 and exactly the concatenated target-fragment fp32 parameters",
+    "forbidden_payload": "whole-model snapshot or parameter delta",
+    "unified_formula": "sum(fragment_bytes) / H",
+    "extension_formula": "sum_f(fragment_bytes_f / H_f)",
+    "offset_tie_break": "nearest free circular integer offset to each byte-weighted midpoint; ties choose the lowest integer offset"
+  },
+  "identity_chain": "bootstrap FragmentGlobalState.content_identity -> adopted base context -> immutable Proposal base metadata, with safe-boundary local step fragment steps tokens sequence payload checksum and reader-decoded latest all equal",
+  "timing": {
+    "gpu_to_cpu_seconds": "monotonic interval for target-fragment detach fp32 CPU staging",
+    "cpu_to_fs_seconds": "worker monotonic interval from publication start through ProposalStore.publish completion",
+    "training_interval": "LearnerRuntime training start through final pre-snapshot safe-boundary timestamp",
+    "forbidden_aggregation": ["sum of unsynchronized rank-local rates", "treat skipped or pending work as completed I/O"]
+  },
+  "run_identity": {
+    "config_identity": "raw SHA-256 of the frozen JSON profile",
+    "model_identity": "runtime logical-layer registry digest derived from the frozen seeded model",
+    "fragment_map_identity": "runtime FragmentMap digest derived from the same registry and frozen fragment count",
+    "base_identity": "content_identity of the actual bootstrapped FragmentGlobalState for the target fragment"
+  },
+  "formal_package": "S1-00 builder/finalizer/validator with clean code config source skill scheduler GPU role path and checksum identity plus fail-if-exists root",
+  "attempt_budget": {"red": 1, "targeted": 3, "l1_compute": 2, "formal_l2_batch": 1},
+  "failure_ladder": "preserve the first formal L2 package; reproduce the writer and reader roles on one compute node with the same candidate and profile before any resubmission"
+}

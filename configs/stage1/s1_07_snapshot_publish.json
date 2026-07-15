@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "profile_id": "s1-07-snapshot-publish-formal-v1",
+  "model": {
+    "family": "gpt_neox",
+    "vocab_size": 64,
+    "hidden_size": 24,
+    "intermediate_size": 48,
+    "num_hidden_layers": 2,
+    "num_attention_heads": 4,
+    "max_position_embeddings": 16,
+    "use_cache": false,
+    "initialization_seed": 1707
+  },
+  "training": {
+    "learner_id": "learner-00",
+    "fragment_count": 4,
+    "batch_size": 4,
+    "sequence_length": 8,
+    "optimizer_steps": 20,
+    "gradient_accumulation_steps": 1,
+    "precision": "fp32",
+    "optimizer": {
+      "class": "AdamW",
+      "lr": 0.001,
+      "weight_decay": 0.01,
+      "grad_clip_norm": 1.0
+    }
+  },
+  "publication": {
+    "unified_h": 4,
+    "offset_algorithm": "byte_weighted_midpoint_nearest_free_v1",
+    "learner_phase_offset": 0,
+    "maximum_pending_per_fragment": 1,
+    "maximum_in_flight_per_fragment": 1,
+    "slow_fragment_index": 0,
+    "slow_fragment_release": "after_inner_training_returns",
+    "maximum_local_steps": 100,
+    "maximum_processed_tokens": 1000000,
+    "reader_timeout_seconds": 180
+  }
+}

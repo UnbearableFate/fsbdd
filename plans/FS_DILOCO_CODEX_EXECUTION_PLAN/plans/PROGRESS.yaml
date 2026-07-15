@@ -248,11 +248,11 @@ loops:
   - S1-05
   - S1-06
   - S1-02
-  status: not_started
+  status: in_progress
   nine_node_gate_required: false
   acceptance_ids: []
-  branch: null
-  base_commit: null
+  branch: codex/S1-07-snapshot-publish
+  base_commit: e092af43b49e88a9f6a9cccc9569af8627a872f5
   result_commit: null
   evidence_index: null
   checker_verdict: null

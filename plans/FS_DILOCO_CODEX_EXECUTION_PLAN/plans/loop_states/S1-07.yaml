@@ -1,0 +1,64 @@
+schema_version: 2
+loop_id: S1-07
+title: H/offset fragment snapshot and proposal publish
+stage: stage1
+status: in_progress
+source_hashes:
+  research_plan: 2c0db3148110da10ea62f445c189d2d53b405527d8da264b9af9817f5ca9d835
+  stage0_4_spec: 1ea71fb6e34fef0d7b5558d8e7999dfdedeb82957f4331afcf6f80279d1f5a7d
+git:
+  integration_branch: master
+  branch: codex/S1-07-snapshot-publish
+  base_commit: e092af43b49e88a9f6a9cccc9569af8627a872f5
+  result_commit: null
+  dirty_at_start: true
+dependencies: [S1-02, S1-05, S1-06]
+requirements: [LEARN-03, LEARN-04, LEARN-05, LEARN-06, LEARN-07, LEARN-11, PROG-06]
+acceptance_ids: []
+orient:
+  unique_failing_gap: The learner has no deterministic byte-aware fragment publication schedule no immutable safe-boundary snapshot bridge to ProposalStore and no bounded background publication state.
+  planned_files: [src/fsbdd/learner.py, src/fsbdd/learner_publish.py, src/fsbdd/learner_publish_stress.py, src/fsbdd/learner_smoke.py, configs/stage1/s1_07_snapshot_publish.json, tests/stage1/test_s1_07_snapshot_publish.py, tests/red_cases/s1_07_naive_snapshot_surrogate.py, pbs/stage1_s1_07_snapshot_publish.pbs, reports/stage1/S1-07-requirement-matrix.csv, reports/stage1/S1-07-evidence-contract.json]
+  model_data_profile: Seeded tiny real transformers GPT-NeoX causal LM and deterministic integer-token batches for formal snapshot generation; no pretrained or external dataset asset is needed for this protocol loop.
+  miyabi_skill_commit: c3ddfa47cadfd9132edf939d359b90b28ab5f8ed
+  initial_hostname: miyabi-g1
+  workflow: login-node static implementation and tests that do not import Torch followed by compute-node targeted checks Checker Phase A and one formal two-node writer/reader batch
+  context_inputs: [plans/PROGRESS.yaml, loops/stage1/S1-07.md, evidence/indexes/S1-02.md, evidence/indexes/S1-05.md, evidence/indexes/S1-06.md]
+  raw_evidence_on_demand: [runtime_runs/S1-07]
+  resource_level: L2
+  attempt_budget: {red: 1, targeted: 3, l1_compute: 2, formal_l2_batch: 1}
+  goal_tokens_start: 2023164
+  soft_token_budget: 90000
+preflight:
+  requirement_matrix: reports/stage1/S1-07-requirement-matrix.csv
+  requirements_complete: true
+  measurement_contract: reports/stage1/S1-07-evidence-contract.json
+  package_contract: reports/stage1/S1-07-evidence-contract.json
+  package_validator_command: fsbdd evidence validate runtime_runs/S1-07/formal-l2
+  package_validator_result: pending candidate package precheck
+  checker_phase_a: required
+  frozen_schedule: byte_weighted_midpoint_nearest_free_v1 with unified H=4 learner phase zero and exact sum fragment_bytes over H accounting
+red:
+  command: PYTHONPATH=src .venv/bin/python tests/red_cases/s1_07_naive_snapshot_surrogate.py
+  exit_code: 1
+  evidence_path: runtime_runs/S1-07/red-e092af4
+green:
+  command: PYTHONPATH=src .venv/bin/python -m pytest -q tests/stage1
+  evidence_path: null
+harden:
+  commands: []
+  evidence_paths: []
+nine_node_gate: {required: false, run_id: null, topology_gate: null, loss_gate: null, runtime_gate: null}
+checker:
+  context_id: null
+  maker_chat_inherited: false
+  phase_a_verdict: null
+  verdict: null
+  report_path: reports/checkers/S1-07.md
+  cycles: []
+persist:
+  evidence_index: evidence/indexes/S1-07.md
+  raw_evidence_root: runtime_runs/S1-07
+  acceptance_traceability_updated: false
+  next_gap: null
+  handoff: null
+blocker: null
