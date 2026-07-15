@@ -10,7 +10,7 @@ trap 'echo "[ERROR] line=$LINENO command=$BASH_COMMAND" >&2' ERR
 
 : "${PROJECT_ROOT:=/work/xg24i002/x10041/fsbdd-s100-clean}"
 : "${MAIN_ROOT:=/work/xg24i002/x10041/fsbdd}"
-: "${EVIDENCE_ROOT:=$MAIN_ROOT/runtime_runs/S1-10/formal-l2-retry1}"
+: "${EVIDENCE_ROOT:=$MAIN_ROOT/runtime_runs/S1-10/formal-l2-retry2}"
 : "${EXPECTED_COMMIT:?EXPECTED_COMMIT is required}"
 : "${INITIAL_HOSTNAME:=miyabi-g1}"
 : "${MIYABI_SKILL_DIR:=/work/xg24i002/x10041/.codex/skills/miyabi-development}"
@@ -19,9 +19,9 @@ trap 'echo "[ERROR] line=$LINENO command=$BASH_COMMAND" >&2' ERR
 
 PYTHON="$MAIN_ROOT/.venv/bin/python"
 CONFIG_SOURCE="configs/stage1/s1_10_streaming_merge.json"
-CONFIG_SHA256="a4eee507d3ed61b96f2660f63585911f41c4beb0397402f132e8d1699886e984"
-CONTRACT_SHA256="b02fd878c410bd7d10bac82ac9681cd62e7238c540b42b174ab8472004c8f542"
-MATRIX_SHA256="f282ed879090cc3e112dbcc058b45ce3c2416eff63c63726e9b9dea726e59d57"
+CONFIG_SHA256="6d372da221c06c25c2b4a2e4377367c1957aa2154e29d1d2f5d9a9cd27f4df4c"
+CONTRACT_SHA256="4d257e3cdfb37549d3676699c205ba4843ad9178effdd33002c5631fc16d5a55"
+MATRIX_SHA256="743b3cb006bc39ff97be63fc090281472078f9129a2de58551b2e79118701519"
 RESEARCH_SHA256="2c0db3148110da10ea62f445c189d2d53b405527d8da264b9af9817f5ca9d835"
 SPEC_SHA256="1ea71fb6e34fef0d7b5558d8e7999dfdedeb82957f4331afcf6f80279d1f5a7d"
 SKILL_REPOSITORY="https://github.com/UnbearableFate/miyabi-development"

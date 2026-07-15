@@ -36,7 +36,7 @@ def test_requirement_matrix_is_derived_complete_and_structural() -> None:
     for row in rows:
         assert all(row[field].strip() for field in row)
         assert row["evidence_path"].startswith(
-            "runtime_runs/S1-10/formal-l2-retry1/"
+            "runtime_runs/S1-10/formal-l2-retry2/"
         )
 
 

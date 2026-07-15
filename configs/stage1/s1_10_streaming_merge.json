@@ -28,7 +28,8 @@
   "memory_gates": {
     "maximum_live_local_payloads": 1,
     "maximum_tensor_fragment_multiples": 8,
-    "maximum_m8_minus_m1_peak_rss_bytes": 12582912
+    "maximum_m8_minus_m1_peak_rss_bytes": 12582912,
+    "warmup_iterations": 2
   },
   "coordination_timeout_seconds": 180
 }

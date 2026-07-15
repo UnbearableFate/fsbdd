@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import contextlib
 import dataclasses
+import gc
 import hashlib
 import json
 import math
@@ -124,6 +125,7 @@ def _load_config(path: Path, expected_identity: str) -> dict[str, Any]:
         "maximum_live_local_payloads",
         "maximum_tensor_fragment_multiples",
         "maximum_m8_minus_m1_peak_rss_bytes",
+        "warmup_iterations",
     }:
         raise MergeStressError("memory gate config schema mismatch")
     workload = value["formal_workload"]
@@ -135,6 +137,8 @@ def _load_config(path: Path, expected_identity: str) -> dict[str, Any]:
         or workload["fragment_elements"] <= 0
     ):
         raise MergeStressError("formal workload differs from the frozen profile")
+    if value["memory_gates"]["warmup_iterations"] != 2:
+        raise MergeStressError("memory profile requires two allocator warmup iterations")
     return value
 
 
@@ -366,6 +370,7 @@ def build_workload(root: Path, config: Mapping[str, Any]) -> dict[str, Any]:
             "selection_identity": _identity("memory-selection"),
             "fragment_elements": memory_elements,
             "fragment_bytes": len(memory_current),
+            "warmup_iterations": config["memory_gates"]["warmup_iterations"],
             "contributions": memory_contributions,
         },
     }
@@ -594,45 +599,6 @@ def execute_mixed_base_workload(root: Path, workload: Mapping[str, Any], config:
     }
 
 
-class _MemorySource:
-    def __init__(self, payloads: Mapping[str, bytes]) -> None:
-        self.payloads = dict(payloads)
-
-    @contextlib.contextmanager
-    def open_payload(self, contribution: ContributionFact) -> Iterator[bytes]:
-        yield self.payloads[contribution.proposal_id]
-
-
-def _warm_memory_runtime() -> None:
-    raw = _payload([1.0, 2.0])
-    local = _payload([0.0, 1.0])
-    fact = ContributionFact(
-        proposal_id="warmup",
-        content_identity=_identity("warmup-content"),
-        learner_id="warmup-learner",
-        base_version=0,
-        base_content_identity=_identity("warmup-current"),
-        processed_tokens=1,
-        staleness=0,
-        normalized_weight=1.0,
-        parameters_sha256=hashlib.sha256(local).hexdigest(),
-        payload_bytes=len(local),
-    )
-    request = FragmentMergeRequest(
-        descriptor=_descriptor(2),
-        fragment_map_identity=_identity("warmup-map"),
-        current_version=0,
-        current_content_identity=fact.base_content_identity,
-        current_parameters=raw,
-        outer_state=FragmentOuterState(0),
-        selection_identity=_identity("warmup-selection"),
-        contributions=(fact,),
-    )
-    execute_streaming_fragment_update(
-        request, _MemorySource({"warmup": local}), OuterSGDPolicy(1.0, 0.0, False)
-    )
-
-
 def run_memory_child(root: Path, workload_path: Path, contributor_count: int) -> dict[str, Any]:
     workload = json.loads(workload_path.read_text(encoding="utf-8"))
     memory = workload["memory"]
@@ -641,26 +607,33 @@ def run_memory_child(root: Path, workload_path: Path, contributor_count: int) ->
     current = (root / memory["current_relative_path"]).read_bytes()
     if hashlib.sha256(current).hexdigest() != memory["current_sha256"]:
         raise MergeStressError("memory current checksum mismatch")
-    selected = memory["contributions"][:contributor_count]
-    weight = float(np.float32(1.0 / contributor_count))
-    facts = tuple(
-        ContributionFact(
-            proposal_id=item["proposal_id"],
-            content_identity=_identity(f"memory-content:{item['proposal_id']}"),
-            learner_id=item["learner_id"],
-            base_version=0,
-            base_content_identity=memory["current_identity"],
-            processed_tokens=1,
-            staleness=0,
-            normalized_weight=weight,
-            parameters_sha256=item["parameters_sha256"],
-            payload_bytes=item["payload_bytes"],
+    def facts_for(items: Sequence[Mapping[str, Any]]) -> tuple[ContributionFact, ...]:
+        weight = float(np.float32(1.0 / len(items)))
+        return tuple(
+            ContributionFact(
+                proposal_id=item["proposal_id"],
+                content_identity=_identity(f"memory-content:{item['proposal_id']}"),
+                learner_id=item["learner_id"],
+                base_version=0,
+                base_content_identity=memory["current_identity"],
+                processed_tokens=1,
+                staleness=0,
+                normalized_weight=weight,
+                parameters_sha256=item["parameters_sha256"],
+                payload_bytes=item["payload_bytes"],
+            )
+            for item in items
         )
+
+    selected = memory["contributions"][:contributor_count]
+    facts = facts_for(selected)
+    locations = tuple(
+        PayloadLocation(item["proposal_id"], item["relative_path"])
         for item in selected
     )
     source = ImmutableFileContributionSource(
         root,
-        tuple(PayloadLocation(item["proposal_id"], item["relative_path"]) for item in selected),
+        locations,
     )
     request = FragmentMergeRequest(
         descriptor=_descriptor_from_dict(workload["memory_descriptor"]),
@@ -672,7 +645,39 @@ def run_memory_child(root: Path, workload_path: Path, contributor_count: int) ->
         selection_identity=_identity(f"memory-selection:{contributor_count}"),
         contributions=facts,
     )
-    _warm_memory_runtime()
+    warm_items = memory["contributions"]
+    warm_facts = facts_for(warm_items)
+    warm_locations = tuple(
+        PayloadLocation(item["proposal_id"], item["relative_path"])
+        for item in warm_items
+    )
+    warm_request = dataclasses.replace(
+        request,
+        selection_identity=_identity("memory-warmup-selection"),
+        contributions=warm_facts,
+    )
+    warmup_iterations = memory["warmup_iterations"]
+    if warmup_iterations != 2:
+        raise MergeStressError("memory workload requires exactly two warmup iterations")
+    warmup_peaks = []
+    for _ in range(warmup_iterations):
+        warm_source = ImmutableFileContributionSource(root, warm_locations)
+        warm_result = execute_streaming_fragment_update(
+            warm_request,
+            warm_source,
+            OuterSGDPolicy(1.0, 0.0, False),
+            measure_process_rss=True,
+        )
+        warm_metrics = warm_source.metrics()
+        if (
+            warm_metrics.opens != len(warm_items)
+            or warm_metrics.maximum_active_payloads != 1
+            or warm_metrics.active_payloads != 0
+        ):
+            raise MergeStressError("memory allocator warmup did not stream the frozen profile")
+        warmup_peaks.append(warm_result.memory_accounting.peak_process_rss_bytes)
+        del warm_result, warm_source
+        gc.collect()
     before_rss, before_hwm = linux_process_memory_bytes()
     result = execute_streaming_fragment_update(
         request,
@@ -691,6 +696,10 @@ def run_memory_child(root: Path, workload_path: Path, contributor_count: int) ->
         "before_hwm_bytes": before_hwm,
         "after_rss_bytes": after_rss,
         "after_hwm_bytes": after_hwm,
+        "warmup_iterations": warmup_iterations,
+        "warmup_contributor_count": len(warm_items),
+        "warmup_fragment_bytes": len(current),
+        "warmup_peak_rss_bytes": warmup_peaks,
         "target_update_peak_rss_bytes": measured_peak,
         "source_metrics": dataclasses.asdict(metrics),
         "memory_accounting": result.memory_accounting.to_dict(),
@@ -1213,6 +1222,12 @@ def analyze_roles(
         process_memory = run["memory_accounting"]
         if (
             run["contributor_count"] != contributor_count
+            or run["warmup_iterations"] != memory_gates["warmup_iterations"]
+            or run["warmup_contributor_count"]
+            != config["formal_workload"]["learner_count"]
+            or run["warmup_fragment_bytes"] != workload["memory"]["fragment_bytes"]
+            or len(run["warmup_peak_rss_bytes"]) != run["warmup_iterations"]
+            or any(value is None or value < 0 for value in run["warmup_peak_rss_bytes"])
             or run["source_metrics"]["maximum_active_payloads"]
             != memory_gates["maximum_live_local_payloads"]
             or run["source_metrics"]["active_payloads"] != 0

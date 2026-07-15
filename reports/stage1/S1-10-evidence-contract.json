@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "resource_level": "L2",
-  "selected_evidence_root": "/work/xg24i002/x10041/fsbdd/runtime_runs/S1-10/formal-l2-retry1",
+  "selected_evidence_root": "/work/xg24i002/x10041/fsbdd/runtime_runs/S1-10/formal-l2-retry2",
   "target_shared_root": "/work/xg24i002/x10041/fsbdd/runtime_runs",
   "code_identity_contract": {
     "submission_value": "EXPECTED_COMMIT is the full 40-character candidate SHA supplied to qsub",
@@ -43,7 +43,7 @@
     "source_lifetime": "each selected local payload is opened through a context-managed lease and released before the next contribution",
     "active_payload_gate": "maximum simultaneous local payload leases is exactly one for a nonempty update",
     "tensor_ledger_gate": "instrumented live tensor bytes never exceed eight times one fragment payload and do not scale with M times fragment size",
-    "rss_observation": "dedicated warmed child processes reset the observation at production-kernel entry and sample current Linux VmRSS at each target-update allocation checkpoint through successor creation for identical M=1 and M=8 fragment shapes; lifetime VmHWM is recorded only as non-gating context",
+    "rss_observation": "dedicated child processes each execute two identical M=8 target-shape streaming warmups before resetting the observation at production-kernel entry and sampling current Linux VmRSS at each target M=1 or M=8 update allocation checkpoint through successor creation; lifetime VmHWM is recorded only as non-gating context",
     "rss_gate": "M=8 peak RSS minus M=1 peak RSS is at most 12 MiB",
     "cache_all_counterexample": "the RED surrogate holds all eight source leases and must report eight live payloads"
   },

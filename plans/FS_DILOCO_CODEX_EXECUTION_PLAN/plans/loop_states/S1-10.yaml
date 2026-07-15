@@ -29,7 +29,7 @@ orient:
   raw_evidence_on_demand: [runtime_runs/S1-10]
   resource_level: L2
   available_resources: Miyabi debug-g one or two compute nodes with shared POSIX evidence root and nv-hpcx launcher module
-  recent_failure: Formal L2 job 2386456.opbs ran the full Stage 1 suite and both two-node roles successfully, then failed during manifest construction because syncer_merge_stress used a removed keyword-style build_manifest API. The incomplete runtime_runs/S1-10/formal-l2 package is preserved; the correction uses the current identity-map API and moves selected evidence to fail-if-exists formal-l2-retry1.
+  recent_failure: Formal L2 retry job 2386509.opbs ran 233 Stage 1 tests and both two-node roles successfully, then the independent analyzer correctly rejected a non-comparable RSS sample because the old two-element warmup did not prime target-fragment allocator paths (M1 9 MiB versus M8 27 MiB; delta 18 MiB above the 12 MiB gate). The incomplete formal-l2-retry1 package is preserved. The correction freezes two identical M8 target-shape streaming warmups in each dedicated child before the target M1/M8 observation and moves selected evidence to fail-if-exists formal-l2-retry2.
   attempt_budget: {red: 1, targeted: 3, l1_compute: 2, formal_l2_batch: 1}
   failure_ladder: preserve the first L2 failure then reproduce both roles on one compute node before any resubmission
   nine_node_gate_required: false
@@ -40,7 +40,7 @@ preflight:
   requirements_complete: true
   measurement_contract: reports/stage1/S1-10-evidence-contract.json
   package_contract: reports/stage1/S1-10-evidence-contract.json
-  package_validator_command: fsbdd evidence validate runtime_runs/S1-10/formal-l2-retry1
+  package_validator_command: fsbdd evidence validate runtime_runs/S1-10/formal-l2-retry2
   package_validator_result: pending
   checker_phase_a: required
   relative_l2_formula: norm(production minus oracle) divided by max(norm(oracle) 1e-12)
@@ -78,6 +78,11 @@ checker:
     checked_candidate: ffae9ef60e9b408674e882b165ca7df723d8deae
     verdict: ADMISSIBLE
     correction: All three prior blockers are corrected with fail-closed regressions; exact candidate targeted evidence frozen hashes nine-requirement matrix package preflight and two-node formal submission contract are coherent.
+  - cycle: 3
+    phase: A
+    checked_candidate: 4c698d8ed9dea2821994a26d45ceac4fea0857a3
+    verdict: ADMISSIBLE
+    correction: Manifest repair matches the identity-map schema with exact regression coverage; the failed package is preserved and the degraded one-node two-role failure reproduction passes without a formal topology claim.
 persist:
   evidence_index: evidence/indexes/S1-10.md
   raw_evidence_root: runtime_runs/S1-10

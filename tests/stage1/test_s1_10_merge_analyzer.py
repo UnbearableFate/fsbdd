@@ -17,6 +17,7 @@ from fsbdd.syncer_merge_stress import (
     execute_numeric_workload,
     execute_order_workload,
     manifest_command,
+    run_memory_child,
 )
 
 
@@ -41,6 +42,10 @@ def analyzer_case(tmp_path_factory):
             "before_hwm_bytes": 100_000_000,
             "after_rss_bytes": 100_000_000 + 4 * fragment_bytes,
             "after_hwm_bytes": 100_000_000 + 4 * fragment_bytes,
+            "warmup_iterations": 2,
+            "warmup_contributor_count": 8,
+            "warmup_fragment_bytes": fragment_bytes,
+            "warmup_peak_rss_bytes": [4 * fragment_bytes, 0],
             "target_update_peak_rss_bytes": 4 * fragment_bytes,
             "source_metrics": {
                 "opens": count,
@@ -133,6 +138,27 @@ def test_analyzer_independently_recomputes_all_formal_transitions(analyzer_case)
     assert summary["byte_accounting"]["maximum_live_local_payloads"] == 1
 
 
+def test_memory_child_primes_identical_max_contributor_fragment_profile(
+    tmp_path: Path,
+) -> None:
+    config = json.loads(CONFIG.read_text(encoding="utf-8"))
+    config["formal_workload"]["fragment_elements"] = 4096
+    workload = build_workload(tmp_path, config)
+    workload_path = tmp_path / "workload.json"
+    workload_path.write_text(json.dumps(workload), encoding="utf-8")
+
+    result = run_memory_child(tmp_path, workload_path, 1)
+
+    assert result["warmup_iterations"] == config["memory_gates"]["warmup_iterations"]
+    assert result["warmup_contributor_count"] == config["formal_workload"][
+        "learner_count"
+    ]
+    assert result["warmup_fragment_bytes"] == 4096 * 4
+    assert len(result["warmup_peak_rss_bytes"]) == result["warmup_iterations"]
+    assert result["source_metrics"]["opens"] == 1
+    assert result["source_metrics"]["maximum_active_payloads"] == 1
+
+
 def _mutate_missing_update_fact(writer, syncer, config):
     trace = syncer["numeric"]["traces"][0]
     del trace["update_facts"]["ordered_processed_tokens"]
@@ -169,6 +195,10 @@ def _mutate_rss(writer, syncer, config):
     syncer["memory"]["m8_minus_m1_peak_rss_bytes"] = gate + 1
 
 
+def _mutate_memory_warmup_shape(writer, syncer, config):
+    syncer["memory"]["runs"]["8"]["warmup_fragment_bytes"] += 4
+
+
 def _mutate_wrong_base_output(writer, syncer, config):
     syncer["mixed_base"]["production_parameters"] = syncer["mixed_base"][
         "wrong_current_relative_parameters"
@@ -195,6 +225,7 @@ def _mutate_both_config_identities(writer, syncer, config):
         _mutate_order_output,
         _mutate_cache_all,
         _mutate_rss,
+        _mutate_memory_warmup_shape,
         _mutate_wrong_base_output,
         _mutate_writer_torch,
         _mutate_both_config_identities,
