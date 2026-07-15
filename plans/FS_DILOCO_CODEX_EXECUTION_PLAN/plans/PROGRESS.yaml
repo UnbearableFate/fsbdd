@@ -365,7 +365,7 @@ loops:
   result_commit: null
   evidence_index: evidence/indexes/S1-13.md
   checker_verdict: null
-  blocker: Same-Checker Phase B passed preflight 2392830 and authorized the final L2 at 6a4e465, but job 2392852 failed before training because old asset bundle 2389469 has incompatible real-model registry/fragment-map identity and no producer commit. Correction 1cb2ef7 passes login static gates. Only the already-budgeted second/final one-node asset compatibility diagnosis and rebuild may be requested next; no reproduction-preflight, L2, 9N, long-smoke, or formal run is authorized.
+  blocker: Same-Checker Phase B passed job 2392852 failure attribution and authorized exactly one second-and-final asset_stage job at 6a5adf91028759ff9608de219c59f27cdc5d409d using only the exact-clean offline asset script. It is not yet submitted. No reproduction-preflight, L2, 9N, long-smoke, or formal run is authorized.
 - id: S2-01
   stage: stage2
   title: 异步 GPU→CPU→FS Publication Pipeline

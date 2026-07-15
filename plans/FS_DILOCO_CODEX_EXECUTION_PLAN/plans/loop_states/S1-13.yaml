@@ -88,6 +88,8 @@ orient:
       reason: The original successful asset materialization did not bind its producer commit and is incompatible with the current real-model registry or fragment map. The already-registered second asset-stage attempt is the smallest check that can diagnose the exact digest difference and rebuild the immutable bootstraps without running a learner or syncer.
       scope: Exactly one final one-node asset compatibility diagnosis and rebuild. Reuse all four validated dataset trees, keep the Hub offline, validate both rebuilt workloads, and do not change or authorize any reproduction-preflight, L2, 9N, long-smoke, or formal-run budget.
       authorization_gate: The same S1-13 Checker must review the failed L2 package, correction commit, static evidence, exact old identities, and this scope before the asset job is submitted.
+      authorization_commit: 6a5adf91028759ff9608de219c59f27cdc5d409d
+      checker_verdict: ADMISSIBLE for exactly one second-and-final asset_stage job; no other compute run authorized
     - amended_at_utc: 2026-07-15T19:18:02Z
       prior_targeted_budget: 3
       amended_targeted_budget: 4
@@ -159,7 +161,7 @@ nine_node_gate: {required: true, run_id: null, topology_gate: null, loss_gate: n
 checker:
   context_id: s1_13_checker
   maker_chat_inherited: false
-  phase_a_verdict: same-Checker Phase B passed preflight job 2392830 and authorized exactly one third-and-final L2 run at runtime commit 6a4e465; job 2392852 consumed that authorization and failed before training on the old asset compatibility boundary; no subsequent compute run is authorized
+  phase_a_verdict: same-Checker Phase B passed failure attribution for job 2392852 and Phase A authorized exactly one second-and-final asset_stage job at 6a5adf91028759ff9608de219c59f27cdc5d409d using only pbs/stage1_s1_13_assets.pbs; no other compute run is authorized
   verdict: null
   report_path: reports/checkers/S1-13.md
   cycles:
@@ -194,11 +196,14 @@ checker:
     - candidate: 6a4e465ce43830c28a56508ca66304cb43fb62b5
       verdict: ADMISSIBLE for exactly one second one-node reproduction_preflight; after job 2392830 passed, Phase B PASS and Phase A ADMISSIBLE for exactly one third-and-final L2 attempt at this runtime commit; no retry or larger run authorized
       result: preflight job 2392830 passed; authorized L2 job 2392852 failed during learner initialization on immutable asset registry/fragment-map incompatibility, with no learner readiness, proposal, update, or training
+    - candidate: 6a5adf91028759ff9608de219c59f27cdc5d409d
+      verdict: Phase B PASS for job 2392852 failure attribution; Phase A ADMISSIBLE for exactly one second-and-final asset_stage job using only pbs/stage1_s1_13_assets.pbs; no reproduction-preflight, L2, 9N, long-smoke, or formal run authorized
+      result: pending exact-clean offline asset compatibility diagnosis and producer-bound rebuild
 persist:
   evidence_index: evidence/indexes/S1-13.md
   raw_evidence_root: runtime_runs/S1-13
   acceptance_traceability_updated: false
   next_gap: Stage 2 asynchronous GPU to CPU to filesystem publication pipeline
   handoff: >-
-    Same-Checker Phase B passed preflight 2392830 and authorized the final L2 at 6a4e465. Job 2392852 failed before training because old asset bundle 2389469 does not match the current real-model registry or fragment map and records no producer commit; its reviewed failure and exact evidence are persisted. Correction 1cb2ef7 adds an exclusive real-model compatibility report, exact expected/actual learner error, producer-commit chain, offline hard-link asset rebuild, post-rebuild checks for both workloads, and effective per-rank MPI affinity evidence. Login static gates pass. Request only the remaining second/final asset_stage attempt from the same Checker; no L2, preflight, 9N, long-smoke, or formal run is authorized.
-blocker: Same-Checker review and exact-commit authorization are required for the remaining second/final asset_stage attempt. All reproduction-preflight and L2 budgets are exhausted, and no two-node, 9N, long-smoke, or formal long submission is authorized.
+    Same-Checker Phase B passed failure attribution for job 2392852 and authorized exactly one second-and-final asset_stage job at 6a5adf91028759ff9608de219c59f27cdc5d409d. Run only pbs/stage1_s1_13_assets.pbs from an exact-clean detached worktree, fully offline, with frozen old config/marker identities and unique absent asset/log roots. It must retain exact old expected/actual registry and fragment-map evidence, hard-link reuse all four datasets, record the producer commit, and post-validate both workloads. A failure consumes the attempt and requires immediate reviewed-ledger persistence. No preflight, L2, 9N, long-smoke, or formal run is authorized.
+blocker: Exactly one second-and-final asset_stage job is authorized at 6a5adf91028759ff9608de219c59f27cdc5d409d and not yet submitted. All reproduction-preflight and L2 budgets are exhausted, and no two-node, 9N, long-smoke, or formal long submission is authorized.
