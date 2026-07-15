@@ -50,10 +50,11 @@ def test_formal_topologies_freeze_independent_9n_and_coallocated_4_plus_1() -> N
     assert "#PBS -l select=5" in smoke
     assert "--non-formal-long-smoke" in smoke
     assert "fsbdd.auxiliary.stage1.gate" in smoke
-    assert "timeout --signal=TERM --kill-after=30s 300s" in smoke
-    assert "timeout --signal=TERM --kill-after=30s 1350s" in smoke
-    assert "timeout --signal=TERM --kill-after=30s 120s" in smoke
-    assert smoke.count("timeout --signal=TERM --kill-after=30s 300s") == 2
+    assert "Sequential supervisor ceilings total 1590 seconds" in smoke
+    assert "leaving at least 195 seconds" in smoke
+    assert "timeout --signal=TERM --kill-after=15s 1350s" in smoke
+    assert "timeout --signal=TERM --kill-after=15s 120s" in smoke
+    assert smoke.count("timeout --signal=TERM --kill-after=15s 60s") == 2
     targeted = (ROOT / "pbs/stage1_s1_13_targeted.pbs").read_text(encoding="utf-8")
     assert "EXPECTED_COMMIT" in targeted
     assert 'if [[ -e "$OUTPUT_ROOT" ]]' in targeted

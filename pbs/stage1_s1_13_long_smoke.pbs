@@ -58,14 +58,17 @@ findmnt -T "$SHARED_ROOT" > "$RESULT_ROOT/env/findmnt.txt"
 cp "$PROJECT_ROOT/pbs/stage1_s1_13_long_smoke.pbs" "$RESULT_ROOT/env/pbs-script.pbs"
 ROLE_QTIME_RAW="$(awk -F' = ' '/^[[:space:]]*qtime =/{print $2}' "$RESULT_ROOT/env/qstat.txt")"
 export PBS_QTIME_UTC="$(date -u -d "$ROLE_QTIME_RAW JST" '+%Y-%m-%dT%H:%M:%SZ')"
-timeout --signal=TERM --kill-after=30s 120s \
+# Sequential supervisor ceilings total 1590 seconds (60 + 120 + 1350 + 60).
+# One terminal kill grace adds at most 15 seconds, leaving at least 195 seconds
+# of the 1800-second PBS walltime for setup and failure-evidence finalization.
+timeout --signal=TERM --kill-after=15s 60s \
   mpirun -np 5 --map-by ppr:1:node --hostfile "$PBS_NODEFILE" nvidia-smi -L \
   > "$RESULT_ROOT/env/nvidia-smi-all-nodes.txt" 2>&1
 
-timeout --signal=TERM --kill-after=30s 300s \
+timeout --signal=TERM --kill-after=15s 120s \
   "$PYTHON" -m pytest -q tests/stage1 \
   > "$RESULT_ROOT/stdout/pytest.log" 2> "$RESULT_ROOT/stderr/pytest.log"
-timeout --signal=TERM --kill-after=30s 1350s \
+timeout --signal=TERM --kill-after=15s 1350s \
   mpirun -np 5 --map-by ppr:1:node --hostfile "$PBS_NODEFILE" \
   /usr/bin/env PYTHONPATH="$PYTHONPATH" OMP_NUM_THREADS=1 TOKENIZERS_PARALLELISM=false \
   HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 HF_DATASETS_OFFLINE=1 \
@@ -78,7 +81,7 @@ timeout --signal=TERM --kill-after=30s 1350s \
   --non-formal-long-smoke --timeout-seconds 1200 \
   > "$RESULT_ROOT/stdout/mpirun.log" 2> "$RESULT_ROOT/stderr/mpirun.log"
 
-timeout --signal=TERM --kill-after=30s 300s \
+timeout --signal=TERM --kill-after=15s 60s \
   "$PYTHON" -m fsbdd.auxiliary.stage1.gate \
   --result-root "$RESULT_ROOT" --config "$RESOLVED_CONFIG" \
   --gate-contract "$GATE_CONTRACT" --output-root "$RESULT_ROOT/analysis" \
