@@ -38,6 +38,8 @@ if [[ ! -x "$PYTHON" ]]; then
   echo "Missing project Python: $PYTHON" >&2
   exit 69
 fi
+export PAGER=cat MODULES_PAGER=cat LMOD_PAGER=cat
+module load "$MODULE_NAME"
 if [[ "$(git -C "$PROJECT_ROOT" rev-parse HEAD)" != "$EXPECTED_COMMIT" ]]; then
   echo "clean worktree commit mismatch" >&2
   exit 65
@@ -62,8 +64,6 @@ fi
 
 cd "$PROJECT_ROOT"
 export PYTHONPATH="$PROJECT_ROOT/src"
-export PAGER=cat MODULES_PAGER=cat LMOD_PAGER=cat
-module load "$MODULE_NAME"
 
 "$PYTHON" -m fsbdd.cli evidence init "$EVIDENCE_ROOT"
 mkdir -p "$EVIDENCE_ROOT"/{analysis,configs,env,runtime/roles,stdout,stderr}
