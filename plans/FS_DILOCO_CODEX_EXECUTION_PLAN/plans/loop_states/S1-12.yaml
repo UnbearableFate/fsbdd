@@ -29,7 +29,7 @@ orient:
   raw_evidence_on_demand: [runtime_runs/S1-07, runtime_runs/S1-08, runtime_runs/S1-09, runtime_runs/S1-11]
   resource_level: L2
   available_resources: Miyabi debug-g up to four compute nodes with one local GPU per learner and shared POSIX runtime root
-  recent_failure: Targeted job 2388641.opbs passed the complete one-node role path and 18 tests. Checker Phase A then blocked formal submission because speed was measured outside the publisher adoption and syncer path numeric recomputation trusted trace arrays instead of encoded authoritative payloads and evaluation reported a constant rather than instrumented read count. Corrections now integrate the speed path persist and decode every raw transition including outer momentum and audit every restart-loader path.
+  recent_failure: After targeted job 2388641.opbs passed the prior role path Checker Phase A blocked three evidence semantics. Correction job 2388765.opbs then preserved a deterministic integrated-path failure where adoption mutated progress before the publisher validated the same safe-boundary event. The corrected established observer order snapshots first then applies pending adoption while raw numeric decoding and restart-loader path auditing remain unchanged.
   attempt_budget: {red: 1, targeted: 8, l1_compute: 8, formal_l2_batch: 1}
   failure_ladder: preserve the first L2 failure then reproduce the failing role or analyzer on one compute node before resubmission
   nine_node_gate_required: false

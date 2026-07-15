@@ -34,9 +34,15 @@
       "evidence": "runtime_runs/S1-12/targeted-2388627.opbs",
       "root_cause": "the role harness constructed a second LearnerRuntime with an RNG object whose single-owner guard correctly rejected rebinding; the corrected harness reuses the original runtime and swaps only its safe-boundary observer",
       "formal_resources_consumed": false
+    },
+    {
+      "job_id": "2388765.opbs",
+      "evidence": "runtime_runs/S1-12/targeted-2388765.opbs",
+      "root_cause": "the first integrated timing harness invoked adoption before snapshot publication at one safe boundary; adoption correctly changed the progress vector and the publisher then rejected the now-stale boundary event. The corrected observer order snapshots the boundary first and applies any pending adoption second, matching the established in-flight old-base contract.",
+      "formal_resources_consumed": false
     }
   ],
-  "rationale": "The sixth one-node diagnostic passed, but the independent Checker blocked Phase A because the evidence path did not yet measure integrated publication/adoption/syncer timing, decode encoded authoritative numeric inputs and compound successors, or instrument all evaluation restart reads. Two further one-node validations are reserved for these material evidence corrections before the same Checker is asked to reconsider formal admissibility. No algorithm, acceptance threshold, formal topology, or formal allowance changes.",
+  "rationale": "The sixth one-node diagnostic passed, but the independent Checker blocked Phase A because the evidence path did not yet measure integrated publication/adoption/syncer timing, decode encoded authoritative numeric inputs and compound successors, or instrument all evaluation restart reads. The first correction run exposed and preserved a deterministic safe-boundary observer-order violation before its second step. The final reserved one-node validation checks the corrected established snapshot-then-adopt order before the same Checker is asked to reconsider formal admissibility. No algorithm, acceptance threshold, formal topology, or formal allowance changes.",
   "invariants_unchanged": [
     "Profile A algorithm and numeric thresholds",
     "M=4 formal topology",

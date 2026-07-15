@@ -633,8 +633,8 @@ def _run_integrated_speed_path(
         autostart=True,
     )
     runtime.safe_boundary_observers = (
-        adoption.on_safe_boundary,
         publisher.on_safe_boundary,
+        adoption.on_safe_boundary,
     )
 
     syncer_updates: list[dict[str, Any]] = []
