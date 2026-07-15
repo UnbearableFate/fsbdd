@@ -4,7 +4,9 @@ import argparse
 import hashlib
 import json
 import math
+import os
 import statistics
+import subprocess
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
@@ -135,6 +137,233 @@ def _artifact_inventory(result_root: Path) -> list[dict[str, Any]]:
     return rows
 
 
+def _checksum_entries(path: Path) -> dict[str, str]:
+    entries: dict[str, str] = {}
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except OSError as error:
+        raise ReproductionError("checksum inventory is unreadable") from error
+    for ordinal, line in enumerate(lines, start=1):
+        try:
+            digest, relative = line.split("  ", 1)
+        except ValueError as error:
+            raise ReproductionError(
+                f"invalid checksum inventory row {ordinal}"
+            ) from error
+        _sha256(digest, f"checksum row {ordinal}")
+        relative_path = Path(relative)
+        if (
+            not relative
+            or relative_path.is_absolute()
+            or ".." in relative_path.parts
+            or relative in entries
+        ):
+            raise ReproductionError(f"invalid checksum path at row {ordinal}")
+        entries[relative] = digest
+    return entries
+
+
+def _validate_checksum_entries(
+    result_root: Path,
+    entries: Mapping[str, str],
+    *,
+    excluded: set[str],
+) -> None:
+    expected_paths = {
+        path.relative_to(result_root).as_posix()
+        for path in result_root.rglob("*")
+        if path.is_file() and path.relative_to(result_root).as_posix() not in excluded
+    }
+    if set(entries) != expected_paths:
+        missing = sorted(expected_paths - set(entries))
+        extra = sorted(set(entries) - expected_paths)
+        raise ReproductionError(
+            f"checksum coverage mismatch; missing={missing}, extra={extra}"
+        )
+    for relative, digest in entries.items():
+        if _hash_file(result_root / relative) != digest:
+            raise ReproductionError(f"checksum mismatch: {relative}")
+
+
+def validate_preflight(
+    *,
+    project_root: Path,
+    config_path: Path,
+    asset_root: Path,
+    gate_contract_path: Path,
+    reproduction_contract_path: Path,
+    expected_commit: str,
+    expected_reproduction_contract_sha256: str,
+    output_path: Path,
+) -> dict[str, Any]:
+    contract = _read_object(reproduction_contract_path)
+    expected_reproduction_contract_sha256 = _sha256(
+        expected_reproduction_contract_sha256,
+        "expected reproduction contract identity",
+    )
+    config = _read_object(config_path)
+    identities = contract.get("identities")
+    topology = contract.get("topology")
+    runtime = contract.get("runtime")
+    finalization = contract.get("finalization")
+    required = contract.get("required_evidence")
+    if not all(
+        isinstance(value, dict)
+        for value in (identities, topology, runtime, finalization)
+    ) or not isinstance(required, list):
+        raise ReproductionError("reproduction preflight contract is incomplete")
+    if not isinstance(identities, dict):  # narrowed for static type checking
+        raise ReproductionError("reproduction identities are invalid")
+    resolved = config.get("resolved_runtime_fields")
+    if not isinstance(resolved, dict):
+        raise ReproductionError("resolved runtime fields are missing")
+    script_path = project_root / "pbs" / "stage1_s1_13_smoke_2n.pbs"
+    preflight_script_path = (
+        project_root / "pbs" / "stage1_s1_13_reproduction_preflight.pbs"
+    )
+    script = script_path.read_text(encoding="utf-8")
+    commit = subprocess.run(
+        ["git", "-C", str(project_root), "rev-parse", "HEAD"],
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    status = subprocess.run(
+        ["git", "-C", str(project_root), "status", "--porcelain"],
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    required_paths = [Path(str(value)) for value in required]
+    required_paths_pass = (
+        len(required_paths) == len(set(required_paths))
+        and all(
+            not path.is_absolute() and ".." not in path.parts and path.parts
+            for path in required_paths
+        )
+    )
+    tokens = (
+        "EXPECTED_COMMIT",
+        "REPRODUCTION_CONTRACT_SHA256",
+        'if ! mkdir "$SHARED_ROOT"',
+        'if ! mkdir "$RESULT_ROOT"',
+        'FSBDD_FAILURE_OUTPUT_ROOT="$RESULT_ROOT"',
+        "--bind-to none --report-bindings",
+        '"$RESULT_ROOT/env/binding-hostnames.txt"',
+        '"$RESULT_ROOT/env/mpi-bindings.txt"',
+        "timeout --signal=TERM --kill-after=30s 900s",
+        "mpirun -np 2 --map-by ppr:1:node --bind-to none",
+        "--learner-count-override 1 --timeout-seconds 720",
+        "fsbdd.auxiliary.stage1.reproduction analyze",
+        "fsbdd.auxiliary.stage1.reproduction validate",
+        "! -path './analysis/package-validator.json'",
+        "sha256sum -c checksums.sha256",
+    )
+    token_pass = all(token in script for token in tokens)
+    analyze_offset = script.find("fsbdd.auxiliary.stage1.reproduction analyze")
+    checksum_offset = script.find("xargs -0 sha256sum > checksums.sha256")
+    validate_offset = script.find("fsbdd.auxiliary.stage1.reproduction validate")
+    final_check_offset = script.find("sha256sum -c checksums.sha256")
+    lifecycle_pass = (
+        0
+        <= analyze_offset
+        < checksum_offset
+        < validate_offset
+        < final_check_offset
+    )
+    exclusive_offset = script.find('if ! mkdir "$RESULT_ROOT"')
+    failure_root_offset = script.find('FSBDD_FAILURE_OUTPUT_ROOT="$RESULT_ROOT"')
+    checks = {
+        "contract_authority": contract.get("schema_version") == 1
+        and contract.get("loop_id") == "S1-13"
+        and contract.get("kind") == "corrected_two_node_filesystem_reproduction"
+        and contract.get("formal_evidence") is False,
+        "clean_exact_commit": commit == expected_commit and not status,
+        "config_identity": _hash_file(config_path)
+        == identities.get("resolved_config_sha256"),
+        "asset_identity": _hash_file(asset_root / "complete.json")
+        == identities.get("asset_marker_sha256"),
+        "gate_contract_identity": _hash_file(gate_contract_path)
+        == identities.get("gate_contract_sha256"),
+        "reproduction_contract_identity": _hash_file(reproduction_contract_path)
+        == expected_reproduction_contract_sha256,
+        "resolved_asset_binding": resolved.get("asset_bundle_root")
+        == str(asset_root.resolve())
+        and resolved.get("asset_marker_sha256")
+        == identities.get("asset_marker_sha256"),
+        "frozen_topology": isinstance(topology, dict)
+        and topology.get("learners") == 1
+        and topology.get("syncers") == 1
+        and topology.get("distinct_compute_hosts") == 2
+        and topology.get("launcher_ranks") == 2
+        and topology.get("mpi_binding_policy")
+        == "none_with_report_bindings_evidence",
+        "bounded_deadlines": isinstance(runtime, dict)
+        and runtime.get("internal_role_timeout_seconds") == 720
+        and runtime.get("supervisor_term_seconds") == 900
+        and runtime.get("supervisor_kill_after_seconds") == 30
+        and runtime.get("pbs_walltime_seconds") == 1800
+        and 720 < 900 < 1800,
+        "required_paths": required_paths_pass,
+        "script_contract": token_pass,
+        "exclusive_roots_before_failure_binding": 0
+        <= exclusive_offset
+        < failure_root_offset,
+        "final_checksum_lifecycle": lifecycle_pass
+        and isinstance(finalization, dict)
+        and finalization.get("checksums_cover_every_retained_file_except_inventory_itself")
+        is True
+        and finalization.get("validator_runs_after_preliminary_checksums") is True
+        and finalization.get("validator_appended_before_final_checksum_check") is True,
+        "dynamic_tests_present": (
+            project_root / "tests" / "stage1" / "test_s1_13_reproduction.py"
+        ).is_file()
+        and (project_root / "tests" / "stage1" / "test_s1_13_static.py").is_file()
+        and preflight_script_path.is_file(),
+    }
+    passed = all(checks.values())
+    result = {
+        "schema_version": 1,
+        "loop_id": "S1-13",
+        "validator": "corrected_two_node_frozen_preflight",
+        "status": "admissible" if passed else "blocked",
+        "code_commit": commit,
+        "identities": {
+            "resolved_config_sha256": _hash_file(config_path),
+            "asset_marker_sha256": _hash_file(asset_root / "complete.json"),
+            "gate_contract_sha256": _hash_file(gate_contract_path),
+            "reproduction_contract_sha256": _hash_file(
+                reproduction_contract_path
+            ),
+            "pbs_script_sha256": _hash_file(script_path),
+            "preflight_pbs_script_sha256": _hash_file(preflight_script_path),
+            "analyzer_sha256": _hash_file(
+                project_root
+                / "src"
+                / "fsbdd"
+                / "auxiliary"
+                / "stage1"
+                / "reproduction.py"
+            ),
+            "dynamic_tests_sha256": _hash_file(
+                project_root
+                / "tests"
+                / "stage1"
+                / "test_s1_13_reproduction.py"
+            ),
+            "static_tests_sha256": _hash_file(
+                project_root / "tests" / "stage1" / "test_s1_13_static.py"
+            ),
+        },
+        "checks": checks,
+    }
+    _write_new_json(output_path, result)
+    if not passed:
+        failed = ", ".join(name for name, value in checks.items() if not value)
+        raise ReproductionError(f"frozen reproduction preflight failed: {failed}")
+    return result
+
+
 def analyze_reproduction(
     *,
     result_root: Path,
@@ -214,6 +443,25 @@ def analyze_reproduction(
         raise ReproductionError("role identity objects are required")
     learner_host = learner_identity.get("hostname")
     syncer_host = syncer_identity.get("hostname")
+    try:
+        binding_hosts = (
+            result_root / "env" / "binding-hostnames.txt"
+        ).read_text(encoding="utf-8").splitlines()
+        binding_report = (result_root / "env" / "mpi-bindings.txt").read_text(
+            encoding="utf-8"
+        )
+    except OSError as error:
+        raise ReproductionError("MPI binding evidence is unreadable") from error
+    expected_binding_hosts = {str(learner_host), str(syncer_host)}
+    binding_pass = (
+        len(binding_hosts) == 2
+        and all(
+            isinstance(value, str) and value for value in (learner_host, syncer_host)
+        )
+        and set(binding_hosts) == expected_binding_hosts
+        and all(f"rank {rank}" in binding_report for rank in range(2))
+        and ("not bound" in binding_report or "bound to" in binding_report)
+    )
     learner_gpu = learner_identity.get("gpu")
     if not isinstance(learner_gpu, dict):
         raise ReproductionError("learner GPU identity is required")
@@ -235,6 +483,8 @@ def analyze_reproduction(
         and topology.get("syncer_torch_module_imported") is False
         and topology.get("application_data_plane") == "shared_filesystem_only"
         and topology.get("launcher_ranks") == 2
+        and topology.get("mpi_binding_policy")
+        == "none_with_report_bindings_evidence"
         and learner_host != syncer_host
         and all(
             isinstance(value, str) and value for value in (learner_host, syncer_host)
@@ -509,6 +759,7 @@ def analyze_reproduction(
     checks = {
         "identity": identity_pass,
         "topology": topology_pass,
+        "mpi_binding_policy": binding_pass,
         "staged_payloads": staged_payload_pass,
         "background_materialization": materialization_pass and publication_pass,
         "single_current_parameter_accounting": byte_accounting_pass,
@@ -546,6 +797,11 @@ def analyze_reproduction(
                 "cuda": False,
             },
             "shared_filesystem_device_ids": shared_device_ids,
+        },
+        "mpi_binding": {
+            "policy": "none",
+            "hostnames": binding_hosts,
+            "report_sha256": _hash_file(result_root / "env" / "mpi-bindings.txt"),
         },
         "fragment_payload_bytes": fragment_bytes,
         "publication": {
@@ -623,6 +879,7 @@ def validate_package(
     manifest = _read_object(result_root / "package-manifest.json")
     gate = _read_object(result_root / "analysis" / "correction-reproduction-gate.json")
     required = contract.get("required_evidence")
+    finalization = contract.get("finalization")
     artifacts = manifest.get("artifacts")
     if (
         contract.get("schema_version") != 1
@@ -631,6 +888,7 @@ def validate_package(
         or manifest.get("contract_sha256") != _hash_file(reproduction_contract_path)
         or gate.get("status") != "pass"
         or not isinstance(required, list)
+        or not isinstance(finalization, dict)
         or not isinstance(artifacts, list)
     ):
         raise ReproductionError("reproduction package authority is invalid")
@@ -658,6 +916,29 @@ def validate_package(
         raise ReproductionError(
             "validated package omits required evidence: " + ", ".join(missing)
         )
+    inventory_path = result_root / "checksums.sha256"
+    validator_relative = "analysis/package-validator.json"
+    validator_path = result_root / validator_relative
+    if validator_path.exists():
+        raise ReproductionError("refusing to replace package validator evidence")
+    if (
+        finalization.get("checksum_inventory") != "checksums.sha256"
+        or finalization.get(
+            "checksums_cover_every_retained_file_except_inventory_itself"
+        )
+        is not True
+        or finalization.get("validator_runs_after_preliminary_checksums") is not True
+        or finalization.get("validator_appended_before_final_checksum_check") is not True
+    ):
+        raise ReproductionError("reproduction checksum lifecycle is not frozen")
+    preliminary_entries = _checksum_entries(inventory_path)
+    _validate_checksum_entries(
+        result_root,
+        preliminary_entries,
+        excluded={"checksums.sha256", validator_relative},
+    )
+    if "package-manifest.json" not in preliminary_entries:
+        raise ReproductionError("preliminary checksums omit the package manifest")
     result = {
         "schema_version": 1,
         "loop_id": "S1-13",
@@ -670,8 +951,31 @@ def validate_package(
         "artifact_count": len(current),
         "artifact_inventory_recomputed": True,
         "semantic_gate_status": gate.get("status"),
+        "checksum_lifecycle": {
+            "preliminary_entry_count": len(preliminary_entries),
+            "preliminary_exact_coverage": True,
+            "package_manifest_covered": True,
+            "validator_appended_to_inventory": True,
+            "final_exact_coverage": True,
+        },
     }
-    _write_new_json(result_root / "analysis" / "package-validator.json", result)
+    _write_new_json(validator_path, result)
+    validator_digest = _hash_file(validator_path)
+    try:
+        with inventory_path.open("a", encoding="utf-8") as stream:
+            stream.write(f"{validator_digest}  {validator_relative}\n")
+            stream.flush()
+            os.fsync(stream.fileno())
+    except OSError as error:
+        raise ReproductionError("could not attach package validator checksum") from error
+    final_entries = _checksum_entries(inventory_path)
+    _validate_checksum_entries(
+        result_root,
+        final_entries,
+        excluded={"checksums.sha256"},
+    )
+    if final_entries.get(validator_relative) != validator_digest:
+        raise ReproductionError("final checksums omit the package validator")
     return result
 
 
@@ -680,6 +984,17 @@ def _parser() -> argparse.ArgumentParser:
         description="Analyze the corrected S1-13 two-node reproduction"
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
+    preflight = subparsers.add_parser("preflight")
+    preflight.add_argument("--project-root", type=Path, required=True)
+    preflight.add_argument("--config", type=Path, required=True)
+    preflight.add_argument("--asset-root", type=Path, required=True)
+    preflight.add_argument("--gate-contract", type=Path, required=True)
+    preflight.add_argument("--reproduction-contract", type=Path, required=True)
+    preflight.add_argument("--expected-commit", required=True)
+    preflight.add_argument(
+        "--expected-reproduction-contract-sha256", required=True
+    )
+    preflight.add_argument("--output", type=Path, required=True)
     analyze = subparsers.add_parser("analyze")
     analyze.add_argument("--result-root", type=Path, required=True)
     analyze.add_argument("--shared-root", type=Path, required=True)
@@ -698,7 +1013,20 @@ def _parser() -> argparse.ArgumentParser:
 
 def main(argv: Sequence[str] | None = None) -> int:
     arguments = _parser().parse_args(argv)
-    if arguments.command == "analyze":
+    if arguments.command == "preflight":
+        result = validate_preflight(
+            project_root=arguments.project_root,
+            config_path=arguments.config,
+            asset_root=arguments.asset_root,
+            gate_contract_path=arguments.gate_contract,
+            reproduction_contract_path=arguments.reproduction_contract,
+            expected_commit=arguments.expected_commit,
+            expected_reproduction_contract_sha256=(
+                arguments.expected_reproduction_contract_sha256
+            ),
+            output_path=arguments.output,
+        )
+    elif arguments.command == "analyze":
         result = analyze_reproduction(
             result_root=arguments.result_root,
             shared_root=arguments.shared_root,

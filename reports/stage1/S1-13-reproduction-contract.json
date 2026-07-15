@@ -16,7 +16,8 @@
     "syncer_gpu_count": 0,
     "syncer_torch_module_imported": false,
     "application_data_plane": "shared_filesystem_only",
-    "launcher_ranks": 2
+    "launcher_ranks": 2,
+    "mpi_binding_policy": "none_with_report_bindings_evidence"
   },
   "runtime": {
     "target_global_cycles": 10,
@@ -47,11 +48,13 @@
     "contracts/gate-contract.json",
     "contracts/reproduction-contract.json",
     "contracts/resolved-config.json",
+    "env/binding-hostnames.txt",
     "env/code-commit.txt",
     "env/compute-hosts.txt",
     "env/findmnt.txt",
     "env/git-status.txt",
     "env/modules.txt",
+    "env/mpi-bindings.txt",
     "env/nvidia-smi-all-nodes.txt",
     "env/pbs-nodefile.txt",
     "env/python-version.txt",
@@ -71,6 +74,8 @@
     "checksum_inventory": "checksums.sha256",
     "stderr_must_be_empty": true,
     "checksums_cover_every_retained_file_except_inventory_itself": true,
+    "validator_runs_after_preliminary_checksums": true,
+    "validator_appended_before_final_checksum_check": true,
     "fail_if_exists": true
   }
 }

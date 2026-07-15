@@ -89,7 +89,8 @@ def test_two_node_correction_reproduction_is_identity_bound_and_bounded() -> Non
         'if ! mkdir "$RESULT_ROOT"',
         'FSBDD_FAILURE_OUTPUT_ROOT="$RESULT_ROOT"',
         "timeout --signal=TERM --kill-after=30s 900s",
-        "mpirun -np 2 --map-by ppr:1:node",
+        "mpirun -np 2 --map-by ppr:1:node --bind-to none --report-bindings",
+        "mpirun -np 2 --map-by ppr:1:node --bind-to none",
         "--learner-count-override 1 --timeout-seconds 720",
         "fsbdd.auxiliary.stage1.reproduction analyze",
         "fsbdd.auxiliary.stage1.reproduction validate",
@@ -98,6 +99,11 @@ def test_two_node_correction_reproduction_is_identity_bound_and_bounded() -> Non
         assert token in script
     assert script.index('if ! mkdir "$RESULT_ROOT"') < script.index(
         'FSBDD_FAILURE_OUTPUT_ROOT="$RESULT_ROOT"'
+    )
+    assert script.index("fsbdd.auxiliary.stage1.reproduction analyze") < script.index(
+        "xargs -0 sha256sum > checksums.sha256"
+    ) < script.index("fsbdd.auxiliary.stage1.reproduction validate") < script.index(
+        "sha256sum -c checksums.sha256"
     )
     contract = json.loads(
         (ROOT / "reports/stage1/S1-13-reproduction-contract.json").read_text(
@@ -109,10 +115,37 @@ def test_two_node_correction_reproduction_is_identity_bound_and_bounded() -> Non
     assert contract["runtime"]["target_global_cycles"] == 10
     assert contract["runtime"]["expected_fragment_updates"] == 40
     assert contract["runtime"]["supervisor_term_seconds"] == 900
+    assert "env/binding-hostnames.txt" in contract["required_evidence"]
+    assert "env/mpi-bindings.txt" in contract["required_evidence"]
+    assert contract["finalization"]["validator_runs_after_preliminary_checksums"]
+    assert contract["finalization"][
+        "validator_appended_before_final_checksum_check"
+    ]
     assertions = contract["correction_assertions"]
     assert assertions["retained_current_base_bytes"] == 0
     assert assertions["proposal_identity_materialization"] == "background_publisher"
     assert assertions["proposal_payload_cache_misses_equal_published_proposals"]
+
+
+def test_reproduction_preflight_is_single_node_identity_bound_and_focused() -> None:
+    script = (ROOT / "pbs/stage1_s1_13_reproduction_preflight.pbs").read_text(
+        encoding="utf-8"
+    )
+    for token in (
+        "#PBS -l select=1",
+        "#PBS -l walltime=00:10:00",
+        "EXPECTED_COMMIT",
+        "REPRODUCTION_CONTRACT_SHA256",
+        'if [[ -e "$OUTPUT_ROOT" ]]',
+        'FSBDD_FAILURE_OUTPUT_ROOT="$OUTPUT_ROOT"',
+        "timeout --signal=TERM --kill-after=30s 420s",
+        "tests/stage1/test_s1_13_reproduction.py",
+        "test_two_node_correction_reproduction_is_identity_bound_and_bounded",
+        "fsbdd.auxiliary.stage1.reproduction preflight",
+        "--expected-reproduction-contract-sha256",
+        "sha256sum -c checksums.sha256",
+    ):
+        assert token in script
 
 
 def test_formal_package_retains_current_protocol_samples_and_rejects_placeholders() -> (

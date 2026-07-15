@@ -66,7 +66,12 @@ cp "$PBS_NODEFILE" "$RESULT_ROOT/env/pbs-nodefile.txt"
 qstat -f "$PBS_JOBID" > "$RESULT_ROOT/env/qstat.txt"
 module -t list > "$RESULT_ROOT/env/modules.txt" 2>&1
 findmnt -T "$SHARED_ROOT" > "$RESULT_ROOT/env/findmnt.txt"
-mpirun -np 2 --map-by ppr:1:node --hostfile "$PBS_NODEFILE" nvidia-smi -L \
+mpirun -np 2 --map-by ppr:1:node --bind-to none --report-bindings \
+  --hostfile "$PBS_NODEFILE" hostname \
+  > "$RESULT_ROOT/env/binding-hostnames.txt" \
+  2> "$RESULT_ROOT/env/mpi-bindings.txt"
+mpirun -np 2 --map-by ppr:1:node --bind-to none \
+  --hostfile "$PBS_NODEFILE" nvidia-smi -L \
   > "$RESULT_ROOT/env/nvidia-smi-all-nodes.txt" 2>&1
 git -C "$PROJECT_ROOT" rev-parse HEAD > "$RESULT_ROOT/env/code-commit.txt"
 git -C "$PROJECT_ROOT" status --porcelain > "$RESULT_ROOT/env/git-status.txt"
@@ -83,7 +88,8 @@ ROLE_QTIME_RAW="$(awk -F' = ' '/^[[:space:]]*qtime =/{print $2}' "$RESULT_ROOT/e
 export PBS_QTIME_UTC="$(date -u -d "$ROLE_QTIME_RAW JST" '+%Y-%m-%dT%H:%M:%SZ')"
 
 timeout --signal=TERM --kill-after=30s 900s \
-  mpirun -np 2 --map-by ppr:1:node --hostfile "$PBS_NODEFILE" \
+  mpirun -np 2 --map-by ppr:1:node --bind-to none \
+  --hostfile "$PBS_NODEFILE" \
   /usr/bin/env PYTHONPATH="$PYTHONPATH" OMP_NUM_THREADS=1 \
   TOKENIZERS_PARALLELISM=false HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 \
   HF_DATASETS_OFFLINE=1 PBS_QTIME_UTC="$PBS_QTIME_UTC" \
@@ -102,10 +108,6 @@ timeout --signal=TERM --kill-after=30s 900s \
   --gate-contract "$GATE_CONTRACT" \
   --reproduction-contract "$REPRODUCTION_CONTRACT" \
   --expected-commit "$EXPECTED_COMMIT" --run-id "$RUN_ID" --job-id "$PBS_JOBID"
-"$PYTHON" -m fsbdd.auxiliary.stage1.reproduction validate \
-  --result-root "$RESULT_ROOT" \
-  --reproduction-contract "$REPRODUCTION_CONTRACT"
-
 if find "$RESULT_ROOT/stderr" -type f -size +0c -print -quit | grep -q .; then
   echo "two-node reproduction produced non-empty stderr" >&2
   find "$RESULT_ROOT/stderr" -type f -size +0c -print >&2
@@ -113,7 +115,14 @@ if find "$RESULT_ROOT/stderr" -type f -size +0c -print -quit | grep -q .; then
 fi
 (
   cd "$RESULT_ROOT"
-  find . -type f ! -name checksums.sha256 -printf '%P\0' \
+  find . -type f ! -name checksums.sha256 \
+    ! -path './analysis/package-validator.json' -printf '%P\0' \
     | sort -z | xargs -0 sha256sum > checksums.sha256
+)
+"$PYTHON" -m fsbdd.auxiliary.stage1.reproduction validate \
+  --result-root "$RESULT_ROOT" \
+  --reproduction-contract "$REPRODUCTION_CONTRACT"
+(
+  cd "$RESULT_ROOT"
   sha256sum -c checksums.sha256 > /dev/null
 )

@@ -1,0 +1,81 @@
+#!/bin/bash
+#PBS -q debug-g
+#PBS -l select=1
+#PBS -l walltime=00:10:00
+#PBS -W group_list=xg24i002
+#PBS -N fsbdd-s1-13-repro-preflight
+
+set -eEuo pipefail
+source "${PROJECT_ROOT:-/work/xg24i002/x10041/fsbdd}/pbs/lib/record_experiment_failure.sh"
+install_experiment_failure_traps
+
+: "${PROJECT_ROOT:=/work/xg24i002/x10041/fsbdd}"
+: "${MAIN_ROOT:=/work/xg24i002/x10041/fsbdd}"
+: "${EXPECTED_COMMIT:?EXPECTED_COMMIT is required}"
+: "${RESOLVED_CONFIG:?RESOLVED_CONFIG is required}"
+: "${CONFIG_SHA256:?CONFIG_SHA256 is required}"
+: "${ASSET_ROOT:?ASSET_ROOT is required}"
+: "${ASSET_MARKER_SHA256:?ASSET_MARKER_SHA256 is required}"
+: "${GATE_CONTRACT:?GATE_CONTRACT is required}"
+: "${GATE_CONTRACT_SHA256:?GATE_CONTRACT_SHA256 is required}"
+: "${REPRODUCTION_CONTRACT:?REPRODUCTION_CONTRACT is required}"
+: "${REPRODUCTION_CONTRACT_SHA256:?REPRODUCTION_CONTRACT_SHA256 is required}"
+: "${OUTPUT_ROOT:=$PROJECT_ROOT/runtime_runs/S1-13/reproduction-preflight-${PBS_JOBID}}"
+
+PYTHON="$MAIN_ROOT/.venv/bin/python"
+module load nv-hpcx/25.9
+if [[ -e "$OUTPUT_ROOT" ]]; then
+  echo "refusing to reuse S1-13 reproduction-preflight output" >&2
+  exit 73
+fi
+mkdir "$OUTPUT_ROOT"
+FSBDD_FAILURE_OUTPUT_ROOT="$OUTPUT_ROOT"
+cd "$PROJECT_ROOT"
+if [[ "$(git rev-parse HEAD)" != "$EXPECTED_COMMIT" ]] || \
+   [[ -n "$(git status --porcelain)" ]]; then
+  echo "reproduction-preflight code identity mismatch" >&2
+  exit 65
+fi
+if [[ "$(sha256sum "$RESOLVED_CONFIG" | awk '{print $1}')" != "$CONFIG_SHA256" ]] || \
+   [[ "$(sha256sum "$ASSET_ROOT/complete.json" | awk '{print $1}')" != "$ASSET_MARKER_SHA256" ]] || \
+   [[ "$(sha256sum "$GATE_CONTRACT" | awk '{print $1}')" != "$GATE_CONTRACT_SHA256" ]] || \
+   [[ "$(sha256sum "$REPRODUCTION_CONTRACT" | awk '{print $1}')" != "$REPRODUCTION_CONTRACT_SHA256" ]]; then
+  echo "reproduction-preflight frozen identity mismatch" >&2
+  exit 65
+fi
+
+export PYTHONPATH="$PROJECT_ROOT/src"
+export OMP_NUM_THREADS=1 TOKENIZERS_PARALLELISM=false
+export HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 HF_DATASETS_OFFLINE=1
+
+hostname > "$OUTPUT_ROOT/hostname.txt"
+git rev-parse HEAD > "$OUTPUT_ROOT/commit.txt"
+git status --porcelain > "$OUTPUT_ROOT/git-status.txt"
+qstat -f "$PBS_JOBID" > "$OUTPUT_ROOT/qstat.txt"
+module -t list > "$OUTPUT_ROOT/modules.txt" 2>&1
+"$PYTHON" -VV > "$OUTPUT_ROOT/python-version.txt" 2>&1
+"$PYTHON" -c 'import torch; print(torch.__version__)' \
+  > "$OUTPUT_ROOT/torch-version.txt" 2>&1
+bash -n pbs/stage1_s1_13_reproduction_preflight.pbs \
+  pbs/stage1_s1_13_smoke_2n.pbs \
+  > "$OUTPUT_ROOT/bash-syntax.log" 2> "$OUTPUT_ROOT/bash-syntax.err"
+timeout --signal=TERM --kill-after=30s 420s \
+  "$PYTHON" -m pytest -vv -o faulthandler_timeout=60 --durations=25 \
+  tests/stage1/test_s1_13_reproduction.py \
+  tests/stage1/test_s1_13_static.py::test_two_node_correction_reproduction_is_identity_bound_and_bounded \
+  > "$OUTPUT_ROOT/pytest.log" 2> "$OUTPUT_ROOT/pytest.err"
+"$PYTHON" -m fsbdd.auxiliary.stage1.reproduction preflight \
+  --project-root "$PROJECT_ROOT" --config "$RESOLVED_CONFIG" \
+  --asset-root "$ASSET_ROOT" --gate-contract "$GATE_CONTRACT" \
+  --reproduction-contract "$REPRODUCTION_CONTRACT" \
+  --expected-commit "$EXPECTED_COMMIT" \
+  --expected-reproduction-contract-sha256 "$REPRODUCTION_CONTRACT_SHA256" \
+  --output "$OUTPUT_ROOT/preflight-validator.json" \
+  > "$OUTPUT_ROOT/preflight-validator.stdout" \
+  2> "$OUTPUT_ROOT/preflight-validator.stderr"
+(
+  cd "$OUTPUT_ROOT"
+  find . -type f ! -name checksums.sha256 -printf '%P\0' \
+    | sort -z | xargs -0 sha256sum > checksums.sha256
+  sha256sum -c checksums.sha256 > /dev/null
+)

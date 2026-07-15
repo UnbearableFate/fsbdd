@@ -365,7 +365,7 @@ loops:
   result_commit: null
   evidence_index: evidence/indexes/S1-13.md
   checker_verdict: null
-  blocker: Targeted job 2392578 passed Phase B. The corrected two-node reproduction now has exact identity, exclusive roots, bounded supervision, correction-specific gates, package validation, checksums, and a reasoned L2 budget amendment from two to three attempts; same Checker approval is required before the one allowed reproduction, and no 9N, long-smoke, or formal run is admissible.
+  blocker: Checker BLOCKED_PRECHECK at 54f224d, so no two-node job was submitted. The candidate now adds frozen-package preflight validation, explicit bind-to-none/report-bindings evidence, post-manifest preliminary checksums followed by validator self-inclusion and final exact coverage, plus one separately registered one-node dynamic-preflight attempt. Same-Checker authorization is required before that preflight; its passing evidence must be reviewed before any L2, 9N, long-smoke, or formal run.
 - id: S2-01
   stage: stage2
   title: 异步 GPU→CPU→FS Publication Pipeline

@@ -20,7 +20,7 @@ acceptance_ids: [A-LEARN-01, A-PERF-01]
 orient:
   unique_failing_gap: Stage 1 components and small Profile A closure pass independently but no production large-model role harness analyzer bounded-state collector nine-distinct-host baseline or M=4 one-billion-token run closes the integrated capability.
   non_goals: [stale proposals, S_max one, matched-token quality comparison, Stage 2 goodput threshold, DDP NCCL RPC parameter server, mutable Hub revisions]
-  planned_files: [src/fsbdd/diloco/, src/fsbdd/auxiliary/stage1/, src/fsbdd/auxiliary/stress/, configs/stage1/s1_13_stage1_close.json, tests/stage1/test_s1_13_close.py, tests/stage1/test_s1_13_reproduction.py, tests/stage1/test_s1_13_static.py, tests/stage1/test_source_architecture.py, tests/red_cases/s1_13_naive_gate_analyzer.py, pbs/stage1_s1_13_assets.pbs, pbs/stage1_s1_13_targeted.pbs, pbs/stage1_s1_13_targeted_focus.pbs, pbs/stage1_s1_13_smoke_1n.pbs, pbs/stage1_s1_13_smoke_2n.pbs, pbs/stage1_s1_13_formal_9n.pbs, pbs/stage1_s1_13_long_smoke.pbs, pbs/stage1_s1_13_formal_long.pbs, reports/stage1/S1-13-requirement-matrix.csv, reports/stage1/S1-13-evidence-contract.json, reports/stage1/S1-13-gate-contract.json, reports/stage1/S1-13-reproduction-contract.json, reports/stage1/S1-13-experiment-failures.json]
+  planned_files: [src/fsbdd/diloco/, src/fsbdd/auxiliary/stage1/, src/fsbdd/auxiliary/stress/, configs/stage1/s1_13_stage1_close.json, tests/stage1/test_s1_13_close.py, tests/stage1/test_s1_13_reproduction.py, tests/stage1/test_s1_13_static.py, tests/stage1/test_source_architecture.py, tests/red_cases/s1_13_naive_gate_analyzer.py, pbs/stage1_s1_13_assets.pbs, pbs/stage1_s1_13_targeted.pbs, pbs/stage1_s1_13_targeted_focus.pbs, pbs/stage1_s1_13_reproduction_preflight.pbs, pbs/stage1_s1_13_smoke_1n.pbs, pbs/stage1_s1_13_smoke_2n.pbs, pbs/stage1_s1_13_formal_9n.pbs, pbs/stage1_s1_13_long_smoke.pbs, pbs/stage1_s1_13_formal_long.pbs, reports/stage1/S1-13-requirement-matrix.csv, reports/stage1/S1-13-evidence-contract.json, reports/stage1/S1-13-gate-contract.json, reports/stage1/S1-13-reproduction-contract.json, reports/stage1/S1-13-experiment-failures.json]
   model_data_profile: Immutable pretrained GPT-2 small plus WikiText-2 raw packed-512 for the 8+1 gate and immutable pretrained Pythia-160m plus FineWeb-Edu canonical packed-512 prefix for the M=4 aggregate-at-least-one-billion-input-token long run.
   miyabi_skill_commit: c3ddfa47cadfd9132edf939d359b90b28ab5f8ed
   hugging_face_cli_skill: hugging-face:hf-cli 1.0.0
@@ -51,7 +51,7 @@ orient:
       code_commit: bac11aeae6c730fc25712bdef38190a38eb4e8da
       result: all static gates and 342 Stage 1 tests passed in 30.29 seconds; scheduler exit status 0
       raw_evidence_root: runtime_runs/S1-13/targeted-bac11ae-20260715T192015Z
-  attempt_budget: {asset_stage: 2, red: 1, targeted: 4, l1_real: 2, l2_real: 3, formal_l3_9n: 2, formal_l4_long: 2}
+  attempt_budget: {asset_stage: 2, red: 1, targeted: 4, reproduction_preflight: 1, l1_real: 2, l2_real: 3, formal_l3_9n: 2, formal_l4_long: 2}
   attempt_budget_amendments:
     - amended_at_utc: 2026-07-15T19:18:02Z
       prior_targeted_budget: 3
@@ -71,6 +71,13 @@ orient:
       reason: The two pre-correction two-node attempts consumed the frozen L2 budget. Job 2389739 was terminated after exposing the first runtime defect and job 2389813 passed the old path, but neither exercised the post-long-smoke storage alias, background proposal materialization, readiness-cache, bounded-state, and exact evidence-package corrections. One reduced corrected run is required before any five-node retry.
       scope: Add exactly one two-node 1+1 shared-filesystem reproduction; do not change the targeted, 9N, long-smoke, or formal-run budgets.
       authorization_gate: The same Checker must review this amendment, the dedicated reproduction contract, corrected PBS script, analyzer, and package validator and explicitly authorize the third L2 attempt at an exact clean commit.
+    - registered_at_utc: 2026-07-15T20:01:31Z
+      budget_class: reproduction_preflight
+      registered_budget: 1
+      consumed_before_registration: 0
+      reason: Checker precheck at 54f224d required lower-level dynamic evidence for the new MPI 1+1 dispatch and reproduction analyzer before the final L2 run. This one-node job executes only the new reproduction tests and frozen-package validator and does not execute a learner or syncer workload.
+      scope: Exactly one identity-bound one-node preflight; no learner/syncer runtime, L2, 9N, long-smoke, or formal-run budget is changed.
+      authorization_gate: The same Checker must explicitly authorize the exact clean preflight candidate before submission; a passing preflight must return to that Checker before any L2 authorization.
   failure_ladder: preserve the first expensive failure then reproduce its failing role or analyzer at the smallest one-node or two-node topology before an authorized retry
   nine_node_gate_required: true
   goal_tokens_start: 5924432
@@ -84,7 +91,9 @@ preflight:
   package_validator_command: fsbdd evidence validate runtime_runs/S1-13/formal-9n and runtime_runs/S1-13/formal-long
   package_validator_result: pending
   reduced_reproduction_contract: reports/stage1/S1-13-reproduction-contract.json
-  reduced_reproduction_contract_sha256: 34f9e8283aade52da554048843ae1b8b17db0d22d1c12b98c21c16f7d8a572b7
+  reduced_reproduction_contract_sha256: bc6b8479bdc9a61e813f571fdefe839d7856dc41ef14a5475499a31231948fb7
+  reduced_reproduction_preflight_command: python -m fsbdd.auxiliary.stage1.reproduction preflight --project-root <clean-worktree> --config configs/stage1/s1_13_nine_node_resolved.json --asset-root runtime_runs/S1-13/assets-2389469.opbs --gate-contract reports/stage1/S1-13-gate-contract.json --reproduction-contract reports/stage1/S1-13-reproduction-contract.json --expected-commit <commit> --expected-reproduction-contract-sha256 bc6b8479bdc9a61e813f571fdefe839d7856dc41ef14a5475499a31231948fb7 --output <preflight-output>/preflight-validator.json
+  reduced_reproduction_preflight_result: pending one-node dynamic validation and same-Checker authorization
   reduced_reproduction_validator_command: python -m fsbdd.auxiliary.stage1.reproduction validate --result-root <result-root> --reproduction-contract reports/stage1/S1-13-reproduction-contract.json
   reduced_reproduction_validator_result: pending
   checker_phase_a: required
@@ -130,10 +139,13 @@ checker:
     - candidate: 7c3c61be2bc5553b5aa6ea458754ca0c5baa724c
       verdict: Phase B PASS for complete targeted job 2392578; BLOCKED for runtime because the prior L2 budget was exhausted and the two-node script lacked identity, exclusive roots, bounded supervision, correction assertions, and an admissible package
       result: two-node script, analyzer, package contract, and reasoned one-attempt L2 amendment required
+    - candidate: 54f224d9c17746199f20774cacac7df7e86ba31e
+      verdict: BLOCKED_PRECHECK; do not submit the two-node reproduction
+      result: frozen-package preflight was absent, validation preceded checksum finalization, new MPI/analyzer surfaces lacked lower-level dynamic evidence, and the MPI launcher lacked explicit binding policy and report-bindings evidence
 persist:
   evidence_index: evidence/indexes/S1-13.md
   raw_evidence_root: runtime_runs/S1-13
   acceptance_traceability_updated: false
   next_gap: Stage 2 asynchronous GPU to CPU to filesystem publication pipeline
-  handoff: Complete targeted job 2392578 passed Phase B. The smallest meaningful correction reproduction is a two-node 1+1 filesystem run. Its script now enforces exact clean commit identity, atomic exclusive roots, a 900-second supervisor, correction-specific gates, complete environment/role evidence, a dedicated package manifest and validator, and final checksums. The L2 budget is explicitly amended from two to three for this one corrected run; login static checks pass; return the exact candidate to the same Checker before submission.
-blocker: Same Checker approval of the corrected two-node package and explicit one-attempt L2 amendment is required before the third L2 reproduction; no 9N, long smoke, or formal long submission is allowed.
+  handoff: Checker blocked candidate 54f224d before submission. The corrected package now adds an exact-clean-commit frozen preflight, a separately registered single one-node dynamic-preflight attempt, explicit MPI bind-to-none and report-bindings evidence, and a validator that runs after the preliminary checksum inventory, appends its own hash, and revalidates exact final coverage. Run only the Checker-authorized one-node preflight first; return its evidence to the same Checker before any two-node submission.
+blocker: Same Checker authorization of the exact one-node reproduction-preflight candidate is required. The two-node reproduction, 9N, long smoke, and formal long submissions remain prohibited until the preflight passes and the same Checker authorizes the next step.
