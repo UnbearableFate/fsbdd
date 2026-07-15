@@ -355,17 +355,17 @@ loops:
   title: 基础训练系统关闭与首个 Miyabi 8+1/50×10 Baseline
   depends_on:
   - S1-12
-  status: not_started
+  status: implementation
   nine_node_gate_required: true
   acceptance_ids:
   - A-LEARN-01
   - A-PERF-01
-  branch: null
-  base_commit: null
+  branch: codex/S1-13-stage1-close-9n
+  base_commit: 933661b58e5037773a34bcfa3234e9e7961ad1d5
   result_commit: null
-  evidence_index: null
+  evidence_index: evidence/indexes/S1-13.md
   checker_verdict: null
-  blocker: null
+  blocker: Same Checker authorization is required before the corrected one-node targeted retry; no runtime or expensive experiment is admissible yet.
 - id: S2-01
   stage: stage2
   title: 异步 GPU→CPU→FS Publication Pipeline
