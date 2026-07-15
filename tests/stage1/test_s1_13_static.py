@@ -43,6 +43,9 @@ def test_formal_topologies_freeze_independent_9n_and_coallocated_4_plus_1() -> N
     assert "#PBS -l select=5" in smoke
     assert "--non-formal-long-smoke" in smoke
     assert "stage1_gate" in smoke
+    targeted = (ROOT / "pbs/stage1_s1_13_targeted.pbs").read_text(encoding="utf-8")
+    assert "EXPECTED_COMMIT" in targeted
+    assert 'if [[ -e "$OUTPUT_ROOT" ]]' in targeted
 
 
 def test_formal_package_retains_current_protocol_samples_and_rejects_placeholders() -> (

@@ -11,13 +11,24 @@ install_experiment_failure_traps
 
 : "${PROJECT_ROOT:=/work/xg24i002/x10041/fsbdd}"
 : "${MAIN_ROOT:=/work/xg24i002/x10041/fsbdd}"
+: "${EXPECTED_COMMIT:?EXPECTED_COMMIT is required}"
 : "${OUTPUT_ROOT:=$PROJECT_ROOT/runtime_runs/S1-13/targeted-${PBS_JOBID}}"
 
 PYTHON="$MAIN_ROOT/.venv/bin/python"
 
 module load nv-hpcx/25.9
-mkdir -p "$OUTPUT_ROOT"
+if [[ -e "$OUTPUT_ROOT" ]]; then
+  echo "refusing to reuse S1-13 targeted regression output" >&2
+  exit 73
+fi
+mkdir "$OUTPUT_ROOT"
 cd "$PROJECT_ROOT"
+if [[ "$(git rev-parse HEAD)" != "$EXPECTED_COMMIT" ]] || \
+   [[ -n "$(git status --porcelain --untracked-files=all -- \
+     src pbs tests reports configs plans pyproject.toml uv.lock)" ]]; then
+  echo "targeted regression code identity mismatch" >&2
+  exit 65
+fi
 export PYTHONPATH="$PROJECT_ROOT/src"
 export OMP_NUM_THREADS=1 TOKENIZERS_PARALLELISM=false
 export HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 HF_DATASETS_OFFLINE=1
@@ -29,4 +40,5 @@ export HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 HF_DATASETS_OFFLINE=1
   src/fsbdd/auxiliary/stage1/package.py src/fsbdd/auxiliary/stage1/submit.py \
   > "$OUTPUT_ROOT/compile.log" 2> "$OUTPUT_ROOT/compile.err"
 hostname > "$OUTPUT_ROOT/hostname.txt"
+git rev-parse HEAD > "$OUTPUT_ROOT/commit.txt"
 qstat -f "$PBS_JOBID" > "$OUTPUT_ROOT/qstat.txt"
