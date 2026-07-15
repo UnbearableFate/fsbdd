@@ -1,0 +1,165 @@
+#!/bin/bash
+#PBS -q debug-g
+#PBS -l select=2
+#PBS -l walltime=00:30:00
+#PBS -W group_list=xg24i002
+#PBS -N fsbdd-s1-05-proposal
+
+set -eEuo pipefail
+trap 'echo "[ERROR] line=$LINENO command=$BASH_COMMAND" >&2' ERR
+
+: "${PROJECT_ROOT:=/work/xg24i002/x10041/fsbdd-s100-clean}"
+: "${MAIN_ROOT:=/work/xg24i002/x10041/fsbdd}"
+: "${EVIDENCE_ROOT:=$MAIN_ROOT/runtime_runs/S1-05/formal-l2}"
+: "${EXPECTED_COMMIT:?EXPECTED_COMMIT is required}"
+: "${INITIAL_HOSTNAME:=miyabi-g1}"
+: "${MIYABI_SKILL_DIR:=/work/xg24i002/x10041/.codex/skills/miyabi-development}"
+: "${MIYABI_SKILL_COMMIT:=c3ddfa47cadfd9132edf939d359b90b28ab5f8ed}"
+: "${MODULE_NAME:=nv-hpcx/25.9}"
+
+PYTHON="$MAIN_ROOT/.venv/bin/python"
+CONFIG_SOURCE="configs/stage1/profile_a_skeleton.json"
+CONFIG_SHA256="dd1dc08de331759cc49de1959bc1f2d9ba305ff985b07c2efb9084746fda3c50"
+STATE_MODEL_IDENTITY="d91a92be805f856514a9f13ac049e5c91ba8489bc415e2bf12c4bbadc3082100"
+STATE_FRAGMENT_MAP_IDENTITY="d1fb096403b6c0043570e3784cbaffce8c625bc48a98a5fdb37e06ef1d03b2ab"
+DECISION_VECTOR_SHA256="0dd9fe699bce3eef6b3da97b67d12a755ac227a0d36132e23e6feda128cbd5a8"
+RESEARCH_SHA256="2c0db3148110da10ea62f445c189d2d53b405527d8da264b9af9817f5ca9d835"
+SPEC_SHA256="1ea71fb6e34fef0d7b5558d8e7999dfdedeb82957f4331afcf6f80279d1f5a7d"
+SKILL_REPOSITORY="https://github.com/UnbearableFate/miyabi-development"
+REPOSITORY="https://github.com/UnbearableFate/fsbdd.git"
+BRANCH="codex/S1-05-proposal-eligibility"
+LEARNER_COUNT=8
+FRAGMENT_COUNT=4
+S_MAX=0
+HISTORY_OBJECTS=10000
+PAYLOAD_BYTES=32768
+MAXIMUM_LOCAL_STEPS=100
+MAXIMUM_PROCESSED_TOKENS=1000000
+RUN_ID="s1-05-${PBS_JOBID}"
+TEST_ROOT="$MAIN_ROOT/runtime_runs/S1-05/shared-${PBS_JOBID}"
+MANIFEST_DRAFT="/tmp/s1-05-manifest-${PBS_JOBID}.json"
+
+if [[ ! -x "$PYTHON" ]]; then
+  echo "Missing project Python: $PYTHON" >&2
+  exit 69
+fi
+export PAGER=cat MODULES_PAGER=cat LMOD_PAGER=cat
+module load "$MODULE_NAME"
+if [[ "$(git -C "$PROJECT_ROOT" rev-parse HEAD)" != "$EXPECTED_COMMIT" ]]; then
+  echo "clean worktree commit mismatch" >&2
+  exit 65
+fi
+if [[ -n "$(git -C "$PROJECT_ROOT" status --porcelain)" ]]; then
+  echo "formal worktree is dirty" >&2
+  exit 65
+fi
+if [[ "$(git -C "$MIYABI_SKILL_DIR" rev-parse HEAD)" != "$MIYABI_SKILL_COMMIT" ]]; then
+  echo "Miyabi skill commit mismatch" >&2
+  exit 65
+fi
+ACTUAL_CONFIG_SHA256="$(
+  PYTHONPATH="$PROJECT_ROOT/src" "$PYTHON" -c \
+    'import sys; from pathlib import Path; from fsbdd.config import load_config; print(load_config(Path(sys.argv[1])).digest)' \
+    "$PROJECT_ROOT/$CONFIG_SOURCE"
+)"
+if [[ "$ACTUAL_CONFIG_SHA256" != "$CONFIG_SHA256" ]]; then
+  echo "frozen config source hash mismatch" >&2
+  exit 65
+fi
+ACTUAL_VECTOR_SHA256="$(sha256sum "$PROJECT_ROOT/tests/fixtures/stage0_decision_vectors.json" | awk '{print $1}')"
+if [[ "$ACTUAL_VECTOR_SHA256" != "$DECISION_VECTOR_SHA256" ]]; then
+  echo "shared decision vector hash mismatch" >&2
+  exit 65
+fi
+
+cd "$PROJECT_ROOT"
+export PYTHONPATH="$PROJECT_ROOT/src"
+
+"$PYTHON" -m fsbdd.cli evidence init "$EVIDENCE_ROOT"
+mkdir -p "$EVIDENCE_ROOT"/{analysis,configs,env,runtime/roles,stdout,stderr}
+sort -u "$PBS_NODEFILE" > "$EVIDENCE_ROOT/env/compute-hosts.txt"
+if [[ "$(wc -l < "$EVIDENCE_ROOT/env/compute-hosts.txt")" -ne 2 ]]; then
+  echo "S1-05 requires two distinct compute hosts" >&2
+  exit 66
+fi
+cp "$PBS_NODEFILE" "$EVIDENCE_ROOT/env/pbs-nodefile.txt"
+hostname > "$EVIDENCE_ROOT/env/compute-hostname.txt"
+git status --porcelain > "$EVIDENCE_ROOT/env/git-status.txt"
+"$PYTHON" --version > "$EVIDENCE_ROOT/env/python.txt" 2>&1
+module -t list > "$EVIDENCE_ROOT/env/modules.txt" 2>&1
+qstat -f "$PBS_JOBID" > "$EVIDENCE_ROOT/env/qstat.txt"
+findmnt -T "$MAIN_ROOT/runtime_runs" > "$EVIDENCE_ROOT/env/findmnt.txt"
+QTIME_RAW="$(awk -F' = ' '/^[[:space:]]*qtime =/{print $2}' "$EVIDENCE_ROOT/env/qstat.txt")"
+QTIME_UTC="$(date -u -d "$QTIME_RAW JST" '+%Y-%m-%dT%H:%M:%SZ')"
+QUEUE="$(awk -F' = ' '/^[[:space:]]*queue =/{print $2}' "$EVIDENCE_ROOT/env/qstat.txt")"
+
+cp reports/stage1/S1-05-evidence-contract.json "$EVIDENCE_ROOT/configs/evidence-contract.json"
+cp reports/stage1/S1-05-requirement-matrix.csv "$EVIDENCE_ROOT/configs/requirement-matrix.csv"
+cp tests/fixtures/stage0_decision_vectors.json "$EVIDENCE_ROOT/configs/stage0-decision-vectors.json"
+"$PYTHON" -m fsbdd.cli config resolve "$CONFIG_SOURCE" "$EVIDENCE_ROOT/configs/resolved.json" \
+  > "$EVIDENCE_ROOT/stdout/config-resolve.json" 2> "$EVIDENCE_ROOT/stderr/config-resolve.log"
+"$PYTHON" -m fsbdd.cli requirements \
+  plans/FS_DILOCO_CODEX_EXECUTION_PLAN/loops/stage1/S1-05.md \
+  reports/stage1/S1-05-requirement-matrix.csv \
+  > "$EVIDENCE_ROOT/analysis/requirements.json" 2> "$EVIDENCE_ROOT/stderr/requirements.log"
+
+printf '%q ' "$PYTHON" -m pytest -q tests/stage1 > "$EVIDENCE_ROOT/commands.log"
+printf '\n' >> "$EVIDENCE_ROOT/commands.log"
+"$PYTHON" -m pytest -q tests/stage1 \
+  > "$EVIDENCE_ROOT/stdout/pytest.log" 2> "$EVIDENCE_ROOT/stderr/pytest.log"
+
+mkdir -p "$TEST_ROOT"
+printf '%q ' mpirun -np 2 --map-by ppr:1:node --hostfile "$PBS_NODEFILE" \
+  /usr/bin/env "PYTHONPATH=$PYTHONPATH" "PBS_JOBID=$PBS_JOBID" "PBS_NODEFILE=$PBS_NODEFILE" \
+  "$PYTHON" -m fsbdd.proposal_stress role --root "$TEST_ROOT" \
+  --result-root "$EVIDENCE_ROOT/runtime/roles" --run-id "$RUN_ID" \
+  --learner-count "$LEARNER_COUNT" --fragment-count "$FRAGMENT_COUNT" \
+  --payload-bytes "$PAYLOAD_BYTES" --history-objects "$HISTORY_OBJECTS" --s-max "$S_MAX" \
+  --maximum-local-steps "$MAXIMUM_LOCAL_STEPS" \
+  --maximum-processed-tokens "$MAXIMUM_PROCESSED_TOKENS" \
+  --config-identity "$CONFIG_SHA256" --model-identity "$STATE_MODEL_IDENTITY" \
+  --fragment-map-identity "$STATE_FRAGMENT_MAP_IDENTITY" \
+  >> "$EVIDENCE_ROOT/commands.log"
+printf '\n' >> "$EVIDENCE_ROOT/commands.log"
+
+mpirun -np 2 --map-by ppr:1:node --hostfile "$PBS_NODEFILE" \
+  /usr/bin/env "PYTHONPATH=$PYTHONPATH" "PBS_JOBID=$PBS_JOBID" "PBS_NODEFILE=$PBS_NODEFILE" \
+  "$PYTHON" -m fsbdd.proposal_stress role --root "$TEST_ROOT" \
+  --result-root "$EVIDENCE_ROOT/runtime/roles" --run-id "$RUN_ID" \
+  --learner-count "$LEARNER_COUNT" --fragment-count "$FRAGMENT_COUNT" \
+  --payload-bytes "$PAYLOAD_BYTES" --history-objects "$HISTORY_OBJECTS" --s-max "$S_MAX" \
+  --maximum-local-steps "$MAXIMUM_LOCAL_STEPS" \
+  --maximum-processed-tokens "$MAXIMUM_PROCESSED_TOKENS" \
+  --config-identity "$CONFIG_SHA256" --model-identity "$STATE_MODEL_IDENTITY" \
+  --fragment-map-identity "$STATE_FRAGMENT_MAP_IDENTITY" \
+  > "$EVIDENCE_ROOT/stdout/mpirun.log" 2> "$EVIDENCE_ROOT/stderr/mpirun.log"
+
+"$PYTHON" -m fsbdd.proposal_stress summarize --root "$TEST_ROOT" \
+  --result-root "$EVIDENCE_ROOT/runtime/roles" --run-id "$RUN_ID" \
+  --learner-count "$LEARNER_COUNT" --fragment-count "$FRAGMENT_COUNT" \
+  --payload-bytes "$PAYLOAD_BYTES" --history-objects "$HISTORY_OBJECTS" --s-max "$S_MAX" \
+  --maximum-local-steps "$MAXIMUM_LOCAL_STEPS" \
+  --maximum-processed-tokens "$MAXIMUM_PROCESSED_TOKENS" \
+  --config-identity "$CONFIG_SHA256" --model-identity "$STATE_MODEL_IDENTITY" \
+  --fragment-map-identity "$STATE_FRAGMENT_MAP_IDENTITY" \
+  --output "$EVIDENCE_ROOT/analysis/proposal-summary.json" \
+  > "$EVIDENCE_ROOT/stdout/proposal-summary.json" \
+  2> "$EVIDENCE_ROOT/stderr/proposal-summary.log"
+
+"$PYTHON" -m fsbdd.proposal_stress manifest \
+  --repository "$REPOSITORY" --branch "$BRANCH" --commit "$EXPECTED_COMMIT" \
+  --run-id "$RUN_ID" --config-sha256 "$CONFIG_SHA256" \
+  --state-model-identity "$STATE_MODEL_IDENTITY" \
+  --state-fragment-map-identity "$STATE_FRAGMENT_MAP_IDENTITY" \
+  --research-sha256 "$RESEARCH_SHA256" --spec-sha256 "$SPEC_SHA256" \
+  --skill-repository "$SKILL_REPOSITORY" --skill-commit "$MIYABI_SKILL_COMMIT" \
+  --initial-hostname "$INITIAL_HOSTNAME" --project-root "$PROJECT_ROOT" \
+  --evidence-root "$EVIDENCE_ROOT" --job-id "$PBS_JOBID" --qtime-utc "$QTIME_UTC" \
+  --queue "$QUEUE" --group xg24i002 --nodefile "$EVIDENCE_ROOT/env/pbs-nodefile.txt" \
+  --modules-file "$EVIDENCE_ROOT/env/modules.txt" \
+  --result-root "$EVIDENCE_ROOT/runtime/roles" --output "$MANIFEST_DRAFT" \
+  > "$EVIDENCE_ROOT/stdout/manifest.json" 2> "$EVIDENCE_ROOT/stderr/manifest.log"
+
+"$PYTHON" -m fsbdd.cli evidence finalize "$EVIDENCE_ROOT" "$MANIFEST_DRAFT"
+"$PYTHON" -m fsbdd.cli evidence validate "$EVIDENCE_ROOT"
+rm -f "$MANIFEST_DRAFT"

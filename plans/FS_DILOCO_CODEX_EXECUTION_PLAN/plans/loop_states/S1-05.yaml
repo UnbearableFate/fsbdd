@@ -40,8 +40,18 @@ red:
   command: .venv/bin/python tests/red_cases/s1_05_naive_proposal_surrogate.py
   exit_code: 1
   evidence_path: runtime_runs/S1-05/red-66964ff
-green: {command: null, evidence_path: null}
-harden: {commands: [], evidence_paths: []}
+green:
+  command: PYTHONPATH=src .venv/bin/python -m pytest -q tests/stage1/test_s1_05_proposal.py
+  evidence_path: runtime_runs/S1-05/targeted-2
+harden:
+  commands:
+  - PYTHONPATH=src .venv/bin/python -m pytest -q tests/stage1
+  - two concurrent one-node proposal_stress roles over 32 fixed slots with partial publication monotonic reorder shared selection and bounded frontiers
+  - uvx ruff check plus py_compile and bash -n for the S1-05 production module stress driver tests and PBS script
+  evidence_paths:
+  - runtime_runs/S1-05/l1-1
+  - runtime_runs/S1-05/l1-role-2
+  - runtime_runs/S1-05/l1-3
 nine_node_gate: {required: false, run_id: null, topology_gate: null, loss_gate: null, runtime_gate: null}
 checker: {context_id: null, maker_chat_inherited: false, phase_a_verdict: null, verdict: null, report_path: null}
 persist:
@@ -53,11 +63,15 @@ persist:
     proven_facts:
     - S1-03 supplies payload-first visibility-last fixed-slot publication and S1-04 supplies frozen per-fragment identities and bounded base content identities.
     - S0C-02 supplies the shared one-per-learner consumption and stale-aware selection decision vectors.
+    - The production proposal codec binds complete local bytes to run config model map learner fragment base progress dtype shape checksum and content identities.
+    - Fixed-slot discovery performs exactly M times F reads and the monotonic visibility lock prevents a delayed lower sequence from replacing a newer proposal.
+    - All shared Stage 0 decision-vector permutations match and successful consumption preserves exactly one sequence/base frontier pair per frozen learner and fragment.
+    - The hardened one-node role exercise populated 32 slots proved payload-only invisibility and history-independent discovery and selected eight distinct fresh learners per fragment.
     checked_commit: 1cba03a02d799edd0c21f37778ed512f55a65ed9
     selected_evidence: [evidence/indexes/S0C-02.md, evidence/indexes/S1-04.md]
-    next_command: implement the production fixed-slot proposal protocol and exercise focused GREEN tests on the active Miyabi compute allocation
+    next_command: commit the S1-05 candidate and obtain the independent Checker Phase A admissibility verdict before the single formal L2 batch
   cost:
-    attempts_by_level: {L0: 0, L1: 0, L2: 0}
+    attempts_by_level: {L0: 4, L1: 7, L2: 0}
     queue_seconds: null
     active_seconds: null
     checker_cycles: 0
@@ -66,4 +80,5 @@ persist:
     phase_token_deltas: {}
     rework_causes:
     - The first surrogate invocation stopped at a TemporaryDirectory mkdir precondition before semantic assertions; the surrogate commit was amended and the single semantic RED attempt then produced all seven expected failures.
+    - The first focused GREEN check used an overbroad source assertion that also matched the legitimate Q_fresh count; the assertion was narrowed to the generic eligibility function.
 blocker: null
