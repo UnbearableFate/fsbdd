@@ -2,7 +2,7 @@ schema_version: 2
 loop_id: S1-09
 title: Syncer readiness quorum grace and fair scheduling
 stage: stage1
-status: green_local
+status: pass
 source_hashes:
   research_plan: 2c0db3148110da10ea62f445c189d2d53b405527d8da264b9af9817f5ca9d835
   stage0_4_spec: 1ea71fb6e34fef0d7b5558d8e7999dfdedeb82957f4331afcf6f80279d1f5a7d
@@ -41,7 +41,7 @@ preflight:
   measurement_contract: reports/stage1/S1-09-evidence-contract.json
   package_contract: reports/stage1/S1-09-evidence-contract.json
   package_validator_command: fsbdd evidence validate runtime_runs/S1-09/formal-l2
-  package_validator_result: pending
+  package_validator_result: admissible at runtime_runs/S1-09/formal-l2 (28/28 payload files; manifest fcf07962b115544b049ffbddb021a87e28012b73a95687e8079540b9961b7675)
   checker_phase_a: required
   monotonic_time_source: injected nondecreasing integer monotonic nanoseconds with time.monotonic_ns default
   equal_time_total_order: ascending fragment evaluation then cyclic distance from the round-robin cursor then fragment index
@@ -51,8 +51,8 @@ red:
   exit_code: 1
   evidence_path: runtime_runs/S1-09/red-cb11204
 green:
-  command: PYTHONPATH=src .venv/bin/python -m pytest -q tests/stage1/test_s1_09_syncer_readiness.py tests/stage1/test_s1_09_readiness_stress_static.py tests/stage1/test_s1_09_readiness_analyzer.py
-  evidence_path: runtime_runs/S1-09/green-local-cb11204
+  command: PYTHONPATH=src .venv/bin/python -m pytest -q tests/stage1
+  evidence_path: runtime_runs/S1-09/formal-l2/stdout/pytest.log
 harden:
   commands:
   - distinct quorum Profile A fixed grace late arrival quorum loss recovery and 1000 empty-poll fixtures
@@ -60,13 +60,13 @@ harden:
   - mixed per-fragment versions consumed-frontier repeat poll transient not-ready and restart reconstruction fixtures
   - 10000 unrelated objects with exact M times F fixed reads and forbidden directory APIs
   - eighteen fail-closed formal analyzer mutations including missing weights correspondence token math content and selection identity plus config PBS JSON ruff py_compile and shell checks
-  evidence_paths: [runtime_runs/S1-09/harden-local-cb11204, runtime_runs/S1-09/correction-local-f030691, runtime_runs/S1-09/l1-targeted-2386021.opbs, runtime_runs/S1-09/l1-role-2386062.opbs]
+  evidence_paths: [runtime_runs/S1-09/harden-local-cb11204, runtime_runs/S1-09/correction-local-f030691, runtime_runs/S1-09/l1-targeted-2386021.opbs, runtime_runs/S1-09/l1-role-2386062.opbs, runtime_runs/S1-09/l1-role-2386106.opbs, runtime_runs/S1-09/preflight-40a1707, runtime_runs/S1-09/formal-l2, runtime_runs/S1-09/scheduler-2386129-audit2]
 nine_node_gate: {required: false, run_id: null, topology_gate: null, loss_gate: null, runtime_gate: null}
 checker:
-  context_id: null
+  context_id: /root/s1_09_checker
   maker_chat_inherited: false
   phase_a_verdict: BLOCKED_PRECHECK on f030691 for incomplete fail-closed frozen-weight analysis and an initially overbroad Q_fresh evidence claim; correction narrows S_max=0 scope and binds every proposal fact weight and selection identity
-  verdict: pending
+  verdict: PASS_WITH_FOLLOWUPS
   report_path: reports/checkers/S1-09.md
   cycles:
   - cycle: 1
@@ -74,10 +74,34 @@ checker:
     checked_candidate: f030691ce6334b1e89cac0fdd35c9a727e1109b0
     verdict: BLOCKED_PRECHECK
     correction: validate exact frozen proposal content learner token raw normalized weight cardinality and recomputed selection identity then prove the S_max=0 eligible-equals-fresh invariant while deferring stale-inclusive independent Q_fresh binding to S4-03
+  - cycle: 2
+    phase: A-recheck
+    checked_candidate: 40a1707bb5b3716b98fee5ebc9c89fb7af6f404f
+    verdict: ADMISSIBLE
+  - cycle: 3
+    phase: B
+    checked_candidate: 40a1707bb5b3716b98fee5ebc9c89fb7af6f404f
+    verdict: PASS_WITH_FOLLOWUPS
+    report_sha256: c969918a3124e19168dd2d96b5c314b671519d3d619415dd01f2bc0bd9b7f32f
+    followup: Qualify gpus_used as application-role GPU use and record validation-plane accounting separately in a later evidence-contract cleanup.
 persist:
   evidence_index: evidence/indexes/S1-09.md
   raw_evidence_root: runtime_runs/S1-09
-  acceptance_traceability_updated: false
-  next_gap: null
-  handoff: null
+  acceptance_traceability_updated: true
+  next_gap: S1-10 must consume each frozen selection through a streaming direct merge and fragment-wise outer optimizer without a full-model materialization or transfer.
+  handoff:
+    proven_facts:
+    - One logical filesystem-only syncer owns all four fragment readiness machines and concurrent claims permit one active lease.
+    - Every poll reads exactly 32 fixed proposal slots before and after adding 10000 unrelated objects and restart rebuilds only from fixed authorities.
+    - Profile A freezes four selections with eight distinct fresh learners each under Q=8 Q_fresh=8 S_max=0 grace zero and max contributors eight.
+    - Ordered frozen proposal facts bind each selected learner proposal content identity processed-token count float32 raw and normalized weight and canonical selection identity.
+    - The decoupled Q=4 Q_fresh=4 half-second grace includes the pre-freeze arrival excludes the post-freeze arrival and remains identity-stable.
+    - Quorum loss cancels grace recovery receives a complete interval and injected monotonic time rejects regressions.
+    - Cyclic claims occur in order 0 1 2 3 with maximum continuously-ready service window four and no hot-fragment starvation.
+    - Installing eight fixed frontier entries per fragment causes all repeated proposals to be rejected and returns resident frozen selection state to zero.
+    - Formal job 2386129.opbs exits zero after 37 seconds on distinct hosts mg0045 and mg0046 with shared POSIX application coordination and no application-role Torch import or GPU memory.
+    - The full 205-test Stage 1 suite passes the 28-file package is validator-admissible all packaged stderr is empty and the independent Checker returns closable PASS_WITH_FOLLOWUPS.
+    checked_commit: 40a1707bb5b3716b98fee5ebc9c89fb7af6f404f
+    selected_evidence: [runtime_runs/S1-09/formal-l2, runtime_runs/S1-09/scheduler-2386129-audit2]
+    next_command: create the S1-10 branch from the S1-09 closure commit and begin its ORIENT phase
 blocker: null

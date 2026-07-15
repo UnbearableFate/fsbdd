@@ -11,8 +11,8 @@ stage,acceptance_id,primary_loop,supporting_loops,required_evidence,status,evide
 1,A-FRAG-02,S1-02,,连续非空fragments,passed,evidence/indexes/S1-02.md,PASS,validated ordered nonempty intervals cover every logical layer
 1,A-FRAG-03,S1-02,,小模型exhaustive+大模型摘要,passed,evidence/indexes/S1-02.md,PASS,212750 exhaustive and 500 random brute-force matches plus Pythia summary
 1,A-PROP-01,S1-05,S1-03,部分proposal不可见,passed,evidence/indexes/S1-05.md,PASS,remote payload-only proposal invisible and complete retry visible with identity and integrity checks
-1,A-PROP-02,S1-05,S1-09,同learner一次最多一个contribution,passed,evidence/indexes/S1-05.md,PASS,all four formal fragments select exactly eight distinct learners with one proposal per learner
-1,A-PROP-03,S1-11,S1-05;S1-09,重复polling不重复消费,not_started,evidence/indexes/S1-05.md,COMPONENT PASS,fragment-bound fixed frontier rejects all eight contributions on repeated poll; atomic global publication closure remains S1-11
+1,A-PROP-02,S1-05,S1-09,同learner一次最多一个contribution,passed,evidence/indexes/S1-05.md; evidence/indexes/S1-09.md,PASS,all four S1-09 formal fragments freeze exactly eight distinct learners with one proposal and one analyzer-bound weight per learner
+1,A-PROP-03,S1-11,S1-05;S1-09,重复polling不重复消费,not_started,evidence/indexes/S1-05.md; evidence/indexes/S1-09.md,COMPONENT PASS,S1-09 repeated fixed polling selects zero after installing eight fragment-bound frontier entries per fragment; atomic global publication closure remains S1-11
 1,A-GLOBAL-01,S1-11,S1-03,params/outer/frontier共同可见,not_started,evidence/indexes/S1-03.md,COMPONENT PASS,component atomic compound-payload evidence: old/old/old/complete-new crash matrix; business closure remains S1-11
 1,A-GLOBAL-02,S1-11,S1-04,per-fragment version单调+1,not_started,evidence/indexes/S1-04.md,COMPONENT PASS,S1-04 proves version-zero bootstrap and caller-independent exact plus-one successor schema; atomic consumed-frontier closure remains S1-11
 1,A-LEARN-01,S1-12,S1-13,单learner×0.5，其余吞吐变化≤2%,not_started,,,
