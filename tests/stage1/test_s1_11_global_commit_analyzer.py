@@ -14,6 +14,7 @@ from fsbdd.global_commit_stress import (
     build_analyzer_fixture,
     manifest_command,
 )
+from fsbdd.identity import canonical_digest
 
 
 CONFIG = Path("configs/stage1/s1_11_global_commit.json")
@@ -97,6 +98,36 @@ def _mutate_visibility(writer, committer, config):
     committer["global_visibility_records"].append("global-head.json")
 
 
+def _refingerprint(authority):
+    authority["authority_fingerprint"] = canonical_digest(
+        {
+            key: value
+            for key, value in authority.items()
+            if key != "authority_fingerprint"
+        }
+    )
+
+
+def _mutate_fault_final_with_consistent_fingerprint(writer, committer, config):
+    final = committer["fault_traces"][0]["final"]
+    final["parameters_sha256"] = hashlib.sha256(b"forged-final").hexdigest()
+    _refingerprint(final)
+
+
+def _mutate_fault_frontier_with_consistent_fingerprint(writer, committer, config):
+    final = committer["fault_traces"][1]["final"]
+    final["frontiers"][3]["last_base_version"] = -1
+    _refingerprint(final)
+
+
+def _mutate_reader_transition_coverage(writer, committer, config):
+    initial = committer["initial_authorities"][0]
+    for observation in writer["observations"]:
+        if observation["reader_index"] == 0 and observation["fragment_index"] == 0:
+            observation["version"] = 0
+            observation["authority_fingerprint"] = initial["authority_fingerprint"]
+
+
 @pytest.mark.parametrize(
     "mutation",
     [
@@ -111,6 +142,9 @@ def _mutate_visibility(writer, committer, config):
         _mutate_role_host,
         _mutate_writer_torch,
         _mutate_visibility,
+        _mutate_fault_final_with_consistent_fingerprint,
+        _mutate_fault_frontier_with_consistent_fingerprint,
+        _mutate_reader_transition_coverage,
     ],
 )
 def test_analyzer_rejects_semantic_mutations(analyzer_case, mutation) -> None:

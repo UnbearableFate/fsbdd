@@ -563,7 +563,9 @@ def _late_arrival_trace(
     second = atomic.commit(next_request).authority
     return {
         "before": _authority_summary(before),
+        "first_request": _request_summary(request),
         "first": _authority_summary(first),
+        "second_request": _request_summary(next_request),
         "second": _authority_summary(second),
         "frozen_proposal_ids": [item.proposal_id for item in selected],
         "late_old_base_proposal_id": late[0].proposal_id,
@@ -594,20 +596,24 @@ def _writer_reader_role(
     thread_count = int(config["formal_workload"]["concurrent_reader_threads"])
     minimum = int(config["formal_workload"]["minimum_reader_observations"])
     maximum = max(minimum, 1_000)
+    cycles = int(config["formal_workload"]["successful_updates"])
+    fragment_count = len(atomic.store.descriptors)
     stop = threading.Event()
     reader_errors: list[str] = []
     observations: list[dict[str, Any]] = []
     counts = [0] * thread_count
+    coverage: list[set[tuple[int, int]]] = [set() for _ in range(thread_count)]
+    initial_ready = [threading.Event() for _ in range(thread_count)]
+    final_ready = [threading.Event() for _ in range(thread_count)]
     lock = threading.Lock()
 
     def reader(reader_index: int) -> None:
         local: list[dict[str, Any]] = []
         try:
-            cursor = reader_index % len(atomic.store.descriptors)
+            cursor = reader_index % fragment_count
             while not stop.is_set() or len(local) < minimum:
                 if len(local) >= maximum:
                     stop.wait(0.01)
-                    continue
                 authority = atomic.load_fragment(cursor)
                 summary = _authority_summary(authority)
                 local.append(
@@ -618,7 +624,19 @@ def _writer_reader_role(
                         "authority_fingerprint": summary["authority_fingerprint"],
                     }
                 )
-                cursor = (cursor + 1) % len(atomic.store.descriptors)
+                with lock:
+                    coverage[reader_index].add((cursor, authority.version))
+                    if all(
+                        (fragment, 0) in coverage[reader_index]
+                        for fragment in range(fragment_count)
+                    ):
+                        initial_ready[reader_index].set()
+                    if all(
+                        (fragment, cycles) in coverage[reader_index]
+                        for fragment in range(fragment_count)
+                    ):
+                        final_ready[reader_index].set()
+                cursor = (cursor + 1) % fragment_count
         except Exception as error:  # surfaced in the formal role record
             reader_errors.append(f"{type(error).__name__}: {error}")
         finally:
@@ -633,10 +651,12 @@ def _writer_reader_role(
     for thread in threads:
         thread.start()
     published = 0
-    cycles = int(config["formal_workload"]["successful_updates"])
     try:
+        for ready in initial_ready:
+            if not ready.wait(timeout):
+                raise TimeoutError("reader did not observe every bootstrap authority")
         for cycle in range(cycles):
-            for fragment_index in range(len(atomic.store.descriptors)):
+            for fragment_index in range(fragment_count):
                 authority = atomic.load_fragment(fragment_index)
                 if authority.version != cycle:
                     raise GlobalCommitStressError("writer observed an unexpected cycle version")
@@ -656,14 +676,18 @@ def _writer_reader_role(
                 {"complete": True, "cycle": cycle, "published": published},
             )
             _wait_json(coordination / f"committed-{cycle:03d}.json", timeout)
-        _replace_json(coordination / "writer-done.json", {"complete": True})
-        _wait_json(coordination / "main-complete.json", timeout)
+        _wait_json(coordination / "updates-complete.json", timeout)
+        for ready in final_ready:
+            if not ready.wait(timeout):
+                raise TimeoutError("reader did not span every successful replacement")
     finally:
         stop.set()
         for thread in threads:
             thread.join(timeout=timeout)
         if any(thread.is_alive() for thread in threads):
             raise TimeoutError("concurrent authority reader did not stop")
+    _replace_json(coordination / "writer-done.json", {"complete": True})
+    _wait_json(coordination / "main-complete.json", timeout)
     result = {
         "schema_version": 1,
         "complete": True,
@@ -759,6 +783,8 @@ def _committer_role(
         "published": duplicate.published,
         "duplicate_retry": duplicate.duplicate_retry,
     }
+    _replace_json(coordination / "updates-complete.json", {"complete": True})
+    _wait_json(coordination / "writer-done.json", timeout)
     faults = _fault_matrix(
         root / "faults",
         run_id=run_id,
@@ -771,7 +797,6 @@ def _committer_role(
         config_identity=config_identity,
         config=config,
     )
-    _wait_json(coordination / "writer-done.json", timeout)
     final = atomic.load_snapshot()
     visibility = sorted(
         path.name for path in (root / "main" / "global" / "visibility").iterdir()
@@ -1004,6 +1029,76 @@ def _validate_authority_summary(value: Any) -> dict[str, Any]:
     return value
 
 
+def _validate_request_transition(
+    before: dict[str, Any],
+    request: Any,
+    after: dict[str, Any],
+    *,
+    policy_identity: str,
+    selected_count: int | None = None,
+) -> list[dict[str, Any]]:
+    if not isinstance(request, dict):
+        raise GlobalCommitStressError("commit request trace is malformed")
+    if (
+        request.get("fragment_index") != before["fragment_index"]
+        or after["fragment_index"] != before["fragment_index"]
+        or request.get("expected_current_version") != before["version"]
+        or request.get("expected_current_content_identity")
+        != before["content_identity"]
+        or request.get("next_version") != before["version"] + 1
+        or after["version"] != request.get("next_version")
+        or after["base_content_identity"] != before["content_identity"]
+        or after["previous_authority_identity"] != before["authority_identity"]
+        or request.get("parameters_sha256") != after["parameters_sha256"]
+        or request.get("outer_optimizer_state_sha256")
+        != after["outer_optimizer_state_sha256"]
+        or request.get("policy_identity") != policy_identity
+        or after["policy_identity"] != policy_identity
+        or request.get("selection_identity") != after["selection_identity"]
+        or request.get("update_identity") != after["update_identity"]
+    ):
+        raise GlobalCommitStressError("request-to-authority transition differs")
+    selected = request.get("selected")
+    if (
+        not isinstance(selected, list)
+        or not selected
+        or (selected_count is not None and len(selected) != selected_count)
+        or any(not isinstance(item, dict) for item in selected)
+        or len({item.get("proposal_id") for item in selected}) != len(selected)
+        or len({item.get("learner_id") for item in selected}) != len(selected)
+    ):
+        raise GlobalCommitStressError("request selected facts are malformed")
+    if abs(sum(float(item["normalized_weight"]) for item in selected) - 1.0) > 2e-6:
+        raise GlobalCommitStressError("request selected weights do not sum to one")
+    if any(
+        item.get("base_version") != before["version"]
+        or item.get("base_content_identity") != before["content_identity"]
+        or item.get("staleness") != 0
+        for item in selected
+    ):
+        raise GlobalCommitStressError("request selected base facts differ")
+    if after.get("selected") != selected:
+        raise GlobalCommitStressError("visible selected facts differ from request")
+    expected_frontiers = {
+        item["learner_id"]: (item["last_sequence"], item["last_base_version"])
+        for item in before["frontiers"]
+    }
+    for item in selected:
+        if item["learner_id"] not in expected_frontiers:
+            raise GlobalCommitStressError("selected learner is absent from frontier")
+        expected_frontiers[item["learner_id"]] = (
+            item["sequence"],
+            item["base_version"],
+        )
+    actual_frontiers = {
+        item["learner_id"]: (item["last_sequence"], item["last_base_version"])
+        for item in after["frontiers"]
+    }
+    if actual_frontiers != expected_frontiers:
+        raise GlobalCommitStressError("visible consumption frontier differs")
+    return selected
+
+
 def analyze_roles(
     writer: Mapping[str, Any],
     committer: Mapping[str, Any],
@@ -1034,7 +1129,7 @@ def analyze_roles(
     traces = committer.get("commit_traces")
     if not isinstance(traces, list) or len(traces) != cycles * fragments:
         raise GlobalCommitStressError("successful commit trace count differs")
-    allowed: set[str] = set()
+    allowed: dict[str, tuple[int, int]] = {}
     initial = committer.get("initial_authorities")
     if not isinstance(initial, list) or len(initial) != fragments:
         raise GlobalCommitStressError("initial authority trace count differs")
@@ -1042,7 +1137,10 @@ def analyze_roles(
         authority = _validate_authority_summary(authority)
         if authority["version"] != 0 or authority["selected"]:
             raise GlobalCommitStressError("bootstrap authority is not empty version zero")
-        allowed.add(authority["authority_fingerprint"])
+        allowed[authority["authority_fingerprint"]] = (
+            authority["fragment_index"],
+            authority["version"],
+        )
     per_fragment = {index: [] for index in range(fragments)}
     policy_identity = _policy_identity(config)
     for trace in traces:
@@ -1060,51 +1158,24 @@ def analyze_roles(
         if (
             trace.get("published") is not True
             or trace.get("duplicate_retry") is not False
-            or after["version"] != before["version"] + 1
-            or after["base_content_identity"] != before["content_identity"]
-            or after["previous_authority_identity"]
-            != before["authority_identity"]
-            or request.get("expected_current_version") != before["version"]
-            or request.get("expected_current_content_identity") != before["content_identity"]
-            or request.get("next_version") != after["version"]
-            or request.get("parameters_sha256") != after["parameters_sha256"]
-            or request.get("outer_optimizer_state_sha256")
-            != after["outer_optimizer_state_sha256"]
-            or request.get("policy_identity") != policy_identity
-            or after["policy_identity"] != policy_identity
-            or request.get("selection_identity") != after["selection_identity"]
-            or request.get("update_identity") != after["update_identity"]
         ):
-            raise GlobalCommitStressError("atomic successor facts differ")
-        selected = request.get("selected")
-        if not isinstance(selected, list) or len(selected) != 4:
-            raise GlobalCommitStressError("commit did not freeze four contributions")
-        if len({item["learner_id"] for item in selected}) != 4:
-            raise GlobalCommitStressError("commit selected duplicate learners")
-        weight_sum = sum(float(item["normalized_weight"]) for item in selected)
-        if abs(weight_sum - 1.0) > 2e-6:
-            raise GlobalCommitStressError("committed weights do not sum to one")
+            raise GlobalCommitStressError("successful commit result flags differ")
+        selected = _validate_request_transition(
+            before,
+            request,
+            after,
+            policy_identity=policy_identity,
+            selected_count=4,
+        )
         if any(
-            item["base_version"] != before["version"]
-            or item["base_content_identity"] != before["content_identity"]
-            or item["sequence"] != cycle
-            or item["staleness"] != 0
+            item["sequence"] != cycle
             for item in selected
         ):
-            raise GlobalCommitStressError("selected proposal facts differ from authority")
-        if after["selected"] != selected:
-            raise GlobalCommitStressError("visible selected facts differ from request")
-        expected_frontiers = {
-            item["learner_id"]: (item["sequence"], item["base_version"])
-            for item in selected
-        }
-        if any(
-            expected_frontiers[item["learner_id"]]
-            != (item["last_sequence"], item["last_base_version"])
-            for item in after["frontiers"]
-        ):
-            raise GlobalCommitStressError("visible consumption frontier differs")
-        allowed.add(after["authority_fingerprint"])
+            raise GlobalCommitStressError("selected proposal sequence differs from cycle")
+        allowed[after["authority_fingerprint"]] = (
+            after["fragment_index"],
+            after["version"],
+        )
         per_fragment[fragment].append((before, after))
     for fragment, rows in per_fragment.items():
         if [row[1]["version"] for row in rows] != list(range(1, cycles + 1)):
@@ -1117,10 +1188,22 @@ def analyze_roles(
         not isinstance(retry, dict)
         or retry.get("published") is not False
         or retry.get("duplicate_retry") is not True
-        or retry.get("request", {}).get("next_version")
-        != retry.get("authority", {}).get("version")
     ):
         raise GlobalCommitStressError("exact duplicate retry contract differs")
+    retry_authority = _validate_authority_summary(retry.get("authority"))
+    last_before = _validate_authority_summary(traces[-1].get("before"))
+    _validate_request_transition(
+        last_before,
+        retry.get("request"),
+        retry_authority,
+        policy_identity=policy_identity,
+        selected_count=4,
+    )
+    if (
+        retry_authority["authority_fingerprint"]
+        != traces[-1]["after"]["authority_fingerprint"]
+    ):
+        raise GlobalCommitStressError("duplicate retry changed visible authority")
     fault_traces = committer.get("fault_traces")
     expected_faults = len(config["publication_fault_points"]) * int(
         config["formal_workload"]["fault_replays_per_point"]
@@ -1136,11 +1219,19 @@ def analyze_roles(
         before = _validate_authority_summary(trace.get("before"))
         observed = _validate_authority_summary(trace.get("observed"))
         final = _validate_authority_summary(trace.get("final"))
-        if final["version"] != 1:
-            raise GlobalCommitStressError("fault replay did not end at version one")
+        _validate_request_transition(
+            before,
+            trace.get("request"),
+            final,
+            policy_identity=policy_identity,
+            selected_count=4,
+        )
+        if point not in str(trace.get("interruption")):
+            raise GlobalCommitStressError("fault interruption identity differs")
         if point == "after_record_replace":
             if (
-                observed["version"] != 1
+                observed["authority_fingerprint"]
+                != final["authority_fingerprint"]
                 or trace.get("selected_eligible_after_interruption") is not False
                 or trace.get("replay_published") is not False
                 or trace.get("replay_duplicate") is not True
@@ -1156,16 +1247,67 @@ def analyze_roles(
     if any(count != int(config["formal_workload"]["fault_replays_per_point"]) for count in fault_counts.values()):
         raise GlobalCommitStressError("fault replay distribution differs")
     late = committer.get("late_arrival")
+    if not isinstance(late, dict):
+        raise GlobalCommitStressError("late-arrival frozen selection contract differs")
+    late_before = _validate_authority_summary(late.get("before"))
+    late_first = _validate_authority_summary(late.get("first"))
+    late_second = _validate_authority_summary(late.get("second"))
+    first_selected = _validate_request_transition(
+        late_before,
+        late.get("first_request"),
+        late_first,
+        policy_identity=policy_identity,
+        selected_count=2,
+    )
+    second_selected = _validate_request_transition(
+        late_first,
+        late.get("second_request"),
+        late_second,
+        policy_identity=policy_identity,
+        selected_count=1,
+    )
+    frozen_ids = [item["proposal_id"] for item in first_selected]
     if (
-        not isinstance(late, dict)
-        or late.get("late_old_base_proposal_id") in late.get("frozen_proposal_ids", [])
+        late.get("frozen_proposal_ids") != frozen_ids
+        or late.get("late_old_base_proposal_id") in frozen_ids
         or late.get("late_old_base_eligible_after_first") is not False
+        or late.get("refreshed_proposal_id")
+        != second_selected[0]["proposal_id"]
         or late.get("refreshed_selected_in_second") is not True
     ):
         raise GlobalCommitStressError("late-arrival frozen selection contract differs")
     observations = writer.get("observations")
     counts = writer.get("reader_observation_counts")
     minimum = int(config["formal_workload"]["minimum_reader_observations"])
+    observations_valid = isinstance(observations, list)
+    coverage: dict[int, dict[int, set[int]]] = {
+        reader: {fragment: set() for fragment in range(fragments)}
+        for reader in range(int(config["formal_workload"]["concurrent_reader_threads"]))
+    }
+    if observations_valid:
+        for item in observations:
+            if not isinstance(item, dict):
+                observations_valid = False
+                break
+            reader = item.get("reader_index")
+            fragment = item.get("fragment_index")
+            version = item.get("version")
+            fingerprint = item.get("authority_fingerprint")
+            if (
+                reader not in coverage
+                or fragment not in coverage[reader]
+                or allowed.get(fingerprint) != (fragment, version)
+            ):
+                observations_valid = False
+                break
+            coverage[reader][fragment].add(version)
+    spans_replacements = observations_valid and all(
+        0 in coverage[reader][fragment]
+        and cycles in coverage[reader][fragment]
+        and len(coverage[reader][fragment]) >= 2
+        for reader in coverage
+        for fragment in coverage[reader]
+    )
     if (
         writer.get("reader_thread_count")
         != int(config["formal_workload"]["concurrent_reader_threads"])
@@ -1173,9 +1315,9 @@ def analyze_roles(
         or len(counts) != writer["reader_thread_count"]
         or any(count < minimum for count in counts)
         or writer.get("reader_errors") != []
-        or not isinstance(observations, list)
+        or not observations_valid
         or len(observations) != sum(counts)
-        or any(item.get("authority_fingerprint") not in allowed for item in observations)
+        or not spans_replacements
     ):
         raise GlobalCommitStressError("concurrent reader observations include mixed authority")
     if writer.get("final_versions") != [cycles] * fragments or committer.get("final_versions") != [cycles] * fragments:
@@ -1198,6 +1340,7 @@ def analyze_roles(
         "reader_threads": writer["reader_thread_count"],
         "reader_observations": len(observations),
         "minimum_reader_observations_per_thread": min(counts),
+        "every_reader_spanned_bootstrap_to_final": True,
         "duplicate_retry": "same-authority-no-increment",
         "late_arrival": "frozen-then-refreshed-next-round",
         "visibility_records": expected_visibility,
