@@ -356,6 +356,7 @@ def _runtime_gate(
         and maximum_gap <= maximum_gap_multiple * normal_interval
     )
     learner_pending_rows = []
+    learner_logging_rows = []
     for role in roles:
         publication = role["publication"]["publication"]
         adoption = role["adoption"]["poller"]
@@ -385,6 +386,19 @@ def _runtime_gate(
                 "pass": row_pass,
             }
         )
+        learner_logging = role.get("logging")
+        learner_logging_rows.append(
+            {
+                "learner_id": role["learner_id"],
+                "policy": learner_logging,
+                "pass": learner_logging
+                == {
+                    "jsonl_fsync_every_events": 40,
+                    "final_fsync_complete": True,
+                    "role_json_is_written_after_final_fsync": True,
+                },
+            }
+        )
     readiness = syncer["readiness"]
     syncer_pending_pass = (
         readiness["active_fragment"] is None
@@ -400,11 +414,14 @@ def _runtime_gate(
     pending_stall_pass = (
         all(item["pass"] for item in learner_pending_rows) and syncer_pending_pass
     )
-    logging_pass = syncer.get("logging") == {
+    syncer_logging_pass = syncer.get("logging") == {
         "jsonl_fsync_every_events": 40,
         "final_fsync_complete": True,
         "role_json_is_written_after_final_fsync": True,
     }
+    logging_pass = syncer_logging_pass and all(
+        item["pass"] for item in learner_logging_rows
+    )
     passed = (
         0 < active_seconds <= budget
         and active_seconds / walltime < walltime_limit
@@ -481,8 +498,12 @@ def _runtime_gate(
             },
             "pass": pending_stall_pass,
         },
-        "syncer_logging_durability": {
-            "policy": syncer.get("logging"),
+        "structured_logging_durability": {
+            "learners": learner_logging_rows,
+            "syncer": {
+                "policy": syncer.get("logging"),
+                "pass": syncer_logging_pass,
+            },
             "pass": logging_pass,
         },
         "queue_time_excluded": True,

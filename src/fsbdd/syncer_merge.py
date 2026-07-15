@@ -757,32 +757,39 @@ def execute_numpy_streaming_fragment_update(
     prevalidated_payload_integrity = bool(
         getattr(contribution_source, "prevalidated_payload_integrity", False)
     )
-    for contribution in request.contributions:
-        with contribution_source.open_payload(contribution) as local_payload:
-            maximum_active_local = 1
-            local_payload = _require_fp32_payload(local_payload, "local payload")
-            if len(local_payload) != fragment_bytes:
-                raise MergeError("local contribution shape differs from current fragment")
-            if (
-                not prevalidated_payload_integrity
-                and hashlib.sha256(local_payload).hexdigest()
-                != contribution.parameters_sha256
-            ):
-                raise MergeError("local contribution checksum mismatch")
-            local_bytes_read += len(local_payload)
-            local = array(local_payload, "local payload")
-            ledger.add(fragment_bytes)
-            try:
+    local_scratch = np.empty_like(current)
+    ledger.add(fragment_bytes)
+    try:
+        for contribution in request.contributions:
+            with contribution_source.open_payload(contribution) as local_payload:
+                maximum_active_local = 1
+                local_payload = _require_fp32_payload(local_payload, "local payload")
+                if len(local_payload) != fragment_bytes:
+                    raise MergeError("local contribution shape differs from current fragment")
+                if (
+                    not prevalidated_payload_integrity
+                    and hashlib.sha256(local_payload).hexdigest()
+                    != contribution.parameters_sha256
+                ):
+                    raise MergeError("local contribution checksum mismatch")
+                local_bytes_read += len(local_payload)
+                local = np.frombuffer(local_payload, dtype="<f4")
+                if not bool(np.isfinite(local).all()):
+                    raise MergeError("local payload contains NaN or Inf")
                 if contribution.base_version != request.current_version:
                     raise MergeError("NumPy Profile A merge requires a current-base contribution")
                 if contribution.base_content_identity != request.current_content_identity:
                     raise MergeError("current-base contribution identity mismatch")
-                np.subtract(current, local, out=local)
-                np.multiply(local, np.float32(contribution.f32_weight), out=local)
-                np.add(accumulator, local, out=accumulator)
-            finally:
-                ledger.remove(fragment_bytes)
-                del local
+                np.subtract(current, local, out=local_scratch)
+                np.multiply(
+                    local_scratch,
+                    np.float32(contribution.f32_weight),
+                    out=local_scratch,
+                )
+                np.add(accumulator, local_scratch, out=accumulator)
+    finally:
+        ledger.remove(fragment_bytes)
+        del local_scratch
 
     if not bool(np.isfinite(accumulator).all()):
         raise MergeError("merged gradient contains NaN or Inf")

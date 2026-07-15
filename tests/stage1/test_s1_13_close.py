@@ -293,6 +293,11 @@ def _runtime_fixture(tmp_path: Path) -> tuple[list[dict[str, object]], dict[str,
     role: dict[str, object] = {
         "_result_root": str(tmp_path),
         "learner_id": "learner-00",
+        "logging": {
+            "jsonl_fsync_every_events": 40,
+            "final_fsync_complete": True,
+            "role_json_is_written_after_final_fsync": True,
+        },
         "publication": {
             "publication": {
                 "pending_upload_count": 0,
@@ -393,3 +398,15 @@ def test_runtime_gate_rejects_heartbeat_gap_and_pending_stall(tmp_path: Path) ->
     )
     assert stall_failure["status"] == "fail"
     assert stall_failure["pending_stall"]["pass"] is False
+    roles[0]["publication"]["publication"]["pending_upload_count"] = 0
+    roles[0]["logging"]["final_fsync_complete"] = False
+    logging_failure = _runtime_gate(
+        roles,
+        syncer,
+        workload="long_run",
+        config=config,
+        gate_contract=contract,
+        execution_contract=execution,
+    )
+    assert logging_failure["status"] == "fail"
+    assert logging_failure["structured_logging_durability"]["pass"] is False

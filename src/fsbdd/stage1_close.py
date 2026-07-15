@@ -431,7 +431,12 @@ def run_learner(
     _apply_fragment_payloads(groups, [item.parameters for item in initial])
     optimizer = _optimizer(profile, model)
     progress = LearnerProgress.initialize(role_id, tuple(item.version for item in initial))
-    logger = StructuredLogger(result_root / "logs" / f"{role_id}.jsonl", role="learner", run_id=run_id)
+    logger = StructuredLogger(
+        result_root / "logs" / f"{role_id}.jsonl",
+        role="learner",
+        run_id=run_id,
+        fsync_every=40,
+    )
     schedule_row = bootstrap["per_learner_schedules"][learner_index]
     schedule_offsets = tuple(int(item) for item in schedule_row["offsets"])
     learner_phase_offset = int(schedule_row["learner_phase_offset"])
@@ -579,6 +584,7 @@ def run_learner(
         completion = None
     publisher.close(timeout_seconds)
     adoption.close(timeout_seconds)
+    logger.sync()
     result = {
         "schema_version": 1,
         "status": "pass",
@@ -612,6 +618,11 @@ def run_learner(
         },
         "gate_contract_sha256": gate_contract_sha256,
         "non_formal_long_smoke": non_formal_long_smoke,
+        "logging": {
+            "jsonl_fsync_every_events": 40,
+            "final_fsync_complete": True,
+            "role_json_is_written_after_final_fsync": True,
+        },
         "progress": progress.to_dict(),
         "data_state": shard.state_dict(),
         "publication": publisher.summary(),
