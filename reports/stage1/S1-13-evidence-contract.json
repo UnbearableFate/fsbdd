@@ -44,8 +44,15 @@
     "analysis/loss_gate.json",
     "analysis/runtime_gate.json",
     "analysis/protocol_gate.json",
-    "analysis/requirements.json"
+    "analysis/requirements.json",
+    "contracts/S1-13-experiment-failures.json"
   ],
+  "failure_reporting": {
+    "raw_record": "the initiating failure is backfilled by the reviewed ledger; every subsequent nonzero PBS experiment exit writes failures/raw-<job-role-pid>.json under its output root",
+    "reviewed_ledger": "reports/stage1/S1-13-experiment-failures.json",
+    "required_fields": ["failure", "cause", "expected_solution"],
+    "next_experiment_blocked_until_review_complete": true
+  },
   "runtime_health": {
     "unexpected_progress_heartbeat_gap": "at most two times the median normal fragment-update completion interval through the target-reaching update",
     "pending_stall": "final learner publication and adoption queues are empty and syncer has no active or selected fragment",

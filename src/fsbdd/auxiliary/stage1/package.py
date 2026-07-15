@@ -8,9 +8,10 @@ from pathlib import Path
 from typing import Any, Sequence
 
 from fsbdd.auxiliary.contracts.evidence import EvidencePackage
-from fsbdd.diloco.common.identity import file_digest
 from fsbdd.auxiliary.contracts.manifest import build_manifest
 from fsbdd.auxiliary.stage1.gate import analyze
+from fsbdd.diloco.common.identity import file_digest
+from fsbdd.diloco.protocol.storage import PublicationError, decode_publication_record
 
 
 class Stage1PackageError(RuntimeError):
@@ -25,7 +26,7 @@ def _read(path: Path) -> dict[str, Any]:
 
 
 def _copy_file(source: Path, destination: Path) -> None:
-    if not source.is_file():
+    if not source.is_file() or source.is_symlink():
         raise Stage1PackageError(f"required evidence file is absent: {source}")
     destination.parent.mkdir(parents=True, exist_ok=True)
     if destination.exists():
@@ -95,21 +96,29 @@ def _capture_current_protocol_samples(
     for backend_name in ("global", "proposals"):
         backend_root = shared_root / "protocol" / backend_name
         visibility_root = backend_root / "visibility"
-        payload_root = (backend_root / "payloads").resolve()
-        if not visibility_root.is_dir() or not payload_root.is_dir():
+        raw_payload_root = backend_root / "payloads"
+        payload_root = raw_payload_root.resolve()
+        if (
+            not visibility_root.is_dir()
+            or visibility_root.is_symlink()
+            or not raw_payload_root.is_dir()
+            or raw_payload_root.is_symlink()
+        ):
             raise Stage1PackageError(
                 f"raw protocol backend is incomplete: {backend_root}"
             )
         rows = []
         for source in sorted(visibility_root.glob("*.json")):
-            record = _read(source)
-            relative = record.get("payload_relative_path")
-            if (
-                record.get("complete") is not True
-                or not isinstance(relative, str)
-                or not relative.startswith("payloads/")
-            ):
-                raise Stage1PackageError(f"invalid current visibility record: {source}")
+            if source.is_symlink():
+                raise Stage1PackageError(f"unsafe current visibility record: {source}")
+            try:
+                record_value = decode_publication_record(source.read_bytes())
+            except (OSError, PublicationError) as error:
+                raise Stage1PackageError(
+                    f"invalid current visibility record: {source}"
+                ) from error
+            record = record_value.to_dict()
+            relative = record_value.payload_relative_path
             raw_payload = backend_root / relative
             payload = raw_payload.resolve()
             if (
@@ -118,7 +127,7 @@ def _capture_current_protocol_samples(
                 or not payload.is_file()
             ):
                 raise Stage1PackageError(f"unsafe or absent current payload: {payload}")
-            payload_bytes = int(record["payload_bytes"])
+            payload_bytes = record_value.payload_bytes
             if payload.stat().st_size != payload_bytes:
                 raise Stage1PackageError(f"current payload size mismatch: {payload}")
             with payload.open("rb") as stream:
@@ -186,6 +195,7 @@ def package(arguments: argparse.Namespace) -> dict[str, Any]:
     role_map = {"learners": learner_hosts, "syncer": [syncer_host]}
     for relative in (
         "reports/stage1/S1-13-evidence-contract.json",
+        "reports/stage1/S1-13-experiment-failures.json",
         "reports/stage1/S1-13-long-schedule-adr.md",
         "reports/stage1/S1-13-requirement-matrix.csv",
         "plans/FS_DILOCO_CODEX_EXECUTION_PLAN/loops/stage1/S1-13.md",

@@ -1,0 +1,72 @@
+{
+  "schema_version": 1,
+  "loop_id": "S1-13",
+  "policy": {
+    "effective_from_experiment_id": "s1-13-long-smoke-20260715T161208Z-0023c3d",
+    "raw_capture": "The initiating failure is represented by this reviewed ledger entry over its immutable run evidence. Every later nonzero S1-13 PBS experiment exit writes an immutable raw JSON record below that run's failures directory.",
+    "reviewed_analysis": "Every failed experiment must be added to this ledger with the failure, evidence-backed cause, and expected solution.",
+    "resubmission_gate": "No later experiment may be submitted until the preceding failure has a reviewed ledger entry and its proposed correction has been statically reviewed."
+  },
+  "failures": [
+    {
+      "experiment_id": "s1-13-long-smoke-20260715T161208Z-0023c3d",
+      "analysis_status": "reviewed_pending_solution_validation",
+      "workload": "five-node four-learner plus CPU-only syncer long-run preflight smoke",
+      "pbs_job_id": "2391236.opbs",
+      "code_commit": "0023c3d05d978e659f9b11d233728b459fe156aa",
+      "queued_at_utc": "2026-07-15T16:12:08Z",
+      "failed_at_utc": "2026-07-15T16:33:29Z",
+      "raw_evidence_root": "runtime_runs/S1-13/long-smoke-20260715T161208Z-0023c3d",
+      "failure": {
+        "summary": "The syncer exhausted the frozen 1200-second active-runtime budget before reaching the required long-smoke progress.",
+        "exception": "TimeoutError: frozen active runtime budget expired",
+        "observed_progress": {
+          "required_global_cycles": 59,
+          "completed_global_cycles": 35,
+          "completed_fragment_outer_updates": 140,
+          "final_fragment_version_vector": [35, 35, 35, 35],
+          "learner_local_optimizer_steps_each": 3000,
+          "aggregate_processed_input_tokens": 24576000,
+          "pre_workload_stage1_tests_passed": 308
+        }
+      },
+      "cause": {
+        "status": "diagnosed_from_run_evidence_and_post-run_code_review",
+        "summary": "The filesystem control/data path performed redundant whole-fragment CPU and storage work, so the syncer could not consume the available proposals at the required cadence.",
+        "direct_evidence": [
+          "env/tracejob.txt records exit status 1 after 00:21:11 walltime.",
+          "stderr/mpirun.log records the frozen active-runtime TimeoutError.",
+          "logs/syncer.jsonl contains exactly 140 contiguous fragment updates, 35 per fragment, with median merge/update latency 1.758271361 seconds.",
+          "All four learner role records reach 3000 local steps and together process 24576000 input tokens, so learner training completion was not the terminal failure."
+        ],
+        "implementation_defects_found": [
+          "The S_max=0 global-state encoding stored the current parameter payload twice: once as current parameters and again as the newest retained base.",
+          "Syncer readiness rehashed every cached 154-170 MB proposal payload on repeated polls even though proposal construction and decoding had already validated immutable bytes.",
+          "Learner publication constructed proposal identities and hashes on the training thread instead of the per-fragment publisher worker.",
+          "POSIX publication verification allocated and read a second full payload instead of comparing the committed payload in bounded chunks."
+        ],
+        "confidence": "high that these defects materially caused the throughput shortfall; the corrected throughput remains to be validated on a reduced compute run"
+      },
+      "expected_solution": {
+        "status": "implemented_pending_static_and_compute_validation",
+        "changes": [
+          "Encode the current retained base as an explicit alias of current parameters and store only older retained bases.",
+          "Validate proposal payload identity once at the immutable protocol boundary and stop rehashing unchanged cached proposals during readiness polling.",
+          "Move proposal materialization and hashing to the fragment publisher worker while keeping GPU-to-CPU snapshot capture at the safe boundary.",
+          "Verify POSIX payload publication with bounded chunk comparison rather than a second full allocation.",
+          "Use exact bound-record reads so adoption and atomic commit consume the payload named by the already validated visibility record."
+        ],
+        "validation_before_next_full_experiment": [
+          "Complete the production and auxiliary code review and correct all findings.",
+          "Pass static lint and type checks and the complete Stage 1 test suite on a compute node.",
+          "Run the smallest admissible runtime reproduction and confirm payload sizes, hashing counts, readiness cadence, and global-cycle throughput before another five- or nine-node run."
+        ]
+      },
+      "evidence_integrity": {
+        "tracejob_sha256": "258f007a56ea51c7233d154c5f779735a0f1137ad99b3fd53b334b0571497f59",
+        "mpirun_stderr_sha256": "6184385f7a6bbf079b5afa989f1316648a6855f7ae069a0260552c25d7ae49dd",
+        "raw_checksums": "runtime_runs/S1-13/long-smoke-20260715T161208Z-0023c3d/checksums.sha256"
+      }
+    }
+  ]
+}

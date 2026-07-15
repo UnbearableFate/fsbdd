@@ -12,6 +12,7 @@ import json
 import os
 import re
 import socket
+import sys
 import time
 from pathlib import Path
 from typing import Any, Mapping, Sequence
@@ -160,11 +161,16 @@ def validate_storage_config(config: Mapping[str, Any]) -> None:
     thresholds = config.get("thresholds")
     if not isinstance(thresholds, Mapping):
         raise StorageHarnessError("resolved Stage 0 storage thresholds are required")
-    h_seconds = thresholds.get("planned_sync_period_seconds")
-    if h_seconds != 50.0:
+    h_seconds_value = thresholds.get("planned_sync_period_seconds")
+    if (
+        isinstance(h_seconds_value, bool)
+        or not isinstance(h_seconds_value, (int, float))
+        or float(h_seconds_value) != 50.0
+    ):
         raise StorageHarnessError(
             "the frozen planned synchronization period must be H=50s"
         )
+    h_seconds = float(h_seconds_value)
     if thresholds.get("visibility_p99_seconds") != min(5.0, 0.05 * float(h_seconds)):
         raise StorageHarnessError("visibility p99 must resolve to min(5s, 5% of H)")
     if thresholds.get("metadata_steady_demand_ops_per_second") != 512.0:
@@ -884,7 +890,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     try:
         return int(arguments.handler(arguments))
     except StorageHarnessError as error:
-        print(f"storage harness error: {error}", file=os.sys.stderr)
+        print(f"storage harness error: {error}", file=sys.stderr)
         return 2
 
 

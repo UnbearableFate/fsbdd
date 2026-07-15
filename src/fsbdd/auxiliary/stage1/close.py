@@ -38,6 +38,7 @@ from fsbdd.diloco.learner.runtime import (
 from fsbdd.diloco.learner.adoption import FragmentAdoptionCoordinator
 from fsbdd.diloco.model.learner_assets import (
     load_learner_profile,
+    validate_materialized_shards,
     verify_profile_assets,
 )
 from fsbdd.diloco.learner.publication import (
@@ -46,7 +47,7 @@ from fsbdd.diloco.learner.publication import (
     FragmentSnapshotCoordinator,
     build_fragment_parameter_groups,
 )
-from fsbdd.auxiliary.stress.learner_smoke import _load_real_model, _optimizer
+from fsbdd.diloco.model.huggingface import build_frozen_adamw, load_frozen_causal_lm
 from fsbdd.diloco.common.logging import StructuredLogger
 from fsbdd.diloco.model.model_registry import build_logical_layer_registry
 from fsbdd.diloco.model.fragment_map import build_fragment_map
@@ -142,6 +143,8 @@ def _learner_ids(count: int) -> tuple[str, ...]:
 
 def _outer_policy(config: Mapping[str, Any]) -> OuterSGDPolicy:
     value = config["protocol"]["outer_optimizer"]
+    if not isinstance(value.get("nesterov"), bool):
+        raise Stage1CloseError("outer optimizer nesterov must be boolean")
     return OuterSGDPolicy(
         learning_rate=float(value["learning_rate"]),
         momentum=float(value["momentum"]),
@@ -338,6 +341,8 @@ def _apply_fragment_payloads(
     with torch.no_grad():
         for group, payload in zip(groups, payloads, strict=True):
             array = np.frombuffer(payload, dtype="<f4")
+            if not bool(np.isfinite(array).all()):
+                raise Stage1CloseError("fragment payload contains NaN or Inf")
             offset = 0
             for parameter in group:
                 count = int(parameter.numel())
@@ -362,11 +367,14 @@ def _batches(shard: PackedTokenShard, batch_size: int) -> Iterator[dict[str, Any
 
 
 def _evaluate_validation(
-    model: Any, validation_root: Path, device: Any
+    model: Any,
+    profile: Any,
+    validation_root: Path,
+    device: Any,
 ) -> dict[str, Any]:
     import torch
 
-    manifest = _read_json(validation_root / "manifest.json")
+    manifest = validate_materialized_shards(profile, validation_root)
     rows = sorted(manifest["shards"], key=lambda row: row["learner_index"])
     sequence_length = int(manifest["sequence_length"])
     arrays = [
@@ -481,7 +489,7 @@ def run_learner(
     torch.cuda.manual_seed_all(seed)
     torch.use_deterministic_algorithms(True)
     torch.backends.cuda.matmul.allow_tf32 = False
-    model = _load_real_model(profile, inventory, device)
+    model = load_frozen_causal_lm(profile, inventory, device)
     registry = build_logical_layer_registry(model)
     fragment_map = build_fragment_map(
         registry, int(config["protocol"]["fragment_count"])
@@ -496,7 +504,7 @@ def run_learner(
     groups = build_fragment_parameter_groups(model, registry, fragment_map)
     initial = atomic.load_snapshot().authorities
     _apply_fragment_payloads(groups, [item.parameters for item in initial])
-    optimizer = _optimizer(profile, model)
+    optimizer = build_frozen_adamw(profile, model)
     progress = LearnerProgress.initialize(
         role_id, tuple(item.version for item in initial)
     )
@@ -567,6 +575,7 @@ def run_learner(
         validation["initial"] = {
             **_evaluate_validation(
                 model,
+                profile,
                 Path(str(_asset_manifest["datasets"]["gpt2_validation"]["root"])),
                 device,
             ),
@@ -656,6 +665,7 @@ def run_learner(
             validation["final"] = {
                 **_evaluate_validation(
                     model,
+                    profile,
                     Path(str(_asset_manifest["datasets"]["gpt2_validation"]["root"])),
                     device,
                 ),
@@ -821,6 +831,8 @@ def run_syncer(
         shared_root / "coordination", "ready", learner_count, timeout_seconds
     )
     hosts = [str(item["hostname"]) for item in ready] + [bootstrap_record["hostname"]]
+    if len(set(hosts)) != learner_count + 1:
+        raise Stage1CloseError("learner and syncer roles must occupy distinct hosts")
     active = {
         "complete": True,
         "run_id": run_id,

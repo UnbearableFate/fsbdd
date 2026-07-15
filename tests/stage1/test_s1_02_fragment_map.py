@@ -117,6 +117,13 @@ def test_secondary_objective_and_front_cut_match_brute_force() -> None:
     assert partition_layer_bytes((1, 1, 1, 1, 1), 2).cut_indices == (2,)
 
 
+def test_partition_never_creates_parameterless_fragment() -> None:
+    objective = partition_layer_bytes((2, 0, 3, 0), 2)
+    assert objective.cut_indices == (1,)
+    with pytest.raises(FragmentMapError, match="positive-byte fragments"):
+        partition_layer_bytes((2, 0, 0), 2)
+
+
 @pytest.mark.parametrize("fragment_count", [0, 1, 4, 5, True])
 def test_production_fragment_count_fails_closed(fragment_count: int) -> None:
     with pytest.raises(FragmentMapError, match="fragment_count|1 < F < L"):

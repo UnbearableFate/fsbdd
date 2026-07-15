@@ -58,6 +58,7 @@ def test_formal_package_retains_current_protocol_samples_and_rejects_placeholder
     assert "raw-metadata/classified-current-inventory.json" in source
     assert "nine-node package requires a submission marker" in source
     assert '"gate_contract_sha256"' in source
+    assert '"reports/stage1/S1-13-experiment-failures.json"' in source
 
 
 def test_unresolved_contract_freezes_both_non_substitutable_workloads() -> None:

@@ -15,11 +15,13 @@ from fsbdd.diloco.protocol.global_state import (
 )
 from fsbdd.diloco.common.identity import canonical_bytes, canonical_digest
 from fsbdd.diloco.protocol.storage import (
+    BoundRecordStorageBackend,
     PublicationError,
     PublicationNotFound,
     PublicationRecord,
     PublicationSpec,
     PublishedPayload,
+    RecordReadableStorageBackend,
     ReadExpectation,
     StorageBackend,
 )
@@ -73,7 +75,9 @@ def _require_bytes(value: object, field: str) -> bytes:
     return value
 
 
-def _f32(value: float) -> float:
+def _f32(value: object) -> float:
+    if not isinstance(value, (int, float)) or isinstance(value, bool):
+        raise ProposalError(f"value must be numeric: {value!r}")
     try:
         rounded = struct.unpack("!f", struct.pack("!f", float(value)))[0]
     except (OverflowError, TypeError, ValueError) as error:
@@ -151,6 +155,14 @@ class Proposal:
             raise ProposalError("identities must be GlobalStateIdentities")
         if not isinstance(descriptor, FragmentStateDescriptor):
             raise ProposalError("descriptor must be FragmentStateDescriptor")
+        _require_text(proposal_id, "proposal_id")
+        _require_text(learner_id, "learner_id")
+        _require_ordinal(sequence, "sequence")
+        _require_ordinal(base_version, "base_version")
+        _require_hex(base_content_identity, "base_content_identity")
+        _require_integer(local_steps, "local_steps")
+        _require_integer(processed_tokens, "processed_tokens")
+        _require_integer(snapshot_local_step, "snapshot_local_step")
         values = {
             "proposal_id": proposal_id,
             "identities": identities,
@@ -166,7 +178,14 @@ class Proposal:
             "parameters_sha256": hashlib.sha256(parameters).hexdigest(),
         }
         content_identity = canonical_digest(_proposal_semantic_values(**values))
-        return cls(**values, content_identity=content_identity)
+        # All values and the only large payload hash were validated above.
+        # Calling the public dataclass constructor would hash the same immutable
+        # 100+ MiB payload a second time.  Keep direct construction private to
+        # this factory; direct external construction still executes __post_init__.
+        instance = object.__new__(cls)
+        for field, value in (*values.items(), ("content_identity", content_identity)):
+            object.__setattr__(instance, field, value)
+        return instance
 
 
 def _proposal_semantic_values(
@@ -316,7 +335,8 @@ def decode_proposal(payload: bytes) -> Proposal:
     if (
         payload_value["dtype"] != descriptor.dtype
         or payload_value["shape"] != list(descriptor.shape)
-        or payload_value["bytes"] != len(parameters)
+        or _require_ordinal(payload_value["bytes"], "payload bytes")
+        != len(parameters)
     ):
         raise ProposalError("proposal parameter payload integrity mismatch")
     try:
@@ -367,7 +387,16 @@ class ProposalStore:
     ) -> None:
         if not isinstance(backend, StorageBackend):
             raise ProposalError("backend must implement StorageBackend")
-        if not isinstance(descriptors, tuple) or not descriptors:
+        if not isinstance(identities, GlobalStateIdentities):
+            raise ProposalError("identities must be GlobalStateIdentities")
+        if (
+            not isinstance(descriptors, tuple)
+            or not descriptors
+            or any(
+                not isinstance(item, FragmentStateDescriptor)
+                for item in descriptors
+            )
+        ):
             raise ProposalError("descriptors must be a non-empty tuple")
         if tuple(item.index for item in descriptors) != tuple(range(len(descriptors))):
             raise ProposalError("fragment descriptors must be contiguous and ordered")
@@ -395,7 +424,7 @@ class ProposalStore:
 
     @property
     def supports_bound_record_reads(self) -> bool:
-        return callable(getattr(self._backend, "read_bound_record", None))
+        return isinstance(self._backend, BoundRecordStorageBackend)
 
     def _descriptor(self, index: int) -> FragmentStateDescriptor:
         index = _require_ordinal(index, "fragment_index")
@@ -426,8 +455,22 @@ class ProposalStore:
         learner_id: str,
         descriptor: FragmentStateDescriptor,
     ) -> Proposal:
-        proposal = decode_proposal(published.payload)
         record = published.record
+        expected_record_values = {
+            "run_identity": self.identities.run_identity,
+            "fragment_map_identity": self.identities.fragment_map_identity,
+            "fragment_identity": descriptor.identity,
+            "dtype": descriptor.dtype,
+            "shape": descriptor.shape,
+        }
+        if any(
+            getattr(record, field) != expected
+            for field, expected in expected_record_values.items()
+        ):
+            raise ProposalError(
+                "proposal visibility record differs from the frozen store"
+            )
+        proposal = decode_proposal(published.payload)
         if proposal.identities != self.identities:
             raise ProposalError("compound proposal frozen identity mismatch")
         if proposal.learner_id != learner_id:
@@ -467,9 +510,8 @@ class ProposalStore:
         """Validate a fixed proposal record without rereading unchanged bytes."""
 
         descriptor = self._validate_address(learner_id, fragment_index)
-        read_record = getattr(self._backend, "read_record", None)
-        if callable(read_record):
-            return read_record(
+        if isinstance(self._backend, RecordReadableStorageBackend):
+            return self._backend.read_record(
                 proposal_slot(learner_id, fragment_index),
                 self._expectation(descriptor),
                 timeout_seconds=timeout_seconds,
@@ -487,10 +529,11 @@ class ProposalStore:
         record: PublicationRecord,
     ) -> Proposal:
         descriptor = self._validate_address(learner_id, fragment_index)
-        read_bound = getattr(self._backend, "read_bound_record", None)
-        if not callable(read_bound):
+        if not isinstance(self._backend, BoundRecordStorageBackend):
             raise ProposalError("storage backend has no bound-record read")
-        published = read_bound(record)
+        published = self._backend.read_bound_record(record)
+        if published.record != record:
+            raise ProposalError("bound proposal read returned different metadata")
         return self._validate_published(published, learner_id, descriptor)
 
     def load_latest_if_changed(
@@ -509,20 +552,22 @@ class ProposalStore:
 
         descriptor = self._validate_address(learner_id, fragment_index)
         slot = proposal_slot(learner_id, fragment_index)
-        read_record = getattr(self._backend, "read_record", None)
-        if callable(read_record):
-            record = read_record(
+        if isinstance(self._backend, RecordReadableStorageBackend):
+            record = self._backend.read_record(
                 slot,
                 self._expectation(descriptor),
                 timeout_seconds=timeout_seconds,
             )
             if record.payload_identity == known_payload_identity:
                 return record, None
-            published = self._backend.read(
-                slot,
-                self._expectation(descriptor),
-                timeout_seconds=timeout_seconds,
-            )
+            if isinstance(self._backend, BoundRecordStorageBackend):
+                published = self._backend.read_bound_record(record)
+            else:
+                published = self._backend.read(
+                    slot,
+                    self._expectation(descriptor),
+                    timeout_seconds=timeout_seconds,
+                )
         else:
             published = self._backend.read(
                 slot,
@@ -601,6 +646,8 @@ class ProposalStore:
             if current_record is not None:
                 if current_record.sequence > proposal.sequence:
                     raise ProposalError("proposal sequence would regress latest")
+                if current_record.version > proposal.base_version:
+                    raise ProposalError("proposal base version would regress latest")
                 if current_record.sequence == proposal.sequence:
                     current = self.load_latest(
                         proposal.learner_id,
@@ -676,7 +723,9 @@ class ConsumptionFrontiers:
             _require_text(learner_id, "frontier learner_id")
         if len(set(self.learner_ids)) != len(self.learner_ids):
             raise ProposalError("frontier learner_ids must be unique")
-        if len(self.entries) != len(self.learner_ids) or any(
+        if not isinstance(self.entries, tuple) or len(self.entries) != len(
+            self.learner_ids
+        ) or any(
             not isinstance(item, ConsumptionFrontier) for item in self.entries
         ):
             raise ProposalError("frontier entries must match the frozen learners")
@@ -765,7 +814,12 @@ class EligibilityPolicy:
             raise ProposalError("retained base version cannot be in the future")
         if len(versions) > s_max + 1:
             raise ProposalError("retained base window exceeds s_max + 1")
-        if not math.isfinite(self.lambda_s) or self.lambda_s < 0:
+        if (
+            not isinstance(self.lambda_s, (int, float))
+            or isinstance(self.lambda_s, bool)
+            or not math.isfinite(self.lambda_s)
+            or self.lambda_s < 0
+        ):
             raise ProposalError("lambda_s must be finite and nonnegative")
 
     def retained_identity(self, version: int) -> str | None:
@@ -809,11 +863,9 @@ def _identity_reason(proposal: Proposal, policy: EligibilityPolicy) -> str | Non
         return "parameter_identity_mismatch"
     if proposal.learner_id not in policy.learner_ids:
         return "learner_identity_mismatch"
-    if (
-        hashlib.sha256(proposal.parameters).hexdigest() != proposal.parameters_sha256
-        or canonical_digest(_proposal_semantic(proposal)) != proposal.content_identity
-    ):
-        return "integrity_mismatch"
+    # Proposal construction and decoding verify both hashes.  Proposal is
+    # frozen and owns immutable ``bytes``, so rehashing every cached 100+ MiB
+    # payload on every readiness poll adds no new integrity boundary.
     return None
 
 
@@ -857,7 +909,7 @@ def _candidate_key(
 ) -> tuple[int | Fraction | str, ...]:
     staleness = policy.current_version - proposal.base_version
     effective_tokens = Fraction(proposal.processed_tokens, 1) / (
-        Fraction(1, 1) + Fraction.from_float(policy.lambda_s) * staleness
+        Fraction(1, 1) + Fraction.from_float(float(policy.lambda_s)) * staleness
     )
     return (
         staleness,
@@ -930,9 +982,13 @@ def commit_consumption(
         raise ProposalError("publication_succeeded must be boolean")
     if not publication_succeeded:
         return frontiers
+    if isinstance(selected, (str, bytes)) or not isinstance(selected, Sequence):
+        raise ProposalError("selected proposals must be a sequence")
     entries = list(frontiers.entries)
     seen_learners: set[str] = set()
     for proposal in selected:
+        if not isinstance(proposal, Proposal):
+            raise ProposalError("selected value must be a Proposal")
         if proposal.identities != frontiers.identities:
             raise ProposalError("selected proposal and frontier identities differ")
         if proposal.descriptor != frontiers.descriptor:
@@ -974,6 +1030,24 @@ class CandidateWeight:
     raw_weight: float
     normalized_weight: float
 
+    def __post_init__(self) -> None:
+        _require_text(self.proposal_id, "proposal_id")
+        _require_text(self.learner_id, "learner_id")
+        _require_positive(self.processed_tokens, "processed_tokens")
+        _require_ordinal(self.staleness, "staleness")
+        if not isinstance(self.raw_weight, float) or not isinstance(
+            self.normalized_weight, float
+        ):
+            raise ProposalError("candidate weights must be floats")
+        raw = _f32(self.raw_weight)
+        normalized = _f32(self.normalized_weight)
+        if raw != self.raw_weight or normalized != self.normalized_weight:
+            raise ProposalError("candidate weights must be canonical float32 values")
+        if raw <= 0:
+            raise ProposalError("raw candidate weight must be positive")
+        if not 0 <= normalized <= 1:
+            raise ProposalError("normalized candidate weight must be in [0, 1]")
+
     def to_dict(self) -> dict[str, object]:
         return dataclasses.asdict(self)
 
@@ -985,13 +1059,19 @@ def compute_candidate_weights(
     lambda_s: float = 1.0,
 ) -> tuple[CandidateWeight, ...]:
     current_version = _require_ordinal(current_version, "current_version")
-    if not proposals:
+    if (
+        isinstance(proposals, (str, bytes))
+        or not isinstance(proposals, Sequence)
+        or not proposals
+    ):
         raise ProposalError("weight candidates must not be empty")
     lambda_value = _f32(lambda_s)
     if lambda_value < 0:
         raise ProposalError("lambda_s must be nonnegative")
     facts: list[tuple[Proposal, int, float]] = []
     for proposal in proposals:
+        if not isinstance(proposal, Proposal):
+            raise ProposalError("weight candidate must be a Proposal")
         if proposal.processed_tokens <= 0:
             raise ProposalError("weight candidate tokens must be positive")
         staleness = current_version - proposal.base_version

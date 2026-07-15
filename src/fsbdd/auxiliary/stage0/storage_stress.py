@@ -15,6 +15,7 @@ import os
 import signal
 import shutil
 import socket
+import sys
 import threading
 import time
 from collections import Counter
@@ -1579,7 +1580,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     try:
         return int(arguments.handler(arguments))
     except StorageHarnessError as error:
-        print(f"storage stress error: {error}", file=os.sys.stderr)
+        print(f"storage stress error: {error}", file=sys.stderr)
         return 2
 
 

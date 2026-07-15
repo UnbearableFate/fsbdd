@@ -6,7 +6,8 @@
 #PBS -N fsbdd-s1-13-assets
 
 set -eEuo pipefail
-trap 'echo "[ERROR] line=$LINENO command=$BASH_COMMAND" >&2' ERR
+source "${PROJECT_ROOT:-/work/xg24i002/x10041/fsbdd}/pbs/lib/record_experiment_failure.sh"
+install_experiment_failure_traps
 
 : "${PROJECT_ROOT:=/work/xg24i002/x10041/fsbdd}"
 : "${HF_HOME:=/work/xg24i002/x10041/hf_home}"

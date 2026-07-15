@@ -315,6 +315,41 @@ def test_nine_node_submission_roots_are_exclusive_and_identity_bound(
         )
 
 
+def test_nine_node_submission_rejects_invalid_timestamp_and_overlapping_roots(
+    tmp_path: Path,
+) -> None:
+    values = {
+        "shared_root": tmp_path / "shared",
+        "result_root": tmp_path / "result",
+        "evidence_root": tmp_path / "evidence",
+        "run_id": "s1-13-nine-test",
+        "submission_utc": "invalidZ",
+        "code_commit": "1" * 64,
+        "config_sha256": "2" * 64,
+        "asset_marker_sha256": "3" * 64,
+        "gate_contract_sha256": "4" * 64,
+    }
+    with pytest.raises(Stage1SubmissionError, match="invalid submission_utc"):
+        prepare_nine_node_roots(**values)
+    values["submission_utc"] = "2026-07-15T00:00:00Z"
+    values["result_root"] = values["shared_root"]
+    with pytest.raises(Stage1SubmissionError, match="must differ"):
+        prepare_nine_node_roots(**values)
+
+
+def test_stage1_pbs_failures_install_err_and_exit_capture() -> None:
+    root = Path(__file__).resolve().parents[2]
+    helper = (root / "pbs/lib/record_experiment_failure.sh").read_text(
+        encoding="utf-8"
+    )
+    assert "trap - ERR EXIT" in helper
+    assert "record_experiment_exit" in helper
+    for path in sorted(root.glob("pbs/stage1_s1_13_*.pbs")):
+        source = path.read_text(encoding="utf-8")
+        assert "record_experiment_failure.sh" in source
+        assert "install_experiment_failure_traps" in source
+
+
 def _runtime_fixture(
     tmp_path: Path,
 ) -> tuple[list[dict[str, object]], dict[str, object]]:

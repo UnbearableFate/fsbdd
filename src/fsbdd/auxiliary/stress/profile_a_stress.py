@@ -396,12 +396,13 @@ def _speed_trial(
     scheduled_start = start
     completions: list[int] = []
     losses: list[float] = []
+    last_run = None
     while scheduled_start < end:
         while time.time_ns() < scheduled_start:
             remaining = (scheduled_start - time.time_ns()) / 1e9
             time.sleep(min(0.01, max(0.0, remaining)))
         step_offset = progress.local_optimizer_steps
-        run = runtime.run(
+        last_run = runtime.run(
             _batches(
                 count=1,
                 rank=rank,
@@ -416,7 +417,7 @@ def _speed_trial(
         if completed > end:
             raise ProfileAStressError("speed trial exceeded its frozen common interval")
         completions.append(completed)
-        losses.append(run.token_weighted_loss)
+        losses.append(last_run.token_weighted_loss)
         scheduled_start += int(period * 1e9)
     while time.time_ns() < end:
         time.sleep(0.01)
@@ -428,6 +429,7 @@ def _speed_trial(
     if (
         completed_steps != len(completions)
         or completed_steps <= 0
+        or last_run is None
         or tokens <= 0
         or after_publication <= before_publication
         or after_adoption <= before_adoption
@@ -450,7 +452,7 @@ def _speed_trial(
         "step_completion_unix_ns": completions,
         "finite_loss": all(math.isfinite(item) for item in losses),
         "token_weighted_losses": losses,
-        "distributed_initialized": run.distributed_initialized,
+        "distributed_initialized": last_run.distributed_initialized,
         "publication_count_before": before_publication,
         "publication_count_after": after_publication,
         "publication_count_delta": after_publication - before_publication,
@@ -1016,6 +1018,11 @@ def run_numeric_e2e(
                 nesterov=policy.nesterov,
             )
             oracle_states[index] = oracle_state
+            oracle_momentum = oracle_state.momentum_buffer
+            if oracle_momentum is None:
+                raise ProfileAStressError(
+                    "numeric oracle unexpectedly omitted its momentum buffer"
+                )
             production = (
                 np.frombuffer(update.successor.parameters, dtype="<f4")
                 .astype(np.float64)
@@ -1086,7 +1093,7 @@ def run_numeric_e2e(
                 "successor_content_identity": update.successor.content_identity,
                 "relative_l2": _relative_l2(production, expected),
                 "momentum_relative_l2": _relative_l2(
-                    production_momentum, oracle_state.momentum_buffer
+                    production_momentum, oracle_momentum
                 ),
                 "byte_accounting": update.result.byte_accounting.to_dict(),
                 "maximum_active_payloads": update.source_metrics.maximum_active_payloads,
@@ -1645,9 +1652,10 @@ def _analyze_numeric(
         current = (
             np.frombuffer(before.parameters, dtype="<f4").astype(np.float64).tolist()
         )
+        previous_successor = previous_successors[index]
         if (
-            previous_successors[index] is not None
-            and _relative_l2(current, previous_successors[index]) > 1e-12
+            previous_successor is not None
+            and _relative_l2(current, previous_successor) > 1e-12
         ):
             raise ProfileAStressError(
                 "numeric production authority chain is discontinuous"
@@ -1683,7 +1691,9 @@ def _analyze_numeric(
                 or row["parameters_sha256"] != proposal.parameters_sha256
                 or _relative_l2(
                     row["parameters"],
-                    np.frombuffer(proposal.parameters, dtype="<f4").astype(np.float64),
+                    np.frombuffer(proposal.parameters, dtype="<f4")
+                    .astype(np.float64)
+                    .tolist(),
                 )
                 > 1e-12
             ):
@@ -1725,6 +1735,11 @@ def _analyze_numeric(
             nesterov=policy.nesterov,
         )
         states[index] = state
+        state_momentum = state.momentum_buffer
+        if state_momentum is None:
+            raise ProfileAStressError(
+                "numeric oracle unexpectedly omitted its momentum buffer"
+            )
         production = (
             np.frombuffer(successor.parameters, dtype="<f4").astype(np.float64).tolist()
         )
@@ -1734,7 +1749,7 @@ def _analyze_numeric(
             .tolist()
         )
         error = _relative_l2(production, expected)
-        momentum_error = _relative_l2(production_momentum, state.momentum_buffer)
+        momentum_error = _relative_l2(production_momentum, state_momentum)
         if (
             _relative_l2(trace["production_parameters"], production) > 1e-12
             or _relative_l2(trace["production_momentum"], production_momentum) > 1e-12

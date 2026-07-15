@@ -25,7 +25,10 @@ from fsbdd.diloco.learner.publication import (
     build_fragment_parameter_groups,
     serialize_fragment_parameters,
 )
-from fsbdd.auxiliary.stress.learner_smoke import _load_real_model, _parameter_digest
+from fsbdd.diloco.model.huggingface import (
+    load_frozen_causal_lm,
+    model_parameter_digest,
+)
 from fsbdd.diloco.model.model_registry import build_logical_layer_registry
 
 
@@ -95,7 +98,7 @@ def _bootstrap_model(
     import torch
 
     inventory = verify_profile_assets(profile, hub_cache)
-    model = _load_real_model(profile, inventory, torch.device("cpu"))
+    model = load_frozen_causal_lm(profile, inventory, torch.device("cpu"))
     registry = build_logical_layer_registry(model)
     fragment_map = build_fragment_map(registry, int(profile.training["fragment_count"]))
     descriptors = build_fragment_descriptors(fragment_map)
@@ -112,7 +115,8 @@ def _bootstrap_model(
         path = destination / relative
         path.parent.mkdir(parents=True, exist_ok=True)
         with path.open("xb") as stream:
-            stream.write(payload)
+            if stream.write(payload) != len(payload):
+                raise Stage1AssetError("bootstrap fragment write was incomplete")
             stream.flush()
             os.fsync(stream.fileno())
         fragment_bytes.append(len(payload))
@@ -144,7 +148,7 @@ def _bootstrap_model(
             {key: row[key] for key in ("path", "bytes", "sha256")}
             for row in inventory["model_files"]
         ],
-        "initial_model_parameter_sha256": _parameter_digest(model),
+        "initial_model_parameter_sha256": model_parameter_digest(model),
         "registry_path": "registry.json",
         "registry_sha256": _hash_file(destination / "registry.json"),
         "registry_digest": registry.digest,

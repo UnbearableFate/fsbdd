@@ -18,6 +18,12 @@ class StructuredLogger:
         run_id: str,
         fsync_every: int = 1,
     ) -> None:
+        if not isinstance(path, Path):
+            raise TypeError("structured log path must be a Path")
+        if not isinstance(role, str) or not role:
+            raise ValueError("structured log role must be a non-empty string")
+        if not isinstance(run_id, str) or not run_id:
+            raise ValueError("structured log run_id must be a non-empty string")
         if (
             not isinstance(fsync_every, int)
             or isinstance(fsync_every, bool)
@@ -48,8 +54,8 @@ class StructuredLogger:
             raise ValueError(
                 f"structured log fields use reserved names: {sorted(collisions)}"
             )
-        if not event:
-            raise ValueError("structured log event must be non-empty")
+        if not isinstance(event, str) or not event:
+            raise ValueError("structured log event must be a non-empty string")
         record = {
             "schema_version": 1,
             "timestamp_utc": dt.datetime.now(dt.UTC)
@@ -64,7 +70,13 @@ class StructuredLogger:
         record.update(fields)
         with self._lock:
             self._stream.write(
-                json.dumps(record, sort_keys=True, separators=(",", ":")) + "\n"
+                json.dumps(
+                    record,
+                    sort_keys=True,
+                    separators=(",", ":"),
+                    allow_nan=False,
+                )
+                + "\n"
             )
             self._emits += 1
             if self._emits % self.fsync_every == 0:

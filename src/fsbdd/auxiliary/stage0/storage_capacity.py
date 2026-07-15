@@ -374,6 +374,8 @@ def _run_metadata_rank(
                 control / f"metadata-ready-{rank}.json",
                 {"phase": phase, "rank": rank},
             )
+            ready_records: list[dict[str, Any]] = []
+            round_started = 0
             if rank == 0:
                 ready_records = _wait_rank_records(
                     control,
@@ -577,6 +579,8 @@ def _run_bandwidth_rank(
         phase = _phase_id(size_mb, streams, repeat)
         writer_ranks = list(range(streams))
         reader_ranks = [8] if streams == 1 else list(range(streams))
+        write_round_start = 0
+        read_round_start = 0
         if rank == 0:
             atomic_write_json(control / "write-phase.json", {"phase": phase})
             write_round_start = time.monotonic_ns()

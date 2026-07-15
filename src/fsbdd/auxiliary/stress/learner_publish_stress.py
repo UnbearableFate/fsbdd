@@ -161,7 +161,7 @@ def _writer(
     torch.cuda.manual_seed_all(seed)
     torch.use_deterministic_algorithms(True)
     torch.backends.cuda.matmul.allow_tf32 = False
-    model = GPTNeoXForCausalLM(
+    model: Any = GPTNeoXForCausalLM(
         GPTNeoXConfig(
             vocab_size=int(model_spec["vocab_size"]),
             hidden_size=int(model_spec["hidden_size"]),
@@ -171,7 +171,8 @@ def _writer(
             max_position_embeddings=int(model_spec["max_position_embeddings"]),
             use_cache=bool(model_spec["use_cache"]),
         )
-    ).to(device)
+    )
+    model.to(device)
     registry = build_logical_layer_registry(model)
     fragment_map = build_fragment_map(registry, int(training["fragment_count"]))
     descriptors = build_fragment_descriptors(fragment_map)
@@ -669,8 +670,6 @@ def summarize(
             or trace["processed_tokens"]
             != trace["snapshot_local_step"] * tokens_per_step
             or (trace["snapshot_local_step"] - schedule["offsets"][index]) % h != 0
-            or len(trace["parameters_sha256"]) != 64
-            or len(trace["proposal_content_identity"]) != 64
             or trace["staging_started_monotonic_ns"]
             < trace["safe_boundary_monotonic_ns"]
             or trace["staging_completed_monotonic_ns"]
@@ -681,7 +680,12 @@ def summarize(
         trace_keys.add(key)
         if trace["outcome"] == "published":
             if (
-                trace["publication_started_monotonic_ns"] is None
+                not isinstance(trace["parameters_sha256"], str)
+                or len(trace["parameters_sha256"]) != 64
+                or not isinstance(trace["proposal_content_identity"], str)
+                or len(trace["proposal_content_identity"]) != 64
+                or trace["proposal_materialization_seconds"] is None
+                or trace["publication_started_monotonic_ns"] is None
                 or trace["publication_completed_monotonic_ns"]
                 < trace["publication_started_monotonic_ns"]
                 or trace["cpu_to_fs_seconds"] is None
@@ -689,7 +693,10 @@ def summarize(
             ):
                 raise SnapshotStressError("formal published transfer timing failed")
         elif (
-            trace["publication_started_monotonic_ns"] is not None
+            trace["parameters_sha256"] is not None
+            or trace["proposal_content_identity"] is not None
+            or trace["proposal_materialization_seconds"] is not None
+            or trace["publication_started_monotonic_ns"] is not None
             or trace["cpu_to_fs_seconds"] is not None
         ):
             raise SnapshotStressError("replaced snapshot was incorrectly started")

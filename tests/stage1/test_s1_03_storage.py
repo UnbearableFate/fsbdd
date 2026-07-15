@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import dataclasses
 import json
+import math
 import subprocess
 import threading
 from pathlib import Path
 
 import pytest
+import fsbdd.diloco.protocol.storage as storage_module
 
 from fsbdd.diloco.protocol.storage import (
     PosixStorageBackend,
@@ -202,17 +204,17 @@ def test_eventual_payload_readability_retries(tmp_path: Path, monkeypatch) -> No
     backend = PosixStorageBackend(tmp_path)
     record = backend.publish("current", b"complete", spec(1))
     payload_path = tmp_path / record.payload_relative_path
-    original = Path.read_bytes
+    original = storage_module._read_regular_file
     attempts = 0
 
-    def delayed(path: Path) -> bytes:
+    def delayed(path: Path, *, maximum_bytes: int, field: str) -> bytes:
         nonlocal attempts
         if path == payload_path and attempts < 2:
             attempts += 1
             raise FileNotFoundError(path)
-        return original(path)
+        return original(path, maximum_bytes=maximum_bytes, field=field)
 
-    monkeypatch.setattr(Path, "read_bytes", delayed)
+    monkeypatch.setattr(storage_module, "_read_regular_file", delayed)
     assert (
         backend.read(
             "current", expectation(), timeout_seconds=1, poll_interval_seconds=0
@@ -228,6 +230,53 @@ def test_slot_path_traversal_and_invalid_spec_reject(tmp_path: Path) -> None:
         backend.publish("../escape", b"x", spec(0))
     with pytest.raises(PublicationError, match="fragment_map_identity"):
         backend.publish("current", b"x", spec(0, fragment_map_identity="not-a-digest"))
+
+
+@pytest.mark.parametrize("value", [math.nan, math.inf, -math.inf])
+def test_nonfinite_read_and_reclamation_timing_reject(
+    tmp_path: Path, value: float
+) -> None:
+    backend = PosixStorageBackend(tmp_path)
+    with pytest.raises(PublicationError, match="finite nonnegative"):
+        backend.read("current", expectation(), timeout_seconds=value)
+    with pytest.raises(PublicationError, match="finite nonnegative"):
+        backend.read_record(
+            "current", expectation(), poll_interval_seconds=value
+        )
+    with pytest.raises(PublicationError, match="finite nonnegative"):
+        backend.reclaim_unreferenced_payloads(
+            retain_recent=0, minimum_age_seconds=value
+        )
+
+
+def test_noncanonical_visibility_record_rejects(tmp_path: Path) -> None:
+    backend = PosixStorageBackend(tmp_path)
+    backend.publish("current", b"payload", spec(1))
+    visibility = tmp_path / "visibility" / "current.json"
+    value = json.loads(visibility.read_bytes())
+    visibility.write_text(json.dumps(value, indent=2), encoding="utf-8")
+    with pytest.raises(PublicationError, match="not canonical JSON"):
+        backend.read("current", expectation(), timeout_seconds=0)
+
+
+def test_visibility_and_payload_symlinks_fail_closed(tmp_path: Path) -> None:
+    backend = PosixStorageBackend(tmp_path / "backend")
+    record = backend.publish("fragment-0", b"payload", spec(1))
+    visibility = backend.root / "visibility" / "fragment-0.json"
+    external_visibility = tmp_path / "external-visibility.json"
+    visibility.replace(external_visibility)
+    visibility.symlink_to(external_visibility)
+    with pytest.raises(PublicationError, match="symlink"):
+        backend.read_record("fragment-0", expectation(), timeout_seconds=0)
+
+    visibility.unlink()
+    external_visibility.replace(visibility)
+    payload = backend.root / record.payload_relative_path
+    external_payload = tmp_path / "external-payload.bin"
+    payload.replace(external_payload)
+    payload.symlink_to(external_payload)
+    with pytest.raises(PublicationError):
+        backend.read_bound_record(record)
 
 
 def test_stress_summary_checks_cross_node_roles_and_crash_matrix(

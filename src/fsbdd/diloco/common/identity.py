@@ -14,7 +14,10 @@ class IdentityError(ValueError):
 
 
 def _canonical(value: Any) -> Any:
-    if dataclasses.is_dataclass(value):
+    # ``is_dataclass`` also accepts dataclass *types*.  Only instances are
+    # values that ``asdict`` can canonicalize; reject class objects through the
+    # normal unsupported-type path instead of leaking ``TypeError``.
+    if dataclasses.is_dataclass(value) and not isinstance(value, type):
         value = dataclasses.asdict(value)
     if isinstance(value, Path):
         return str(value)

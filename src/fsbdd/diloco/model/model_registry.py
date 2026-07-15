@@ -149,6 +149,17 @@ def _builtin_mapping(model: Any) -> ExplicitMapping:
     if bool(getattr(config, "is_encoder_decoder", False)):
         raise RegistryError("encoder-decoder models are outside the supported scope")
     model_type = getattr(config, "model_type", None)
+    try:
+        buffer_names = {
+            name
+            for name, _buffer in model.named_buffers(
+                recurse=True, remove_duplicate=False
+            )
+        }
+    except (AttributeError, TypeError) as error:
+        raise RegistryError(
+            "model must support named_buffers(remove_duplicate=False)"
+        ) from error
     if model_type == "gpt_neox":
         blocks = _children_paths(model, "gpt_neox.layers")
         return ExplicitMapping(
@@ -161,9 +172,13 @@ def _builtin_mapping(model: Any) -> ExplicitMapping:
                     "gpt_neox.final_layer_norm", len(blocks), len(blocks) + 1
                 ),
             ),
-            reconstructable_buffers=(
-                "gpt_neox.rotary_emb.inv_freq",
-                "gpt_neox.rotary_emb.original_inv_freq",
+            reconstructable_buffers=tuple(
+                name
+                for name in (
+                    "gpt_neox.rotary_emb.inv_freq",
+                    "gpt_neox.rotary_emb.original_inv_freq",
+                )
+                if name in buffer_names
             ),
         )
     if model_type == "llama":
@@ -174,15 +189,19 @@ def _builtin_mapping(model: Any) -> ExplicitMapping:
             block_paths=blocks,
             head_path="lm_head",
             misc=(MiscAssignment("model.norm", len(blocks), len(blocks) + 1),),
-            reconstructable_buffers=(
-                "model.rotary_emb.inv_freq",
-                "model.rotary_emb.original_inv_freq",
+            reconstructable_buffers=tuple(
+                name
+                for name in (
+                    "model.rotary_emb.inv_freq",
+                    "model.rotary_emb.original_inv_freq",
+                )
+                if name in buffer_names
             ),
         )
     if model_type == "gpt2":
         blocks = _children_paths(model, "transformer.h")
         reconstructable_buffers: list[str] = []
-        for name, _buffer in model.named_buffers(recurse=True, remove_duplicate=False):
+        for name in sorted(buffer_names):
             if name.endswith(".attn.bias") or name.endswith(".attn.masked_bias"):
                 reconstructable_buffers.append(name)
         return ExplicitMapping(
@@ -217,7 +236,7 @@ def _global_aliases(model: Any) -> tuple[dict[int, Any], dict[int, tuple[str, ..
         parameters[key] = parameter
         if name not in aliases[key]:
             aliases[key].append(name)
-    return parameters, {key: tuple(names) for key, names in aliases.items()}
+    return parameters, {key: tuple(sorted(names)) for key, names in aliases.items()}
 
 
 def _global_buffers(model: Any) -> tuple[dict[int, Any], dict[int, tuple[str, ...]]]:
@@ -234,7 +253,7 @@ def _global_buffers(model: Any) -> tuple[dict[int, Any], dict[int, tuple[str, ..
         buffers[key] = buffer
         if name not in aliases[key]:
             aliases[key].append(name)
-    return buffers, {key: tuple(names) for key, names in aliases.items()}
+    return buffers, {key: tuple(sorted(names)) for key, names in aliases.items()}
 
 
 def _under(name: str, module_path: str) -> bool:
@@ -279,10 +298,29 @@ def build_logical_layer_registry(
         raise RegistryError("model lacks config; supported scope cannot be established")
     if bool(getattr(config, "is_encoder_decoder", False)):
         raise RegistryError("encoder-decoder models are outside the supported scope")
+    if explicit is not None and not isinstance(explicit, ExplicitMapping):
+        raise RegistryError("explicit mapping must be ExplicitMapping")
     mapping = explicit or _builtin_mapping(model)
-    if not mapping.family or not mapping.block_paths:
+    if (
+        not isinstance(mapping.family, str)
+        or not mapping.family
+        or not isinstance(mapping.embedding_path, str)
+        or not mapping.embedding_path
+        or not isinstance(mapping.block_paths, tuple)
+        or not mapping.block_paths
+        or any(not isinstance(path, str) or not path for path in mapping.block_paths)
+        or not isinstance(mapping.head_path, str)
+        or not mapping.head_path
+        or not isinstance(mapping.misc, tuple)
+        or any(not isinstance(item, MiscAssignment) for item in mapping.misc)
+        or not isinstance(mapping.reconstructable_buffers, tuple)
+        or any(
+            not isinstance(name, str) or not name
+            for name in mapping.reconstructable_buffers
+        )
+    ):
         raise RegistryError(
-            "logical mapping requires a family and at least one complete block"
+            "logical mapping fields must be nonempty canonical tuples and paths"
         )
     logical_paths = (mapping.embedding_path, *mapping.block_paths, mapping.head_path)
     if len(set(logical_paths)) != len(logical_paths):
@@ -290,6 +328,15 @@ def build_logical_layer_registry(
     for path in logical_paths:
         _module(model, path)
     for assignment in mapping.misc:
+        if (
+            not isinstance(assignment.module_path, str)
+            or not assignment.module_path
+            or not isinstance(assignment.left_layer, int)
+            or isinstance(assignment.left_layer, bool)
+            or not isinstance(assignment.right_layer, int)
+            or isinstance(assignment.right_layer, bool)
+        ):
+            raise RegistryError("misc assignment fields are invalid")
         _module(model, assignment.module_path)
         if assignment.left_layer < 0 or assignment.right_layer >= len(logical_paths):
             raise RegistryError("misc adjacency index outside logical-layer range")
@@ -311,6 +358,15 @@ def build_logical_layer_registry(
         raise RegistryError(
             "unclassified buffers require an explicit reconstructable/static or mutable-state policy: "
             f"{unclassified_buffers}"
+        )
+    actual_buffer_names = {
+        name for names in buffer_aliases.values() for name in names
+    }
+    missing_buffer_declarations = sorted(allowed_buffers - actual_buffer_names)
+    if missing_buffer_declarations:
+        raise RegistryError(
+            "declared reconstructable buffers are absent from the model: "
+            f"{missing_buffer_declarations}"
         )
     buffer_records = tuple(
         BufferRecord(

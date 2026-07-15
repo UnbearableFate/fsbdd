@@ -293,6 +293,7 @@ def _selection(
         "weights": [item.to_dict() for item in weights],
     }
     return FrozenSelection(
+        logical_syncer_id="formal-syncer-0",
         fragment_index=authority.state.descriptor.index,
         current_version=authority.version,
         authority_identity=authority.authority_identity,
@@ -1303,32 +1304,56 @@ def analyze_roles(
         or late.get("refreshed_selected_in_second") is not True
     ):
         raise GlobalCommitStressError("late-arrival frozen selection contract differs")
-    observations = writer.get("observations")
-    counts = writer.get("reader_observation_counts")
+    observations_value = writer.get("observations")
+    counts_value = writer.get("reader_observation_counts")
     minimum = int(config["formal_workload"]["minimum_reader_observations"])
-    observations_valid = isinstance(observations, list)
+    reader_count = int(config["formal_workload"]["concurrent_reader_threads"])
+    if (
+        not isinstance(counts_value, list)
+        or len(counts_value) != reader_count
+        or any(
+            not isinstance(count, int) or isinstance(count, bool) or count < minimum
+            for count in counts_value
+        )
+    ):
+        raise GlobalCommitStressError(
+            "concurrent reader observation counts are malformed"
+        )
+    counts: list[int] = counts_value
+    if not isinstance(observations_value, list):
+        raise GlobalCommitStressError("concurrent reader observations are malformed")
+    observations: list[dict[str, object]] = []
     coverage: dict[int, dict[int, set[int]]] = {
         reader: {fragment: set() for fragment in range(fragments)}
-        for reader in range(int(config["formal_workload"]["concurrent_reader_threads"]))
+        for reader in range(reader_count)
     }
-    if observations_valid:
-        for item in observations:
-            if not isinstance(item, dict):
-                observations_valid = False
-                break
-            reader = item.get("reader_index")
-            fragment = item.get("fragment_index")
-            version = item.get("version")
-            fingerprint = item.get("authority_fingerprint")
-            if (
-                reader not in coverage
-                or fragment not in coverage[reader]
-                or allowed.get(fingerprint) != (fragment, version)
-            ):
-                observations_valid = False
-                break
-            coverage[reader][fragment].add(version)
-    spans_replacements = observations_valid and all(
+    for item in observations_value:
+        if not isinstance(item, dict):
+            raise GlobalCommitStressError(
+                "concurrent reader observation row is malformed"
+            )
+        reader = item.get("reader_index")
+        fragment = item.get("fragment_index")
+        version = item.get("version")
+        fingerprint = item.get("authority_fingerprint")
+        if (
+            not isinstance(reader, int)
+            or isinstance(reader, bool)
+            or not isinstance(fragment, int)
+            or isinstance(fragment, bool)
+            or not isinstance(version, int)
+            or isinstance(version, bool)
+            or not isinstance(fingerprint, str)
+            or reader not in coverage
+            or fragment not in coverage[reader]
+            or allowed.get(fingerprint) != (fragment, version)
+        ):
+            raise GlobalCommitStressError(
+                "concurrent reader observation identity is malformed"
+            )
+        coverage[reader][fragment].add(version)
+        observations.append(item)
+    spans_replacements = all(
         0 in coverage[reader][fragment]
         and cycles in coverage[reader][fragment]
         and len(coverage[reader][fragment]) >= 2
@@ -1336,13 +1361,8 @@ def analyze_roles(
         for fragment in coverage[reader]
     )
     if (
-        writer.get("reader_thread_count")
-        != int(config["formal_workload"]["concurrent_reader_threads"])
-        or not isinstance(counts, list)
-        or len(counts) != writer["reader_thread_count"]
-        or any(count < minimum for count in counts)
+        writer.get("reader_thread_count") != reader_count
         or writer.get("reader_errors") != []
-        or not observations_valid
         or len(observations) != sum(counts)
         or not spans_replacements
     ):
@@ -1373,7 +1393,7 @@ def analyze_roles(
         "final_versions": writer["final_versions"],
         "fault_replays": len(fault_traces),
         "fault_counts": fault_counts,
-        "reader_threads": writer["reader_thread_count"],
+        "reader_threads": reader_count,
         "reader_observations": len(observations),
         "minimum_reader_observations_per_thread": min(counts),
         "every_reader_spanned_bootstrap_to_final": True,

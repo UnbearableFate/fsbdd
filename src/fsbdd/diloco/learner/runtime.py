@@ -8,7 +8,7 @@ import os
 import time
 from collections.abc import Iterable, Iterator, Mapping, Sequence
 from pathlib import Path
-from typing import Any, Callable, Protocol
+from typing import Any, Callable, Protocol, cast
 
 import numpy as np
 
@@ -209,6 +209,9 @@ class StepScheduler(Protocol):
 class ConstantStepScheduler:
     step_count: int = 0
 
+    def __post_init__(self) -> None:
+        self.step_count = _nonnegative_int(self.step_count, "scheduler.step_count")
+
     def step(self) -> None:
         self.step_count += 1
 
@@ -369,37 +372,45 @@ class LearnerRng:
             raise LearnerError("learner RNG must be bound before use")
         if self._active:
             raise LearnerError("learner RNG cannot be activated recursively")
-        devices = [self.device_index] if self.device_type == "cuda" else []
+        cuda_device_index: int | None = None
+        cuda_device_state: bytes | None = None
+        if self.device_type == "cuda":
+            if not isinstance(self.device_index, int) or not isinstance(
+                self.device_state, bytes
+            ):
+                raise LearnerError("CUDA RNG state became invalid after initialization")
+            cuda_device_index = self.device_index
+            cuda_device_state = self.device_state
+        devices = [] if cuda_device_index is None else [cuda_device_index]
         outer_cpu = _rng_tensor_bytes(torch.get_rng_state())
         outer_device = (
-            _rng_tensor_bytes(torch.cuda.get_rng_state(self.device_index))
-            if self.device_type == "cuda"
+            _rng_tensor_bytes(torch.cuda.get_rng_state(cuda_device_index))
+            if cuda_device_index is not None
             else None
         )
         self._active = True
         try:
             with torch.random.fork_rng(devices=devices):
                 torch.set_rng_state(_rng_state_tensor(torch, self.cpu_state))
-                if self.device_type == "cuda":
-                    assert self.device_state is not None
+                if cuda_device_index is not None and cuda_device_state is not None:
                     torch.cuda.set_rng_state(
-                        _rng_state_tensor(torch, self.device_state),
-                        self.device_index,
+                        _rng_state_tensor(torch, cuda_device_state),
+                        cuda_device_index,
                     )
                 try:
                     yield
                 finally:
                     self.cpu_state = _rng_tensor_bytes(torch.get_rng_state())
-                    if self.device_type == "cuda":
+                    if cuda_device_index is not None:
                         self.device_state = _rng_tensor_bytes(
-                            torch.cuda.get_rng_state(self.device_index)
+                            torch.cuda.get_rng_state(cuda_device_index)
                         )
                     self.activation_count += 1
         finally:
             self._active = False
         if _rng_tensor_bytes(torch.get_rng_state()) != outer_cpu or (
-            self.device_type == "cuda"
-            and _rng_tensor_bytes(torch.cuda.get_rng_state(self.device_index))
+            cuda_device_index is not None
+            and _rng_tensor_bytes(torch.cuda.get_rng_state(cuda_device_index))
             != outer_device
         ):
             raise LearnerError("learner RNG escaped its owned stream")
@@ -416,7 +427,11 @@ class PackedTokenShard:
         position: int = 0,
     ) -> None:
         try:
-            manifest = validate_materialized_shards(profile, materialized_root)
+            manifest = validate_materialized_shards(
+                profile,
+                materialized_root,
+                required_shard_index=learner_index,
+            )
         except LearnerAssetError as error:
             raise LearnerError(str(error)) from error
         shards = manifest.get("shards")
@@ -495,8 +510,8 @@ def _distributed_initialized(torch: Any) -> bool:
 
 
 def _batch_counts(batch: Mapping[str, Any], torch: Any) -> tuple[int, int]:
-    input_ids = batch.get("input_ids")
-    labels = batch.get("labels")
+    input_ids = cast(Any, batch.get("input_ids"))
+    labels = cast(Any, batch.get("labels"))
     if (
         not isinstance(input_ids, torch.Tensor)
         or input_ids.ndim != 2
@@ -512,6 +527,10 @@ def _batch_counts(batch: Mapping[str, Any], torch: Any) -> tuple[int, int]:
         isinstance(attention_mask, torch.Tensor)
         and attention_mask.shape == input_ids.shape
     ):
+        if not bool(
+            torch.all((attention_mask == 0) | (attention_mask == 1)).item()
+        ):
+            raise LearnerError("attention_mask must contain only zero or one")
         active = attention_mask.to(dtype=torch.bool)
     else:
         raise LearnerError("attention_mask must match input_ids when supplied")
@@ -524,9 +543,10 @@ def _batch_counts(batch: Mapping[str, Any], torch: Any) -> tuple[int, int]:
 
 
 def _extract_loss(output: Any, torch: Any) -> Any:
-    loss = getattr(output, "loss", None)
-    if loss is None and isinstance(output, Mapping):
-        loss = output.get("loss")
+    loss_value = getattr(output, "loss", None)
+    if loss_value is None and isinstance(output, Mapping):
+        loss_value = output.get("loss")
+    loss = cast(Any, loss_value)
     if not isinstance(loss, torch.Tensor) or loss.ndim != 0:
         raise LearnerError("model output must contain a scalar loss tensor")
     if not bool(torch.isfinite(loss.detach()).item()):
@@ -553,14 +573,27 @@ class LearnerRuntime:
         safe_boundary_observers: Sequence[Any] = (),
         update_norm_interval: int = 1,
         retain_events: bool = True,
-        clock_ns: Any = time.monotonic_ns,
+        clock_ns: Callable[[], int] = time.monotonic_ns,
     ) -> None:
         import torch
 
         if _distributed_initialized(torch):
             raise LearnerError("torch.distributed must remain uninitialized")
+        if not isinstance(progress, LearnerProgress):
+            raise LearnerError("learner runtime requires LearnerProgress")
         if not isinstance(rng, LearnerRng):
             raise LearnerError("learner runtime requires an owned LearnerRng")
+        if (
+            not hasattr(scheduler, "step")
+            or not callable(scheduler.step)
+            or _nonnegative_int(
+                getattr(scheduler, "step_count", None), "scheduler.step_count"
+            )
+            != progress.local_optimizer_steps
+        ):
+            raise LearnerError(
+                "scheduler must align with learner local optimizer steps"
+            )
         if len(fragment_parameters) != len(progress.fragments):
             raise LearnerError("fragment parameter groups must match fragment progress")
         if any(not group for group in fragment_parameters):
@@ -598,17 +631,21 @@ class LearnerRuntime:
             )
         if (
             not isinstance(gradient_accumulation_steps, int)
+            or isinstance(gradient_accumulation_steps, bool)
             or gradient_accumulation_steps <= 0
         ):
             raise LearnerError("gradient_accumulation_steps must be positive")
         if (
             not isinstance(max_grad_norm, (int, float))
+            or isinstance(max_grad_norm, bool)
             or not math.isfinite(max_grad_norm)
             or max_grad_norm <= 0
         ):
             raise LearnerError("max_grad_norm must be finite and positive")
         if precision not in {"fp32", "bf16"}:
             raise LearnerError("precision must be fp32 or bf16")
+        if not isinstance(comparison, Mapping):
+            raise LearnerError("comparison must be a mapping")
         if (
             precision == "bf16"
             and getattr(device, "type", None) == "cuda"
@@ -641,9 +678,14 @@ class LearnerRuntime:
             raise LearnerError("update_norm_interval must be positive")
         if not isinstance(retain_events, bool):
             raise LearnerError("retain_events must be boolean")
+        if not callable(clock_ns):
+            raise LearnerError("clock_ns must be callable")
         self.update_norm_interval = update_norm_interval
         self.retain_events = retain_events
         self.clock_ns = clock_ns
+
+    def _clock(self) -> int:
+        return _nonnegative_int(self.clock_ns(), "runtime monotonic clock")
 
     def _autocast(self, torch: Any) -> Any:
         enabled = self.precision == "bf16"
@@ -738,7 +780,7 @@ class LearnerRuntime:
         iterator = iter(batches)
         self.model.train()
         self.optimizer.zero_grad(set_to_none=True)
-        training_start = self.clock_ns()
+        training_start = self._clock()
         events: list[SafeBoundaryEvent] = []
         last_event: SafeBoundaryEvent | None = None
         run_loss_numerator = 0.0
@@ -748,7 +790,7 @@ class LearnerRuntime:
         initial_step = self.progress.local_optimizer_steps
 
         for _ in range(optimizer_steps):
-            step_start = self.clock_ns()
+            step_start = self._clock()
             relative_step = self.progress.local_optimizer_steps - initial_step + 1
             sample_update_norm = (
                 relative_step == 1 or relative_step % self.update_norm_interval == 0
@@ -832,7 +874,9 @@ class LearnerRuntime:
                     total_update_squared += squared
 
             if minimum_step_seconds is not None:
-                elapsed = (self.clock_ns() - step_start) / 1_000_000_000
+                elapsed = (self._clock() - step_start) / 1_000_000_000
+                if elapsed < 0:
+                    raise LearnerError("runtime monotonic clock regressed")
                 remaining = float(minimum_step_seconds) - elapsed
                 if remaining > 0:
                     time.sleep(remaining)
@@ -843,7 +887,7 @@ class LearnerRuntime:
             for fragment in self.progress.fragments:
                 fragment.local_steps_since_adoption += 1
                 fragment.processed_input_tokens_since_adoption += step_inputs
-            boundary = self.clock_ns()
+            boundary = self._clock()
             latency_seconds = (boundary - step_start) / 1_000_000_000
             if latency_seconds <= 0:
                 raise LearnerError(

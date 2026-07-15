@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import dataclasses
 import hashlib
+import io
 import math
 import threading
 import time
@@ -11,7 +12,7 @@ from typing import Any
 
 import numpy as np
 
-from fsbdd.diloco.model.fragment_map import FragmentMap
+from fsbdd.diloco.model.fragment_map import FragmentMap, validate_fragment_map
 from fsbdd.diloco.protocol.global_state import (
     FragmentStateDescriptor,
     GlobalStateIdentities,
@@ -47,6 +48,17 @@ def _hex_identity(value: object, name: str) -> str:
     ):
         raise SnapshotPublishError(f"{name} must be a lowercase SHA-256 identity")
     return value
+
+
+def _positive_float(value: object, name: str) -> float:
+    if (
+        not isinstance(value, (int, float))
+        or isinstance(value, bool)
+        or not math.isfinite(value)
+        or value <= 0
+    ):
+        raise SnapshotPublishError(f"{name} must be finite and positive")
+    return float(value)
 
 
 @dataclasses.dataclass(frozen=True, slots=True)
@@ -218,6 +230,8 @@ def build_fragment_descriptors(
 ) -> tuple[FragmentStateDescriptor, ...]:
     if not isinstance(fragment_map, FragmentMap):
         raise SnapshotPublishError("fragment_map must be a FragmentMap")
+    if fragment_map.digest != canonical_digest(fragment_map._body()):
+        raise SnapshotPublishError("fragment map digest mismatch")
     return tuple(
         FragmentStateDescriptor(
             index=fragment.index,
@@ -246,8 +260,12 @@ def build_fragment_parameter_groups(
         raise SnapshotPublishError("registry must be a LogicalLayerRegistry")
     if not isinstance(fragment_map, FragmentMap):
         raise SnapshotPublishError("fragment_map must be a FragmentMap")
-    if fragment_map.registry_digest != registry.digest:
-        raise SnapshotPublishError("fragment map and registry identities differ")
+    try:
+        validate_fragment_map(fragment_map, registry)
+    except ValueError as error:
+        raise SnapshotPublishError(
+            "fragment map and registry identities differ"
+        ) from error
     parameters = dict(model.named_parameters(remove_duplicate=True))
     records = {record.identity: record for record in registry.parameters}
     groups: list[tuple[Any, ...]] = []
@@ -303,12 +321,143 @@ class FragmentSnapshot:
                 "gpu_to_cpu_seconds must be finite and nonnegative"
             )
 
+    @property
+    def identities(self) -> GlobalStateIdentities:
+        return self.proposal.identities
+
+    @property
+    def learner_id(self) -> str:
+        return self.proposal.learner_id
+
+    @property
+    def descriptor(self) -> FragmentStateDescriptor:
+        return self.proposal.descriptor
+
+    @property
+    def sequence(self) -> int:
+        return self.proposal.sequence
+
+    @property
+    def proposal_id(self) -> str:
+        return self.proposal.proposal_id
+
+    @property
+    def base_version(self) -> int:
+        return self.proposal.base_version
+
+    @property
+    def base_content_identity(self) -> str:
+        return self.proposal.base_content_identity
+
+    @property
+    def local_steps(self) -> int:
+        return self.proposal.local_steps
+
+    @property
+    def processed_tokens(self) -> int:
+        return self.proposal.processed_tokens
+
+    @property
+    def snapshot_local_step(self) -> int:
+        return self.proposal.snapshot_local_step
+
+    @property
+    def parameters(self) -> bytes:
+        return self.proposal.parameters
+
+
+@dataclasses.dataclass(frozen=True, slots=True)
+class StagedFragmentSnapshot:
+    """Immutable CPU snapshot whose content hashes are built by the publisher."""
+
+    identities: GlobalStateIdentities
+    learner_id: str
+    descriptor: FragmentStateDescriptor
+    sequence: int
+    base_version: int
+    base_content_identity: str
+    local_steps: int
+    processed_tokens: int
+    snapshot_local_step: int
+    parameters: bytes
+    safe_boundary_monotonic_ns: int
+    staging_started_monotonic_ns: int
+    staging_completed_monotonic_ns: int
+    gpu_to_cpu_seconds: float
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.identities, GlobalStateIdentities):
+            raise SnapshotPublishError("staged snapshot identities are invalid")
+        if not isinstance(self.learner_id, str) or not self.learner_id:
+            raise SnapshotPublishError("staged snapshot learner_id is invalid")
+        if not isinstance(self.descriptor, FragmentStateDescriptor):
+            raise SnapshotPublishError("staged snapshot descriptor is invalid")
+        if self.descriptor.dtype != "float32" or len(self.descriptor.shape) != 1:
+            raise SnapshotPublishError(
+                "staged snapshot descriptor must be flat float32"
+            )
+        _nonnegative_int(self.sequence, "snapshot sequence")
+        _nonnegative_int(self.base_version, "snapshot base version")
+        _hex_identity(self.base_content_identity, "snapshot base content identity")
+        _nonnegative_int(self.local_steps, "snapshot local steps")
+        _nonnegative_int(self.processed_tokens, "snapshot processed tokens")
+        _nonnegative_int(self.snapshot_local_step, "snapshot local step")
+        if not isinstance(self.parameters, bytes):
+            raise SnapshotPublishError("staged snapshot parameters must be bytes")
+        if len(self.parameters) != self.descriptor.shape[0] * 4:
+            raise SnapshotPublishError(
+                "staged snapshot payload differs from its descriptor"
+            )
+        for name in (
+            "safe_boundary_monotonic_ns",
+            "staging_started_monotonic_ns",
+            "staging_completed_monotonic_ns",
+        ):
+            _nonnegative_int(getattr(self, name), name)
+        if self.staging_completed_monotonic_ns < self.staging_started_monotonic_ns:
+            raise SnapshotPublishError("snapshot staging interval is reversed")
+        if self.staging_started_monotonic_ns < self.safe_boundary_monotonic_ns:
+            raise SnapshotPublishError("snapshot staging precedes its safe boundary")
+        if (
+            not isinstance(self.gpu_to_cpu_seconds, (int, float))
+            or not math.isfinite(self.gpu_to_cpu_seconds)
+            or self.gpu_to_cpu_seconds < 0
+        ):
+            raise SnapshotPublishError(
+                "gpu_to_cpu_seconds must be finite and nonnegative"
+            )
+
+    @property
+    def proposal_id(self) -> str:
+        return (
+            f"{self.learner_id}-fragment-{self.descriptor.index:06d}-"
+            f"sequence-{self.sequence:012d}"
+        )
+
+    def materialize_proposal(self) -> Proposal:
+        return Proposal.create(
+            proposal_id=self.proposal_id,
+            identities=self.identities,
+            learner_id=self.learner_id,
+            descriptor=self.descriptor,
+            sequence=self.sequence,
+            base_version=self.base_version,
+            base_content_identity=self.base_content_identity,
+            local_steps=self.local_steps,
+            processed_tokens=self.processed_tokens,
+            snapshot_local_step=self.snapshot_local_step,
+            parameters=self.parameters,
+        )
+
+
+SnapshotValue = FragmentSnapshot | StagedFragmentSnapshot
+
 
 @dataclasses.dataclass(slots=True)
 class _PublishSlot:
-    pending: FragmentSnapshot | None = None
+    pending: SnapshotValue | None = None
     pending_trace: dict[str, Any] | None = None
-    in_flight: FragmentSnapshot | None = None
+    in_flight: SnapshotValue | None = None
     in_flight_trace: dict[str, Any] | None = None
     failed: bool = False
 
@@ -338,6 +487,8 @@ class BoundedProposalPublisher:
             raise SnapshotPublishError("before_publish must be callable")
         if trace_sink is not None and not callable(trace_sink):
             raise SnapshotPublishError("trace_sink must be callable")
+        if not callable(clock_ns):
+            raise SnapshotPublishError("publisher clock_ns must be callable")
         self.store = store
         self.learner_id = learner_id
         self.before_publish = before_publish
@@ -357,6 +508,7 @@ class BoundedProposalPublisher:
         self._published_count = 0
         self._published_payload_bytes = 0
         self._gpu_to_cpu_seconds = 0.0
+        self._proposal_materialization_seconds = 0.0
         self._cpu_to_fs_seconds = 0.0
         self._outcome_counts: dict[str, int] = {}
         self._latest_terminal: list[dict[str, Any] | None] = [None for _ in self._slots]
@@ -374,30 +526,77 @@ class BoundedProposalPublisher:
         for thread in self._threads:
             thread.start()
 
-    def _new_trace(self, snapshot: FragmentSnapshot, outcome: str) -> dict[str, Any]:
-        proposal = snapshot.proposal
+    def _new_trace(self, snapshot: SnapshotValue, outcome: str) -> dict[str, Any]:
+        proposal = snapshot.proposal if isinstance(snapshot, FragmentSnapshot) else None
         return {
-            "fragment_index": proposal.descriptor.index,
-            "fragment_identity": proposal.descriptor.identity,
-            "sequence": proposal.sequence,
-            "proposal_id": proposal.proposal_id,
-            "proposal_content_identity": proposal.content_identity,
-            "base_version": proposal.base_version,
-            "base_content_identity": proposal.base_content_identity,
-            "local_steps": proposal.local_steps,
-            "processed_tokens": proposal.processed_tokens,
-            "snapshot_local_step": proposal.snapshot_local_step,
-            "payload_bytes": proposal.payload_bytes,
-            "parameters_sha256": proposal.parameters_sha256,
+            "fragment_index": snapshot.descriptor.index,
+            "fragment_identity": snapshot.descriptor.identity,
+            "sequence": snapshot.sequence,
+            "proposal_id": (
+                proposal.proposal_id if proposal is not None else snapshot.proposal_id
+            ),
+            "proposal_content_identity": (
+                None if proposal is None else proposal.content_identity
+            ),
+            "base_version": (
+                proposal.base_version if proposal is not None else snapshot.base_version
+            ),
+            "base_content_identity": (
+                proposal.base_content_identity
+                if proposal is not None
+                else snapshot.base_content_identity
+            ),
+            "local_steps": (
+                proposal.local_steps if proposal is not None else snapshot.local_steps
+            ),
+            "processed_tokens": (
+                proposal.processed_tokens
+                if proposal is not None
+                else snapshot.processed_tokens
+            ),
+            "snapshot_local_step": (
+                proposal.snapshot_local_step
+                if proposal is not None
+                else snapshot.snapshot_local_step
+            ),
+            "payload_bytes": (
+                proposal.payload_bytes
+                if proposal is not None
+                else len(snapshot.parameters)
+            ),
+            "parameters_sha256": (
+                None if proposal is None else proposal.parameters_sha256
+            ),
             "safe_boundary_monotonic_ns": snapshot.safe_boundary_monotonic_ns,
             "staging_started_monotonic_ns": snapshot.staging_started_monotonic_ns,
             "staging_completed_monotonic_ns": snapshot.staging_completed_monotonic_ns,
             "gpu_to_cpu_seconds": snapshot.gpu_to_cpu_seconds,
+            "proposal_materialization_started_monotonic_ns": None,
+            "proposal_materialization_completed_monotonic_ns": None,
+            "proposal_materialization_seconds": None,
             "publication_started_monotonic_ns": None,
             "publication_completed_monotonic_ns": None,
             "cpu_to_fs_seconds": None,
             "outcome": outcome,
         }
+
+    def _materialize_proposal(
+        self, snapshot: SnapshotValue, trace: dict[str, Any]
+    ) -> Proposal:
+        if isinstance(snapshot, FragmentSnapshot):
+            return snapshot.proposal
+        started = self.clock_ns()
+        with self._condition:
+            trace["proposal_materialization_started_monotonic_ns"] = started
+        proposal = snapshot.materialize_proposal()
+        completed = self.clock_ns()
+        elapsed = max(0.0, (completed - started) / 1e9)
+        with self._condition:
+            trace["proposal_materialization_completed_monotonic_ns"] = completed
+            trace["proposal_materialization_seconds"] = elapsed
+            trace["proposal_content_identity"] = proposal.content_identity
+            trace["parameters_sha256"] = proposal.parameters_sha256
+        return proposal
 
     def _record_terminal_locked(self, trace: dict[str, Any]) -> dict[str, Any]:
         terminal = dict(trace)
@@ -409,6 +608,9 @@ class BoundedProposalPublisher:
             self._published_count += 1
             self._published_payload_bytes += int(terminal["payload_bytes"])
             self._cpu_to_fs_seconds += float(terminal["cpu_to_fs_seconds"])
+            materialization_seconds = terminal["proposal_materialization_seconds"]
+            if materialization_seconds is not None:
+                self._proposal_materialization_seconds += float(materialization_seconds)
         return terminal
 
     def _emit_terminal(self, trace: Mapping[str, Any]) -> None:
@@ -423,16 +625,15 @@ class BoundedProposalPublisher:
                 if not self._errors:
                     self._errors.append(error)
 
-    def submit(self, snapshot: FragmentSnapshot) -> str:
-        if not isinstance(snapshot, FragmentSnapshot):
-            raise SnapshotPublishError("publisher accepts FragmentSnapshot values")
-        proposal = snapshot.proposal
-        index = proposal.descriptor.index
+    def submit(self, snapshot: SnapshotValue) -> str:
+        if not isinstance(snapshot, (FragmentSnapshot, StagedFragmentSnapshot)):
+            raise SnapshotPublishError("publisher accepts immutable snapshot values")
+        index = snapshot.descriptor.index
         if (
-            proposal.learner_id != self.learner_id
-            or proposal.identities != self.store.identities
+            snapshot.learner_id != self.learner_id
+            or snapshot.identities != self.store.identities
             or index >= len(self._slots)
-            or proposal.descriptor != self.store.descriptors[index]
+            or snapshot.descriptor != self.store.descriptors[index]
         ):
             raise SnapshotPublishError("snapshot does not match publisher identities")
         terminal: dict[str, Any] | None = None
@@ -443,14 +644,14 @@ class BoundedProposalPublisher:
             slot = self._slots[index]
             self._captured_count += 1
             self._gpu_to_cpu_seconds += snapshot.gpu_to_cpu_seconds
-            if proposal.sequence <= self._highest_submitted_sequence[index]:
+            if snapshot.sequence <= self._highest_submitted_sequence[index]:
                 self._skip_count += 1
-                terminal = self._record_terminal_locked(
-                    self._new_trace(snapshot, "skipped_nonmonotonic")
-                )
+                skipped_trace = self._new_trace(snapshot, "skipped_nonmonotonic")
+                skipped_trace["publication_completed_monotonic_ns"] = self.clock_ns()
+                terminal = self._record_terminal_locked(skipped_trace)
                 result = "skipped_nonmonotonic"
             else:
-                self._highest_submitted_sequence[index] = proposal.sequence
+                self._highest_submitted_sequence[index] = snapshot.sequence
                 if slot.pending is not None:
                     if slot.pending_trace is None:  # pragma: no cover - state defense
                         raise AssertionError("pending snapshot lacks trace")
@@ -492,18 +693,24 @@ class BoundedProposalPublisher:
                     self._maximum_in_flight[fragment_index], 1
                 )
                 trace["outcome"] = "publishing"
+            try:
+                proposal = self._materialize_proposal(snapshot, trace)
                 started = self.clock_ns()
                 trace["publication_started_monotonic_ns"] = started
-            try:
                 if self.before_publish is not None:
-                    self.before_publish(snapshot.proposal)
-                self.store.publish(snapshot.proposal)
+                    self.before_publish(proposal)
+                self.store.publish(proposal)
             except BaseException as error:  # worker must surface every failure
                 completed = self.clock_ns()
                 abandoned: dict[str, Any] | None = None
                 with self._condition:
                     trace["publication_completed_monotonic_ns"] = completed
-                    trace["cpu_to_fs_seconds"] = max(0.0, (completed - started) / 1e9)
+                    publication_started = trace["publication_started_monotonic_ns"]
+                    trace["cpu_to_fs_seconds"] = (
+                        None
+                        if publication_started is None
+                        else max(0.0, (completed - int(publication_started)) / 1e9)
+                    )
                     trace["outcome"] = "failed"
                     slot.in_flight = None
                     slot.in_flight_trace = None
@@ -560,13 +767,8 @@ class BoundedProposalPublisher:
             self._raise_if_failed_locked()
 
     def drain(self, timeout_seconds: float = 60.0) -> None:
-        if (
-            not isinstance(timeout_seconds, (int, float))
-            or not math.isfinite(timeout_seconds)
-            or timeout_seconds <= 0
-        ):
-            raise SnapshotPublishError("drain timeout must be finite and positive")
-        deadline = time.monotonic() + float(timeout_seconds)
+        timeout = _positive_float(timeout_seconds, "drain timeout")
+        deadline = time.monotonic() + timeout
         with self._condition:
             while (
                 any(
@@ -586,15 +788,16 @@ class BoundedProposalPublisher:
             self._raise_if_failed_locked()
 
     def close(self, timeout_seconds: float = 60.0) -> None:
+        timeout = _positive_float(timeout_seconds, "close timeout")
         failure: BaseException | None = None
         try:
-            self.drain(timeout_seconds)
+            self.drain(timeout)
         except BaseException as error:
             failure = error
         with self._condition:
             self._closing = True
             self._condition.notify_all()
-        deadline = time.monotonic() + float(timeout_seconds)
+        deadline = time.monotonic() + timeout
         for thread in self._threads:
             thread.join(max(0.0, deadline - time.monotonic()))
         if any(thread.is_alive() for thread in self._threads):
@@ -632,6 +835,7 @@ class BoundedProposalPublisher:
                 "published_snapshot_count": self._published_count,
                 "published_payload_bytes": self._published_payload_bytes,
                 "gpu_to_cpu_seconds": self._gpu_to_cpu_seconds,
+                "proposal_materialization_seconds": self._proposal_materialization_seconds,
                 "cpu_to_fs_seconds": self._cpu_to_fs_seconds,
                 "terminal_outcome_counts": dict(sorted(self._outcome_counts.items())),
                 "errors": [
@@ -723,6 +927,8 @@ class FragmentSnapshotCoordinator:
             raise SnapshotPublishError(
                 "publisher hooks cannot be supplied with an existing publisher"
             )
+        if not callable(clock_ns):
+            raise SnapshotPublishError("coordinator clock_ns must be callable")
         self.identities = identities
         self.progress = progress
         self.descriptors = descriptors
@@ -782,7 +988,7 @@ class FragmentSnapshotCoordinator:
         with self._capture_lock:
             self._validate_safe_boundary(event)
             due = self.schedule.due_fragments(event.local_optimizer_step)
-            staged: list[FragmentSnapshot] = []
+            staged: list[StagedFragmentSnapshot] = []
             for index in due:
                 fragment_progress = self.progress.fragments[index]
                 base = self._bases[index]
@@ -800,11 +1006,7 @@ class FragmentSnapshotCoordinator:
                     self.schedule.fragment_bytes[index],
                 )
                 completed = self.clock_ns()
-                proposal = Proposal.create(
-                    proposal_id=(
-                        f"{self.progress.learner_id}-fragment-{index:06d}-"
-                        f"sequence-{sequence:012d}"
-                    ),
+                snapshot = StagedFragmentSnapshot(
                     identities=self.identities,
                     learner_id=self.progress.learner_id,
                     descriptor=self.descriptors[index],
@@ -817,9 +1019,6 @@ class FragmentSnapshotCoordinator:
                     ),
                     snapshot_local_step=event.local_optimizer_step,
                     parameters=payload,
-                )
-                snapshot = FragmentSnapshot(
-                    proposal=proposal,
                     safe_boundary_monotonic_ns=event.safe_boundary_monotonic_ns,
                     staging_started_monotonic_ns=started,
                     staging_completed_monotonic_ns=completed,
@@ -834,11 +1033,13 @@ class FragmentSnapshotCoordinator:
                         sequence=sequence,
                         base_version=base.version,
                         base_content_identity=base.content_identity,
-                        local_steps=proposal.local_steps,
-                        processed_tokens=proposal.processed_tokens,
-                        snapshot_local_step=proposal.snapshot_local_step,
-                        payload_bytes=proposal.payload_bytes,
-                        parameters_sha256=proposal.parameters_sha256,
+                        local_steps=snapshot.local_steps,
+                        processed_tokens=snapshot.processed_tokens,
+                        snapshot_local_step=snapshot.snapshot_local_step,
+                        payload_bytes=len(snapshot.parameters),
+                        parameters_sha256=None,
+                        proposal_content_identity=None,
+                        identity_materialization="background_publisher",
                         gpu_to_cpu_seconds=snapshot.gpu_to_cpu_seconds,
                     )
             self._last_boundary_step = event.local_optimizer_step
@@ -943,14 +1144,16 @@ def serialize_fragment_parameters(
     import torch
 
     expected = _positive_int(expected_bytes, "expected fragment bytes")
-    chunks: list[bytes] = []
+    stream = io.BytesIO()
     for parameter in parameters:
         value = parameter.detach().to(device="cpu", dtype=torch.float32).contiguous()
         if not bool(torch.isfinite(value).all().item()):
             raise SnapshotPublishError("snapshot parameters contain NaN or Inf")
         array = np.asarray(value.numpy(), dtype="<f4")
-        chunks.append(array.tobytes(order="C"))
-    payload = b"".join(chunks)
+        chunk = array.tobytes(order="C")
+        if stream.write(chunk) != len(chunk):  # pragma: no cover - BytesIO contract
+            raise SnapshotPublishError("snapshot byte buffer accepted a partial write")
+    payload = stream.getvalue()
     if len(payload) != expected:
         raise SnapshotPublishError("target-fragment snapshot byte count mismatch")
     return payload

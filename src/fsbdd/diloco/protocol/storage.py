@@ -3,8 +3,10 @@ from __future__ import annotations
 import dataclasses
 import hashlib
 import json
+import math
 import os
 import re
+import stat
 import time
 import uuid
 from collections.abc import Callable
@@ -36,6 +38,7 @@ _CRASH_POINTS = {
     "before_record_replace",
     "after_record_replace",
 }
+_MAX_VISIBILITY_RECORD_BYTES = 64 * 1024
 
 
 @dataclasses.dataclass(frozen=True, slots=True)
@@ -114,6 +117,27 @@ class StorageBackend(Protocol):
     ) -> PublishedPayload: ...
 
 
+@runtime_checkable
+class RecordReadableStorageBackend(StorageBackend, Protocol):
+    """Storage extension for validating visibility without loading payload bytes."""
+
+    def read_record(
+        self,
+        slot: str,
+        expectation: ReadExpectation,
+        *,
+        timeout_seconds: float = 5.0,
+        poll_interval_seconds: float = 0.01,
+    ) -> PublicationRecord: ...
+
+
+@runtime_checkable
+class BoundRecordStorageBackend(RecordReadableStorageBackend, Protocol):
+    """Storage extension for loading the immutable payload named by a record."""
+
+    def read_bound_record(self, record: PublicationRecord) -> PublishedPayload: ...
+
+
 def _require_text(value: object, field: str) -> str:
     if not isinstance(value, str) or not value:
         raise PublicationError(f"{field} must be a non-empty string")
@@ -130,6 +154,17 @@ def _require_ordinal(value: object, field: str) -> int:
     if not isinstance(value, int) or isinstance(value, bool) or value < 0:
         raise PublicationError(f"{field} must be a nonnegative integer")
     return value
+
+
+def _require_nonnegative_finite_real(value: object, field: str) -> float:
+    if (
+        not isinstance(value, (int, float))
+        or isinstance(value, bool)
+        or not math.isfinite(value)
+        or value < 0
+    ):
+        raise PublicationError(f"{field} must be a finite nonnegative number")
+    return float(value)
 
 
 def _require_shape(value: object) -> tuple[int, ...]:
@@ -222,7 +257,89 @@ def _parse_record(content: bytes) -> PublicationRecord:
         raise PublicationError(
             "visibility record payload path is outside the immutable payload area"
         )
+    if content != _canonical_record_bytes(record):
+        raise PublicationError("visibility record is not canonical JSON")
     return record
+
+
+def decode_publication_record(content: bytes) -> PublicationRecord:
+    """Decode one canonical visibility record without touching its payload."""
+
+    if not isinstance(content, bytes):
+        raise PublicationError("visibility record content must be immutable bytes")
+    if len(content) > _MAX_VISIBILITY_RECORD_BYTES:
+        raise PublicationError("visibility record exceeds the bounded metadata size")
+    return _parse_record(content)
+
+
+def _read_regular_file(
+    path: Path,
+    *,
+    maximum_bytes: int,
+    field: str,
+) -> bytes:
+    if path.is_symlink():
+        raise PublicationError(f"{field} cannot be a symlink")
+    flags = os.O_RDONLY
+    flags |= getattr(os, "O_CLOEXEC", 0)
+    flags |= getattr(os, "O_NOFOLLOW", 0)
+    descriptor = os.open(path, flags)
+    try:
+        metadata = os.fstat(descriptor)
+        if not stat.S_ISREG(metadata.st_mode):
+            raise PublicationError(f"{field} must be a regular file")
+        if metadata.st_size > maximum_bytes:
+            raise PublicationError(f"{field} exceeds its bounded size")
+        with os.fdopen(descriptor, "rb", closefd=False) as stream:
+            content = stream.read(metadata.st_size + 1)
+        if len(content) > maximum_bytes:
+            raise PublicationError(f"{field} exceeds its bounded size")
+        return content
+    finally:
+        os.close(descriptor)
+
+
+def _read_visibility_record(path: Path) -> PublicationRecord:
+    try:
+        content = _read_regular_file(
+            path,
+            maximum_bytes=_MAX_VISIBILITY_RECORD_BYTES,
+            field="visibility record",
+        )
+    except FileNotFoundError:
+        raise
+    except PublicationError:
+        raise
+    except OSError as error:
+        raise PublicationError(f"visibility record read failed: {error}") from error
+    return decode_publication_record(content)
+
+
+def _validate_read_expectation(expectation: ReadExpectation) -> None:
+    if not isinstance(expectation, ReadExpectation):
+        raise PublicationError("read expectation must be ReadExpectation")
+    _require_text(expectation.run_identity, "expectation.run_identity")
+    _require_hex64(
+        expectation.fragment_map_identity,
+        "expectation.fragment_map_identity",
+    )
+    _require_text(
+        expectation.fragment_identity,
+        "expectation.fragment_identity",
+    )
+    if expectation.version is not None:
+        _require_ordinal(expectation.version, "expectation.version")
+    if expectation.sequence is not None:
+        _require_ordinal(expectation.sequence, "expectation.sequence")
+    if expectation.dtype is not None:
+        _require_text(expectation.dtype, "expectation.dtype")
+    if expectation.shape is not None:
+        _require_shape(expectation.shape)
+    if expectation.base_content_identity is not None:
+        _require_hex64(
+            expectation.base_content_identity,
+            "expectation.base_content_identity",
+        )
 
 
 def _validate_expectation(
@@ -272,34 +389,25 @@ class PosixStorageBackend:
         """Read and validate one fixed visibility record without its payload."""
 
         slot = _validate_slot(slot)
-        if (
-            not isinstance(timeout_seconds, (int, float))
-            or isinstance(timeout_seconds, bool)
-            or timeout_seconds < 0
-        ):
-            raise PublicationError("timeout_seconds must be nonnegative")
-        if (
-            not isinstance(poll_interval_seconds, (int, float))
-            or isinstance(poll_interval_seconds, bool)
-            or poll_interval_seconds < 0
-        ):
-            raise PublicationError("poll_interval_seconds must be nonnegative")
-        deadline = time.monotonic() + float(timeout_seconds)
+        _validate_read_expectation(expectation)
+        timeout = _require_nonnegative_finite_real(
+            timeout_seconds, "timeout_seconds"
+        )
+        poll_interval = _require_nonnegative_finite_real(
+            poll_interval_seconds, "poll_interval_seconds"
+        )
+        deadline = time.monotonic() + timeout
         visibility_path = self._visibility_root / f"{slot}.json"
         while True:
             try:
-                record = _parse_record(visibility_path.read_bytes())
+                record = _read_visibility_record(visibility_path)
             except FileNotFoundError:
                 if time.monotonic() >= deadline:
                     raise PublicationNotFound(
                         "visibility record did not become readable before timeout"
                     )
-                time.sleep(float(poll_interval_seconds))
+                time.sleep(poll_interval)
                 continue
-            except OSError as error:
-                raise PublicationError(
-                    f"visibility record read failed: {error}"
-                ) from error
             _validate_expectation(record, expectation)
             return record
 
@@ -309,18 +417,24 @@ class PosixStorageBackend:
         records = []
         for path in self._visibility_root.glob("*.json"):
             try:
-                records.append(_parse_record(path.read_bytes()))
+                records.append(_read_visibility_record(path))
             except (OSError, PublicationError):
                 continue
         referenced = {record.payload_relative_path for record in records}
         payloads = tuple(
-            path for path in self._payload_root.iterdir() if path.is_file()
+            path
+            for path in self._payload_root.iterdir()
+            if path.is_file() and not path.is_symlink()
         )
         temporary = tuple(
-            path for path in self._record_temp_root.iterdir() if path.is_file()
+            path
+            for path in self._record_temp_root.iterdir()
+            if path.is_file() and not path.is_symlink()
         )
         retirement_markers = tuple(
-            path for path in self._retired_root.iterdir() if path.is_file()
+            path
+            for path in self._retired_root.iterdir()
+            if path.is_file() and not path.is_symlink()
         )
         referenced_bytes = sum(
             path.stat().st_size
@@ -383,10 +497,14 @@ class PosixStorageBackend:
             "retired_unix_ns": time.time_ns(),
         }
         try:
-            temporary.write_text(
-                json.dumps(value, sort_keys=True, separators=(",", ":")) + "\n",
-                encoding="utf-8",
-            )
+            content = (
+                json.dumps(value, sort_keys=True, separators=(",", ":")) + "\n"
+            ).encode("utf-8")
+            with temporary.open("xb") as stream:
+                if stream.write(content) != len(content):
+                    raise PublicationError(
+                        "payload retirement marker write was incomplete"
+                    )
             os.replace(temporary, marker)
         except OSError as error:
             try:
@@ -417,16 +535,13 @@ class PosixStorageBackend:
             or retain_recent < 0
         ):
             raise PublicationError("retain_recent must be a nonnegative integer")
-        if (
-            not isinstance(minimum_age_seconds, (int, float))
-            or isinstance(minimum_age_seconds, bool)
-            or minimum_age_seconds < 0
-        ):
-            raise PublicationError("minimum_age_seconds must be nonnegative")
+        minimum_age = _require_nonnegative_finite_real(
+            minimum_age_seconds, "minimum_age_seconds"
+        )
         records = []
         for path in self._visibility_root.glob("*.json"):
             try:
-                records.append(_parse_record(path.read_bytes()))
+                records.append(_read_visibility_record(path))
             except (OSError, PublicationError):
                 continue
         referenced = {record.payload_relative_path for record in records}
@@ -434,13 +549,15 @@ class PosixStorageBackend:
             (
                 path
                 for path in self._payload_root.iterdir()
-                if path.is_file() and f"payloads/{path.name}" not in referenced
+                if path.is_file()
+                and not path.is_symlink()
+                and f"payloads/{path.name}" not in referenced
             ),
             key=lambda path: (path.stat().st_mtime_ns, path.name),
             reverse=True,
         )
         now_ns = time.time_ns()
-        minimum_age_ns = int(float(minimum_age_seconds) * 1_000_000_000)
+        minimum_age_ns = int(minimum_age * 1_000_000_000)
         retirement_times = self._retirement_times()
         reclaimed_files = 0
         reclaimed_bytes = 0
@@ -468,7 +585,7 @@ class PosixStorageBackend:
         reclaimed_temp_files = 0
         reclaimed_temp_bytes = 0
         for path in self._record_temp_root.iterdir():
-            if not path.is_file():
+            if not path.is_file() or path.is_symlink():
                 continue
             try:
                 stat = path.stat()
@@ -513,26 +630,42 @@ class PosixStorageBackend:
         payload_path = self._root / payload_relative
         try:
             with payload_path.open("xb") as stream:
-                stream.write(payload)
+                written = stream.write(payload)
+                if written != len(payload):
+                    raise PublicationError(
+                        "unique payload write did not consume the complete payload"
+                    )
         except OSError as error:
             raise PublicationError(
                 f"failed to write unique payload: {error}"
             ) from error
+        # Verify the immutable file against the caller's exact bytes while
+        # retaining only one bounded read chunk, rather than a second complete
+        # 100+ MiB payload allocation.
+        digest = hashlib.sha256()
+        source = memoryview(payload)
+        offset = 0
         try:
-            verified = payload_path.read_bytes()
+            with payload_path.open("rb") as stream:
+                for chunk in iter(lambda: stream.read(8 * 1024 * 1024), b""):
+                    end = offset + len(chunk)
+                    if end > len(source) or chunk != source[offset:end]:
+                        raise PublicationError(
+                            "completed payload failed bytewise verification"
+                        )
+                    digest.update(chunk)
+                    offset = end
         except OSError as error:
             raise PublicationError(
                 f"completed payload is not readable: {error}"
             ) from error
-        if len(verified) != len(payload) or verified != payload:
+        finally:
+            source.release()
+        if offset != len(payload):
             raise PublicationError(
                 "completed payload failed size/checksum verification"
             )
-        # Bind visibility to the bytes read back from the completed immutable
-        # file.  Exact byte equality above independently verifies the write
-        # against the caller's source without a redundant second SHA pass.
-        payload_sha256 = hashlib.sha256(verified).hexdigest()
-        del verified
+        payload_sha256 = digest.hexdigest()
         if crash_at == "after_payload_write":
             raise PublicationInterrupted(crash_at)
 
@@ -554,8 +687,12 @@ class PosixStorageBackend:
         )
         record_temp = self._record_temp_root / f"{slot}-{unique}.json"
         try:
+            record_content = _canonical_record_bytes(record)
             with record_temp.open("xb") as stream:
-                stream.write(_canonical_record_bytes(record))
+                if stream.write(record_content) != len(record_content):
+                    raise PublicationError(
+                        "visibility record staging write was incomplete"
+                    )
         except OSError as error:
             raise PublicationError(
                 f"failed to stage visibility record: {error}"
@@ -566,13 +703,9 @@ class PosixStorageBackend:
             visibility_hook(slot, record)
         visibility_path = self._visibility_root / f"{slot}.json"
         try:
-            previous_record = _parse_record(visibility_path.read_bytes())
+            previous_record = _read_visibility_record(visibility_path)
         except FileNotFoundError:
             previous_record = None
-        except OSError as error:
-            raise PublicationError(
-                f"current visibility record cannot be retired: {error}"
-            ) from error
         if previous_record is not None:
             self._mark_retiring(previous_record)
         try:
@@ -594,19 +727,13 @@ class PosixStorageBackend:
         poll_interval_seconds: float = 0.01,
     ) -> PublishedPayload:
         slot = _validate_slot(slot)
-        if (
-            not isinstance(timeout_seconds, (int, float))
-            or isinstance(timeout_seconds, bool)
-            or timeout_seconds < 0
-        ):
-            raise PublicationError("timeout_seconds must be nonnegative")
-        if (
-            not isinstance(poll_interval_seconds, (int, float))
-            or isinstance(poll_interval_seconds, bool)
-            or poll_interval_seconds < 0
-        ):
-            raise PublicationError("poll_interval_seconds must be nonnegative")
-        deadline = time.monotonic() + float(timeout_seconds)
+        timeout = _require_nonnegative_finite_real(
+            timeout_seconds, "timeout_seconds"
+        )
+        poll_interval = _require_nonnegative_finite_real(
+            poll_interval_seconds, "poll_interval_seconds"
+        )
+        deadline = time.monotonic() + timeout
         while True:
             record = self.read_record(
                 slot,
@@ -616,7 +743,11 @@ class PosixStorageBackend:
             )
             payload_path = self._root / record.payload_relative_path
             try:
-                payload = payload_path.read_bytes()
+                payload = _read_regular_file(
+                    payload_path,
+                    maximum_bytes=record.payload_bytes,
+                    field="payload",
+                )
             except FileNotFoundError:
                 payload = b""
             except OSError as error:
@@ -631,13 +762,16 @@ class PosixStorageBackend:
                 raise PublicationNotReady(
                     "payload did not become complete and readable before timeout"
                 )
-            time.sleep(float(poll_interval_seconds))
+            time.sleep(poll_interval)
 
     def read_bound_record(self, record: PublicationRecord) -> PublishedPayload:
         """Read the immutable payload named by one already-validated record."""
 
         if not isinstance(record, PublicationRecord):
             raise PublicationError("bound read requires a PublicationRecord")
+        validated = _parse_record(_canonical_record_bytes(record))
+        if validated != record:
+            raise PublicationError("bound record fields are not canonical")
         relative = Path(record.payload_relative_path)
         if (
             relative.is_absolute()
@@ -648,7 +782,11 @@ class PosixStorageBackend:
             raise PublicationError("bound record payload path is unsafe")
         path = self._root / relative
         try:
-            payload = path.read_bytes()
+            payload = _read_regular_file(
+                path,
+                maximum_bytes=record.payload_bytes,
+                field="bound payload",
+            )
         except FileNotFoundError as error:
             raise PublicationNotReady("bound payload is no longer readable") from error
         except OSError as error:

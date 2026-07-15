@@ -1024,10 +1024,13 @@ def analyze_roles(
             momentum=config["outer_optimizer"]["momentum"],
             nesterov=config["outer_optimizer"]["nesterov"],
         )
+        state_momentum = state.momentum_buffer
+        if state_momentum is None:
+            raise MergeStressError(
+                "numeric oracle unexpectedly omitted its momentum buffer"
+            )
         error = _relative_l2(trace["production_parameters"], expected_current)
-        buffer_error = _relative_l2(
-            trace["production_momentum_buffer"], state.momentum_buffer
-        )
+        buffer_error = _relative_l2(trace["production_momentum_buffer"], state_momentum)
         if not math.isclose(error, trace["relative_l2"], rel_tol=0.0, abs_tol=1e-15):
             raise MergeStressError(
                 "reported parameter error is not independently reproducible"

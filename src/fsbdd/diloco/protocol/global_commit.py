@@ -24,6 +24,7 @@ from fsbdd.diloco.protocol.proposal import (
     commit_consumption,
 )
 from fsbdd.diloco.syncer.readiness import FrozenSelection
+from fsbdd.diloco.protocol.storage import PublicationRecord
 
 
 class AtomicCommitError(RuntimeError):
@@ -104,7 +105,13 @@ class CommittedContribution:
         if _require_integer(self.processed_tokens, "processed_tokens") <= 0:
             raise AtomicCommitError("processed_tokens must be positive")
         _require_nonnegative(self.staleness, "staleness")
-        if _f32(self.normalized_weight, "normalized_weight") < 0:
+        if not isinstance(self.normalized_weight, float) or _f32(
+            self.normalized_weight, "normalized_weight"
+        ) != self.normalized_weight:
+            raise AtomicCommitError(
+                "normalized_weight must be a canonical float32 value"
+            )
+        if self.normalized_weight < 0:
             raise AtomicCommitError("normalized_weight must be nonnegative")
         _require_hex(self.parameters_sha256, "proposal parameters sha256")
         if _require_integer(self.payload_bytes, "proposal payload_bytes") <= 0:
@@ -130,16 +137,19 @@ class CommitEnvelope:
     envelope_identity: str
 
     def __post_init__(self) -> None:
-        _require_bytes(self.outer_optimizer_state, "outer_optimizer_state")
-        _require_hex(
-            self.outer_optimizer_state_sha256,
-            "outer_optimizer_state_sha256",
-        )
+        self._validate_structure()
         if (
             hashlib.sha256(self.outer_optimizer_state).hexdigest()
             != self.outer_optimizer_state_sha256
         ):
             raise AtomicCommitError("outer optimizer state checksum mismatch")
+
+    def _validate_structure(self) -> None:
+        _require_bytes(self.outer_optimizer_state, "outer_optimizer_state")
+        _require_hex(
+            self.outer_optimizer_state_sha256,
+            "outer_optimizer_state_sha256",
+        )
         if not isinstance(self.frontiers, ConsumptionFrontiers):
             raise AtomicCommitError("frontiers must be ConsumptionFrontiers")
         if not isinstance(self.selected, tuple) or any(
@@ -203,6 +213,45 @@ class CommitEnvelope:
             )
         if canonical_digest(_envelope_semantic(self)) != self.envelope_identity:
             raise AtomicCommitError("commit envelope identity mismatch")
+
+
+def _verified_commit_envelope(
+    *,
+    outer_optimizer_state: bytes,
+    outer_optimizer_state_sha256: str,
+    frontiers: ConsumptionFrontiers,
+    selected: tuple[CommittedContribution, ...],
+    policy_identity: str,
+    previous_authority_identity: str,
+    selection_identity: str,
+    update_identity: str,
+) -> CommitEnvelope:
+    semantic = _envelope_semantic_values(
+        outer_optimizer_state=outer_optimizer_state,
+        frontiers=frontiers,
+        selected=selected,
+        policy_identity=policy_identity,
+        previous_authority_identity=previous_authority_identity,
+        selection_identity=selection_identity,
+        update_identity=update_identity,
+        outer_optimizer_state_sha256=outer_optimizer_state_sha256,
+    )
+    value = object.__new__(CommitEnvelope)
+    fields: dict[str, object] = {
+        "outer_optimizer_state": outer_optimizer_state,
+        "outer_optimizer_state_sha256": outer_optimizer_state_sha256,
+        "frontiers": frontiers,
+        "selected": selected,
+        "policy_identity": policy_identity,
+        "previous_authority_identity": previous_authority_identity,
+        "selection_identity": selection_identity,
+        "update_identity": update_identity,
+        "envelope_identity": canonical_digest(semantic),
+    }
+    for name, field_value in fields.items():
+        object.__setattr__(value, name, field_value)
+    value._validate_structure()
+    return value
 
 
 def _frontier_rows(frontiers: ConsumptionFrontiers) -> list[dict[str, object]]:
@@ -272,19 +321,7 @@ def make_commit_envelope(
     update_identity: str,
 ) -> CommitEnvelope:
     outer_optimizer_state_sha256 = hashlib.sha256(outer_optimizer_state).hexdigest()
-    identity = canonical_digest(
-        _envelope_semantic_values(
-            outer_optimizer_state=outer_optimizer_state,
-            frontiers=frontiers,
-            selected=selected,
-            policy_identity=policy_identity,
-            previous_authority_identity=previous_authority_identity,
-            selection_identity=selection_identity,
-            update_identity=update_identity,
-            outer_optimizer_state_sha256=outer_optimizer_state_sha256,
-        )
-    )
-    return CommitEnvelope(
+    return _verified_commit_envelope(
         outer_optimizer_state=outer_optimizer_state,
         outer_optimizer_state_sha256=outer_optimizer_state_sha256,
         frontiers=frontiers,
@@ -293,7 +330,6 @@ def make_commit_envelope(
         previous_authority_identity=previous_authority_identity,
         selection_identity=selection_identity,
         update_identity=update_identity,
-        envelope_identity=identity,
     )
 
 
@@ -355,10 +391,10 @@ def decode_commit_envelope(
     outer = header["outer_optimizer_state"]
     if not isinstance(outer, dict) or set(outer) != {"bytes", "sha256"}:
         raise AtomicCommitError("outer optimizer section schema mismatch")
+    outer_sha256 = _require_hex(outer["sha256"], "outer optimizer sha256")
     if (
         _require_nonnegative(outer["bytes"], "outer optimizer bytes") != len(body)
-        or _require_hex(outer["sha256"], "outer optimizer sha256")
-        != hashlib.sha256(body).hexdigest()
+        or outer_sha256 != hashlib.sha256(body).hexdigest()
     ):
         raise AtomicCommitError("outer optimizer state integrity mismatch")
     rows = header["frontiers"]
@@ -397,8 +433,9 @@ def decode_commit_envelope(
         selected = tuple(CommittedContribution(**row) for row in selected_rows)
     except TypeError as error:
         raise AtomicCommitError("selected contribution is malformed") from error
-    envelope = make_commit_envelope(
+    envelope = _verified_commit_envelope(
         outer_optimizer_state=body,
+        outer_optimizer_state_sha256=outer_sha256,
         frontiers=frontiers,
         selected=selected,
         policy_identity=_require_hex(header["policy_identity"], "policy_identity"),
@@ -432,6 +469,21 @@ class AtomicFragmentAuthority:
             raise AtomicCommitError("authority and frontier identities differ")
         if self.envelope.frontiers.descriptor != self.state.descriptor:
             raise AtomicCommitError("authority and frontier descriptors differ")
+        if self.state.outer_update_count != self.state.version:
+            raise AtomicCommitError(
+                "Stage 1 authority outer update count must equal its version"
+            )
+        if (self.state.version == 0) != (not self.envelope.selected):
+            raise AtomicCommitError(
+                "only the bootstrap authority may have an empty selection"
+            )
+        if any(
+            item.payload_bytes != len(self.state.parameters)
+            for item in self.envelope.selected
+        ):
+            raise AtomicCommitError(
+                "committed proposal size differs from the fragment authority"
+            )
 
     @property
     def authority_identity(self) -> str:
@@ -579,7 +631,9 @@ class AtomicGlobalCommitStore:
         self.store = store
         self.learner_ids = learner_ids
         self.policy_identity = _require_hex(policy_identity, "policy_identity")
-        self._authority_cache: dict[int, tuple[str, AtomicFragmentAuthority]] = {}
+        self._authority_cache: dict[
+            int, tuple[PublicationRecord, AtomicFragmentAuthority]
+        ] = {}
 
     def _empty_envelope(
         self, descriptor: FragmentStateDescriptor, outer_optimizer_state: bytes
@@ -622,14 +676,12 @@ class AtomicGlobalCommitStore:
     def load_fragment(self, index: int) -> AtomicFragmentAuthority:
         record = self.store.peek_fragment_record(index, timeout_seconds=0)
         cached = self._authority_cache.get(index)
-        if cached is not None and cached[0] == record.payload_identity:
+        if cached is not None and cached[0] == record:
             return cached[1]
-        state, loaded_record = self.store.load_fragment_publication(
-            index, timeout_seconds=0
-        )
-        if loaded_record.payload_identity != record.payload_identity:
-            # Visibility changed between the metadata peek and payload load;
-            # retry once through the ordinary exact-record read.
+        if self.store.supports_bound_record_reads:
+            state = self.store.load_bound_fragment_record(index, record)
+            loaded_record = record
+        else:
             state, loaded_record = self.store.load_fragment_publication(
                 index, timeout_seconds=0
             )
@@ -643,7 +695,7 @@ class AtomicGlobalCommitStore:
         if envelope.policy_identity != self.policy_identity:
             raise AtomicCommitError("committed policy identity differs")
         authority = AtomicFragmentAuthority(state, envelope)
-        self._authority_cache[index] = (loaded_record.payload_identity, authority)
+        self._authority_cache[index] = (loaded_record, authority)
         return authority
 
     def load_snapshot(self) -> AtomicGlobalSnapshot:
@@ -779,6 +831,10 @@ class AtomicGlobalCommitStore:
             raise AtomicCommitError("expected current version differs from authority")
         if current.content_identity != request.expected_current_content_identity:
             raise AtomicCommitError("expected current content identity differs")
+        if len(request.parameters) != len(current.parameters):
+            raise AtomicCommitError(
+                "successor parameter byte count differs from current authority"
+            )
         self._validate_selection_against_authority(current, request.selection)
         frontiers = commit_consumption(
             current.frontiers,
@@ -799,7 +855,7 @@ class AtomicGlobalCommitStore:
             raise AtomicCommitError("current authority cache is unavailable for commit")
         successor_state, successor_record = self.store.publish_successor_from_current(
             current.state,
-            expected_payload_identity=cached[0],
+            expected_record=cached[0],
             parameters=request.parameters,
             outer_state=encode_commit_envelope(envelope),
             crash_at=crash_at,
@@ -807,7 +863,7 @@ class AtomicGlobalCommitStore:
         )
         committed = AtomicFragmentAuthority(successor_state, envelope)
         self._authority_cache[request.fragment_index] = (
-            successor_record.payload_identity,
+            successor_record,
             committed,
         )
         if not self._matches_retry(committed, request):

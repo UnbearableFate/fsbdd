@@ -105,7 +105,12 @@ def _validate_identities(identities: dict[str, Any]) -> None:
         raise ManifestError("dirty code cannot produce formal evidence")
     if not _SHA40.fullmatch(str(code.get("commit", ""))):
         raise ManifestError("invalid code commit")
-    config = _mapping(identities["config"], "config", {"sha256"})
+    config = _mapping(
+        identities["config"],
+        "config",
+        {"sha256"},
+        {"gate_contract_sha256"},
+    )
     source = _mapping(
         identities["source"], "source", {"research_plan_sha256", "stage0_4_spec_sha256"}
     )
@@ -118,6 +123,10 @@ def _validate_identities(identities: dict[str, Any]) -> None:
         raise ManifestError("missing or invalid skill commit")
     if not _SHA64.fullmatch(str(config["sha256"])):
         raise ManifestError("missing or invalid config digest")
+    if "gate_contract_sha256" in config and not _SHA64.fullmatch(
+        str(config["gate_contract_sha256"])
+    ):
+        raise ManifestError("missing or invalid gate contract digest")
     execution = _mapping(
         identities["execution"],
         "execution",

@@ -6,7 +6,7 @@ import json
 import os
 import time
 from pathlib import Path, PurePosixPath
-from typing import Any
+from typing import Any, Callable
 
 from fsbdd.diloco.protocol.global_commit import (
     AtomicFragmentAuthority,
@@ -286,10 +286,12 @@ class FrozenEvaluationPlan:
         cls,
         store: AtomicGlobalCommitStore,
         *,
-        clock_ns: Any = time.time_ns,
+        clock_ns: Callable[[], int] = time.time_ns,
     ) -> FrozenEvaluationPlan:
         if not isinstance(store, AtomicGlobalCommitStore):
             raise EvaluationSnapshotError("capture requires AtomicGlobalCommitStore")
+        if not callable(clock_ns):
+            raise EvaluationSnapshotError("capture clock_ns must be callable")
         captured = store.load_snapshot()
         timestamp = clock_ns()
         return cls(
@@ -354,7 +356,7 @@ def _fragment_record(
         state_bytes=len(encoded),
         state_sha256=hashlib.sha256(encoded).hexdigest(),
         parameters_bytes=len(authority.parameters),
-        parameters_sha256=hashlib.sha256(authority.parameters).hexdigest(),
+        parameters_sha256=authority.state.base_history[-1].parameters_sha256,
     )
 
 
@@ -373,22 +375,26 @@ def materialize_evaluation_snapshot(
             f"evaluation destination must be new: {root}"
         ) from error
 
-    encoded_states = tuple(encode_global_state(item.state) for item in plan.authorities)
-    fragments = tuple(
-        _fragment_record(authority, encoded)
-        for authority, encoded in zip(plan.authorities, encoded_states, strict=True)
-    )
-    for record, encoded in zip(fragments, encoded_states, strict=True):
+    fragment_rows: list[FrozenEvaluationFragment] = []
+    for authority in plan.authorities:
+        encoded = encode_global_state(authority.state)
+        record = _fragment_record(authority, encoded)
         path = root / record.state_relative_path
         try:
             with path.open("xb") as stream:
-                stream.write(encoded)
+                written = stream.write(encoded)
+                if written != len(encoded):
+                    raise EvaluationSnapshotError(
+                        f"partial frozen evaluation state write: {path}"
+                    )
                 stream.flush()
                 os.fsync(stream.fileno())
         except OSError as error:
             raise EvaluationSnapshotError(
                 f"cannot write frozen evaluation state: {path}"
             ) from error
+        fragment_rows.append(record)
+    fragments = tuple(fragment_rows)
 
     semantic = _manifest_semantic(
         identities=plan.identities,
@@ -407,7 +413,11 @@ def materialize_evaluation_snapshot(
     manifest_path = root / "manifest.json"
     try:
         with manifest_path.open("xb") as stream:
-            stream.write(canonical_bytes(manifest.to_dict()) + b"\n")
+            encoded_manifest = canonical_bytes(manifest.to_dict()) + b"\n"
+            if stream.write(encoded_manifest) != len(encoded_manifest):
+                raise EvaluationSnapshotError(
+                    f"partial evaluation manifest write: {manifest_path}"
+                )
             stream.flush()
             os.fsync(stream.fileno())
     except OSError as error:
@@ -449,6 +459,17 @@ def _manifest_from_dict(value: object) -> FrozenEvaluationManifest:
     identities_value = value["identities"]
     if not isinstance(identities_value, dict):
         raise EvaluationSnapshotError("evaluation identities must be an object")
+    if not isinstance(value["learner_ids"], list) or not isinstance(
+        value["fragments"], list
+    ):
+        raise EvaluationSnapshotError(
+            "evaluation learners and fragments must be arrays"
+        )
+    if not all(isinstance(row, dict) for row in value["fragments"]):
+        raise EvaluationSnapshotError("evaluation fragments must be objects")
+    for field in ("version_vector", "content_identities", "authority_identities"):
+        if not isinstance(value[field], list):
+            raise EvaluationSnapshotError(f"evaluation {field} must be an array")
     try:
         identities = GlobalStateIdentities(**identities_value)
         fragments = tuple(FrozenEvaluationFragment(**row) for row in value["fragments"])
@@ -542,7 +563,8 @@ def load_evaluation_snapshot(
             or envelope.frontiers.learner_ids != manifest.learner_ids
             or envelope.policy_identity != manifest.policy_identity
             or len(state.parameters) != record.parameters_bytes
-            or hashlib.sha256(state.parameters).hexdigest() != record.parameters_sha256
+            or state.base_history[-1].parameters_sha256
+            != record.parameters_sha256
         ):
             raise EvaluationSnapshotError(
                 "frozen evaluation state differs from manifest facts"

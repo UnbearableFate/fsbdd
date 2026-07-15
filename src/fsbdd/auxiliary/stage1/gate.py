@@ -115,7 +115,7 @@ def _loss_gate(
         ]
         finite = all(math.isfinite(item) for item in losses)
         contiguous = steps == list(range(1, len(steps) + 1))
-        counters_reconcile = (
+        counters_reconcile = bool(events) and (
             int(events[-1]["processed_input_tokens_total"])
             == int(role["progress"]["processed_input_tokens"])
             and int(events[-1]["loss_bearing_target_tokens_total"])
@@ -123,10 +123,12 @@ def _loss_gate(
             and len(events) == int(role["progress"]["local_optimizer_steps"])
         )
         if (
-            len(losses) < minimum_points
+            len(losses) < max(minimum_points, warmup + window + 1)
             or not finite
             or not contiguous
             or not counters_reconcile
+            or any(item <= 0 for item in losses)
+            or any(item <= 0 for item in target_tokens)
         ):
             raise Stage1GateError(f"loss stream failed basic checks for {learner_id}")
         smoothed = _rolling_medians(losses[warmup:], window)
@@ -174,6 +176,18 @@ def _loss_gate(
             and all(
                 bool(validation[key]["all_blocks"])
                 and not bool(validation[key]["shuffle"])
+                for key in ("initial", "final")
+            )
+            and all(
+                validation[key]["restart_load_access_audit"]
+                .get("current_authority_reads")
+                == 0
+                and validation[key]["restart_load_access_audit"]
+                .get("latest_resolution_reads")
+                == 0
+                and validation[key]["restart_load_access_audit"]
+                .get("unauthorized_reads")
+                == 0
                 for key in ("initial", "final")
             )
         )
@@ -552,6 +566,7 @@ def _protocol_gate(
     execution_contract: Mapping[str, Any],
 ) -> dict[str, Any]:
     learner_count = len(roles)
+    expected_learner_ids = {str(item["learner_id"]) for item in roles}
     updates = syncer["updates"]
     per_fragment: dict[int, list[int]] = {}
     selections_pass = True
@@ -563,7 +578,9 @@ def _protocol_gate(
         transitions_pass &= int(item["to_version"]) == int(item["from_version"]) + 1
         selections_pass &= (
             len(item["selected_learners"]) == learner_count
-            and len(set(item["selected_learners"])) == learner_count
+            and set(item["selected_learners"]) == expected_learner_ids
+            and len(item["weights"]) == learner_count
+            and len(item["proposal_processed_tokens"]) == learner_count
             and all(int(value) == 0 for value in item["staleness"])
             and math.isclose(
                 sum(float(value) for value in item["weights"]),
@@ -573,8 +590,19 @@ def _protocol_gate(
             )
         )
         accounting = item["byte_accounting"]
+        fragment_bytes = int(accounting["fragment_bytes"])
         byte_pass &= (
             int(accounting["local_payload_reads"]) == learner_count
+            and int(accounting["local_payload_bytes"])
+            == learner_count * fragment_bytes
+            and int(accounting["current_input_bytes"]) == fragment_bytes
+            and int(accounting["retained_base_reads"]) == 0
+            and int(accounting["retained_base_bytes"]) == 0
+            and int(accounting["successor_output_bytes"]) == fragment_bytes
+            and int(item["source_metrics"]["opens"]) == learner_count
+            and int(item["source_metrics"]["bytes_read"])
+            == learner_count * fragment_bytes
+            and int(item["source_metrics"]["active_payloads"]) == 0
             and int(item["source_metrics"]["maximum_active_payloads"]) == 1
             and int(accounting["full_model_operations"]) == 0
         )
@@ -706,7 +734,13 @@ def _protocol_gate(
             steps = int(item["progress"]["local_optimizer_steps"])
             offsets = item["publication"]["schedule"]["offsets"]
             counts = [
-                0 if steps < int(offset) else 1 + (steps - int(offset)) // 50
+                (
+                    steps // 50
+                    if int(offset) == 0
+                    else 0
+                    if steps < int(offset)
+                    else 1 + (steps - int(offset)) // 50
+                )
                 for offset in offsets
             ]
             publication_opportunities.append(

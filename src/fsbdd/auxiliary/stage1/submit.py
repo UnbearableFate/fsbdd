@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import datetime as dt
 import hashlib
 import json
 import os
@@ -43,6 +44,18 @@ def _identity(value: str, field: str) -> str:
     return value
 
 
+def _utc_timestamp(value: str, field: str) -> str:
+    if not isinstance(value, str) or not value.endswith("Z"):
+        raise Stage1SubmissionError(f"{field} must be UTC with a Z suffix")
+    try:
+        parsed = dt.datetime.fromisoformat(value[:-1] + "+00:00")
+    except ValueError as error:
+        raise Stage1SubmissionError(f"invalid {field}") from error
+    if parsed.utcoffset() != dt.timedelta(0):  # pragma: no cover - fixed suffix
+        raise Stage1SubmissionError(f"{field} must be UTC")
+    return value
+
+
 def _marker(
     *,
     shared_root: Path,
@@ -57,8 +70,7 @@ def _marker(
 ) -> dict[str, Any]:
     if not run_id or any(character.isspace() for character in run_id):
         raise Stage1SubmissionError("run_id must be nonempty and contain no whitespace")
-    if not submission_utc.endswith("Z") or "T" not in submission_utc:
-        raise Stage1SubmissionError("submission_utc must be an explicit UTC timestamp")
+    _utc_timestamp(submission_utc, "submission_utc")
     return {
         "schema_version": 1,
         "complete": True,
@@ -80,7 +92,8 @@ def _marker(
 
 def _write_new(path: Path, payload: bytes) -> None:
     with path.open("xb") as stream:
-        stream.write(payload)
+        if stream.write(payload) != len(payload):
+            raise Stage1SubmissionError("submission marker write was incomplete")
         stream.flush()
         os.fsync(stream.fileno())
 
@@ -100,6 +113,8 @@ def prepare_nine_node_roots(
     shared = _canonical_root(shared_root, "shared_root")
     result = _canonical_root(result_root, "result_root")
     evidence = _canonical_root(evidence_root, "evidence_root")
+    if len({shared, result, evidence}) != 3:
+        raise Stage1SubmissionError("shared, result, and evidence roots must differ")
     if len({shared, result, evidence}) != 3:
         raise Stage1SubmissionError("shared, result, and evidence roots must differ")
     for path in (shared, result, evidence):

@@ -148,6 +148,8 @@ def _minimum_maximum(weights: tuple[int, ...], fragment_count: int) -> int:
             segment_bytes = 0
             for start in range(end - 1, fragments_used - 2, -1):
                 segment_bytes += weights[start]
+                if segment_bytes <= 0:
+                    continue
                 if previous[start] == infinity:
                     continue
                 candidate = max(previous[start], segment_bytes)
@@ -179,6 +181,10 @@ def partition_layer_bytes(
         raise FragmentMapError(
             "fragment mapping requires positive total synchronization bytes"
         )
+    if sum(weight > 0 for weight in weights) < fragment_count:
+        raise FragmentMapError(
+            "fragment mapping cannot form the requested positive-byte fragments"
+        )
     maximum = _minimum_maximum(weights, fragment_count)
 
     # With the minimax cap frozen, the remaining objective is additive. Each
@@ -199,7 +205,7 @@ def partition_layer_bytes(
                 if previous is None:
                     continue
                 segment_bytes = prefix[end] - prefix[start]
-                if segment_bytes > maximum:
+                if segment_bytes <= 0 or segment_bytes > maximum:
                     continue
                 deviation = previous[0] + abs(
                     fragment_count * segment_bytes - total_bytes
@@ -220,6 +226,8 @@ def partition_layer_bytes(
 
 
 def _validate_registry(registry: LogicalLayerRegistry) -> None:
+    if not isinstance(registry, LogicalLayerRegistry):
+        raise FragmentMapError("registry must be a LogicalLayerRegistry")
     if registry.digest != canonical_digest(registry._body()):
         raise FragmentMapError("logical-layer registry digest mismatch")
     if (
@@ -385,6 +393,8 @@ def build_fragment_map(
 def validate_fragment_map(
     fragment_map: FragmentMap, registry: LogicalLayerRegistry
 ) -> None:
+    if not isinstance(fragment_map, FragmentMap):
+        raise FragmentMapError("fragment_map must be a FragmentMap")
     _validate_registry(registry)
     if fragment_map.schema_version != 1:
         raise FragmentMapError("unsupported fragment map schema_version")
@@ -450,6 +460,8 @@ def validate_fragment_map(
             raise FragmentMapError("fragment parameter count mismatch")
         if fragment.sync_bytes != sum(layer.sync_bytes for layer in selected):
             raise FragmentMapError("fragment synchronization byte count mismatch")
+        if fragment.sync_bytes <= 0:
+            raise FragmentMapError("every fragment must own positive synchronization bytes")
         parameter_identities.extend(fragment.parameter_identities)
         expected_start = fragment.end_layer_exclusive
     if expected_start != fragment_map.layer_count:

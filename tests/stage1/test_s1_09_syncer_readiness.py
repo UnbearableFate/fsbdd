@@ -531,6 +531,22 @@ def test_poll_store_reads_exact_fixed_slots_independent_of_history(
     assert machine.snapshot().fixed_slot_reads == 12
 
 
+def test_poll_store_rejects_same_payload_record_rewrite(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    machine, store, authorities, _ = _system(
+        tmp_path, learner_count=1, fragment_count=1, q=1
+    )
+    store.publish(_proposal(store, authorities, 0, 0))
+    machine.poll_store(observed_ns=0)
+    original = store.peek_latest_record("learner-00", 0)
+    rewritten = dataclasses.replace(original, version=original.version + 1)
+    monkeypatch.setattr(store, "peek_latest_record", lambda *_args, **_kwargs: rewritten)
+
+    with pytest.raises(ReadinessError, match="base version regressed|same sequence"):
+        machine.poll_store(observed_ns=1)
+
+
 def test_transiently_unavailable_slot_is_retried_without_stopping_polling(
     tmp_path: Path,
 ) -> None:

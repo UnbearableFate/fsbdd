@@ -294,6 +294,8 @@ def load_learner_profile(path: Path) -> FrozenLearnerProfile:
         "precision",
     ):
         _text(training[key], f"training.{key}")
+    if training["precision"] not in {"fp32", "bf16"}:
+        raise LearnerAssetError("training.precision must be fp32 or bf16")
     learner_index = _integer(training["learner_index"], "training.learner_index")
     if learner_index >= shard_count:
         raise LearnerAssetError(
@@ -324,8 +326,14 @@ def load_learner_profile(path: Path) -> FrozenLearnerProfile:
     )
     if optimizer["class"] != "AdamW":
         raise LearnerAssetError("training optimizer must be AdamW")
-    for key in ("lr", "eps", "weight_decay", "grad_clip_norm"):
-        _number(optimizer[key], f"training.optimizer.{key}", minimum=0.0)
+    for key in ("lr", "eps", "grad_clip_norm"):
+        if _number(optimizer[key], f"training.optimizer.{key}", minimum=0.0) <= 0:
+            raise LearnerAssetError(f"training.optimizer.{key} must be positive")
+    _number(
+        optimizer["weight_decay"],
+        "training.optimizer.weight_decay",
+        minimum=0.0,
+    )
     betas = optimizer["betas"]
     if (
         not isinstance(betas, list)
@@ -450,6 +458,24 @@ def _expected_split(profile: FrozenLearnerProfile, split: str) -> dict[str, Any]
     return _thaw(expected[split])
 
 
+def _validated_token_rows(value: object, count: int) -> list[list[int] | tuple[int, ...]]:
+    if (
+        not isinstance(value, list)
+        or len(value) != count
+        or any(
+            not isinstance(row, (list, tuple))
+            or any(
+                not isinstance(token, int) or isinstance(token, bool) for token in row
+            )
+            for row in value
+        )
+    ):
+        raise LearnerAssetError(
+            "tokenizer input_ids must be one integer row per text"
+        )
+    return value
+
+
 def materialize_packed_shards(
     profile: FrozenLearnerProfile,
     hub_cache: Path,
@@ -547,19 +573,30 @@ def materialize_packed_shards(
                             "dataset text field must contain strings"
                         )
                 nonempty_texts = [text for text in texts if text != ""]
-                encoded_rows = (
-                    tokenizer(
+                if not nonempty_texts:
+                    encoded_rows: list[list[int] | tuple[int, ...]] = []
+                elif callable(tokenizer):
+                    encoded_value = tokenizer(
                         nonempty_texts,
                         add_special_tokens=False,
                         return_attention_mask=False,
                         return_token_type_ids=False,
-                    )["input_ids"]
-                    if callable(tokenizer)
-                    else [
-                        tokenizer.encode(text, add_special_tokens=False)
-                        for text in nonempty_texts
-                    ]
-                )
+                    )
+                    if not isinstance(encoded_value, Mapping):
+                        raise LearnerAssetError(
+                            "tokenizer batch output must be a mapping"
+                        )
+                    encoded_rows = _validated_token_rows(
+                        encoded_value.get("input_ids"), len(nonempty_texts)
+                    )
+                else:
+                    encoded_rows = _validated_token_rows(
+                        [
+                            tokenizer.encode(text, add_special_tokens=False)
+                            for text in nonempty_texts
+                        ],
+                        len(nonempty_texts),
+                    )
                 encoded_index = 0
                 for text in texts:
                     total_rows += 1
@@ -583,7 +620,10 @@ def materialize_packed_shards(
                         pending_start += sequence_length
                         block_bytes = np.asarray(block, dtype="<u4").tobytes()
                         shard = packed_blocks % shard_count
-                        streams[shard].write(block_bytes)
+                        if streams[shard].write(block_bytes) != len(block_bytes):
+                            raise LearnerAssetError(
+                                "packed shard accepted a partial block write"
+                            )
                         shard_hashes[shard].update(block_bytes)
                         shard_blocks[shard] += 1
                         packed_blocks += 1
@@ -705,7 +745,16 @@ def materialize_packed_shards(
 def validate_materialized_shards(
     profile: FrozenLearnerProfile,
     root: Path,
+    *,
+    required_shard_index: int | None = None,
 ) -> dict[str, Any]:
+    """Validate immutable metadata and required shard payloads.
+
+    Asset preparation calls the default full validation.  A learner startup
+    supplies its own shard index so N independent learners do not each hash the
+    complete multi-gigabyte shard set they never read.
+    """
+
     try:
         manifest = json.loads((root / "manifest.json").read_text(encoding="utf-8"))
         marker = json.loads((root / "complete.json").read_text(encoding="utf-8"))
@@ -720,26 +769,174 @@ def validate_materialized_shards(
         "manifest_sha256": _hash_file(root / "manifest.json"),
     }:
         raise LearnerAssetError("materialized dataset completion marker mismatch")
+    fields = {
+        "schema_version",
+        "status",
+        "profile_id",
+        "profile_digest",
+        "split",
+        "mode",
+        "token_dtype",
+        "sequence_length",
+        "source_files",
+        "source_rows_consumed",
+        "nonempty_rows_consumed",
+        "tokens_before_drop",
+        "token_stream_sha256",
+        "packed_blocks",
+        "remainder_tokens",
+        "shards",
+    }
+    manifest = _strict(manifest, "materialized dataset manifest", fields)
     if (
-        manifest.get("status") != "complete"
-        or manifest.get("profile_digest") != profile.digest
+        manifest["schema_version"] != 1
+        or manifest["status"] != "complete"
+        or manifest["profile_id"] != profile.profile_id
+        or manifest["profile_digest"] != profile.digest
     ):
         raise LearnerAssetError("materialized dataset profile identity mismatch")
+    split = _text(manifest["split"], "materialized split")
+    if manifest["mode"] not in {
+        "complete_split",
+        "smoke_prefix",
+        "long_run_prefix",
+    }:
+        raise LearnerAssetError("materialized dataset mode is unsupported")
+    if manifest["token_dtype"] != "uint32-le":
+        raise LearnerAssetError("materialized token dtype must be uint32-le")
     sequence_length = int(profile.dataset["sequence_length"])
-    for row in manifest.get("shards", []):
-        path = root / _relative_path(row.get("path"), "materialized shard path")
-        expected_bytes = _integer(
-            row.get("bytes"), "materialized shard bytes", minimum=1
+    if _integer(
+        manifest["sequence_length"], "materialized sequence_length", minimum=2
+    ) != sequence_length:
+        raise LearnerAssetError("materialized sequence length differs from profile")
+    source_files = manifest["source_files"]
+    if not isinstance(source_files, list) or not source_files:
+        raise LearnerAssetError("materialized source_files must be a non-empty list")
+    seen_sources: set[str] = set()
+    for index, value in enumerate(source_files):
+        row = _strict(
+            value,
+            f"materialized source_files[{index}]",
+            {"split", "path", "bytes", "sha256"},
         )
-        if (
-            expected_bytes
-            != row.get("blocks") * sequence_length * np.dtype("<u4").itemsize
-        ):
+        if _text(row["split"], f"materialized source_files[{index}].split") != split:
+            raise LearnerAssetError("materialized source split differs")
+        source_path = _relative_path(
+            row["path"], f"materialized source_files[{index}].path"
+        )
+        if source_path in seen_sources:
+            raise LearnerAssetError("materialized source path is duplicated")
+        seen_sources.add(source_path)
+        _integer(row["bytes"], f"materialized source_files[{index}].bytes", minimum=1)
+        _sha256(row["sha256"], f"materialized source_files[{index}].sha256")
+
+    source_rows = _integer(
+        manifest["source_rows_consumed"], "materialized source_rows_consumed"
+    )
+    nonempty_rows = _integer(
+        manifest["nonempty_rows_consumed"], "materialized nonempty_rows_consumed"
+    )
+    if nonempty_rows > source_rows:
+        raise LearnerAssetError("materialized nonempty rows exceed source rows")
+    tokens_before_drop = _integer(
+        manifest["tokens_before_drop"], "materialized tokens_before_drop", minimum=1
+    )
+    packed_blocks = _integer(
+        manifest["packed_blocks"], "materialized packed_blocks", minimum=1
+    )
+    remainder_tokens = _integer(
+        manifest["remainder_tokens"], "materialized remainder_tokens"
+    )
+    if remainder_tokens >= sequence_length:
+        raise LearnerAssetError("materialized remainder exceeds one packed block")
+    if tokens_before_drop != packed_blocks * sequence_length + remainder_tokens:
+        raise LearnerAssetError("materialized token accounting does not reconcile")
+    _sha256(manifest["token_stream_sha256"], "materialized token_stream_sha256")
+
+    shards = manifest["shards"]
+    shard_count = int(profile.dataset["shard_count"])
+    if required_shard_index is not None and (
+        not isinstance(required_shard_index, int)
+        or isinstance(required_shard_index, bool)
+        or not 0 <= required_shard_index < shard_count
+    ):
+        raise LearnerAssetError("required_shard_index is outside the shard set")
+    if not isinstance(shards, list) or len(shards) != shard_count:
+        raise LearnerAssetError(
+            "materialized shard set must match the frozen shard count"
+        )
+    total_blocks = 0
+    for index, value in enumerate(shards):
+        row = _strict(
+            value,
+            f"materialized shards[{index}]",
+            {"learner_index", "path", "blocks", "tokens", "bytes", "sha256"},
+        )
+        if _integer(row["learner_index"], "materialized learner_index") != index:
+            raise LearnerAssetError("materialized shard learner indices are not ordered")
+        relative_path = _relative_path(row["path"], "materialized shard path")
+        if relative_path != f"shard-{index:03d}.uint32le.bin":
+            raise LearnerAssetError("materialized shard path is not canonical")
+        path = root / relative_path
+        blocks = _integer(row["blocks"], "materialized shard blocks", minimum=1)
+        tokens = _integer(row["tokens"], "materialized shard tokens", minimum=1)
+        expected_bytes = _integer(row["bytes"], "materialized shard bytes", minimum=1)
+        if tokens != blocks * sequence_length:
+            raise LearnerAssetError("materialized shard token count disagrees")
+        if expected_bytes != tokens * np.dtype("<u4").itemsize:
             raise LearnerAssetError("materialized shard shape and byte count disagree")
         if not path.is_file() or path.stat().st_size != expected_bytes:
             raise LearnerAssetError(
                 f"materialized shard is missing or truncated: {path}"
             )
-        if _hash_file(path) != _sha256(row.get("sha256"), "materialized shard sha256"):
+        expected_sha256 = _sha256(row["sha256"], "materialized shard sha256")
+        if (
+            required_shard_index is None or index == required_shard_index
+        ) and _hash_file(path) != expected_sha256:
             raise LearnerAssetError(f"materialized shard checksum mismatch: {path}")
+        total_blocks += blocks
+    if total_blocks != packed_blocks:
+        raise LearnerAssetError("materialized shard blocks do not sum to packed_blocks")
+    expected_distribution = [
+        packed_blocks // shard_count + int(index < packed_blocks % shard_count)
+        for index in range(shard_count)
+    ]
+    if [int(row["blocks"]) for row in shards] != expected_distribution:
+        raise LearnerAssetError(
+            "materialized shards differ from block-index modulo distribution"
+        )
+
+    expected = _expected_split(profile, split)
+    if expected is not None:
+        observed = {
+            "source_rows": source_rows,
+            "nonempty_rows": nonempty_rows,
+            "tokens_before_drop": tokens_before_drop,
+            "packed_blocks": packed_blocks,
+            "remainder_tokens": remainder_tokens,
+        }
+        for key, observed_value in observed.items():
+            if expected.get(key) != observed_value:
+                raise LearnerAssetError(
+                    f"materialized expected split differs for {key}"
+                )
+        expected_counts = expected.get("shard_block_counts")
+        if expected_counts is not None and expected_counts != [
+            row["blocks"] for row in shards
+        ]:
+            raise LearnerAssetError("materialized expected shard counts differ")
+
+    smoke = profile.dataset.get("smoke")
+    if manifest["mode"] == "smoke_prefix":
+        if not isinstance(smoke, Mapping):
+            raise LearnerAssetError("smoke materialization has no profile contract")
+        minimum = int(smoke["minimum_blocks_per_shard"])
+        if min(int(row["blocks"]) for row in shards) < minimum:
+            raise LearnerAssetError("materialized smoke shard is below its minimum")
+    long_run = profile.dataset.get("long_run")
+    if manifest["mode"] == "long_run_prefix":
+        if not isinstance(long_run, Mapping):
+            raise LearnerAssetError("long-run materialization has no profile contract")
+        if packed_blocks < int(long_run["minimum_packed_blocks"]):
+            raise LearnerAssetError("materialized long run is below its token budget")
     return manifest

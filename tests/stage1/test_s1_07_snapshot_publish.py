@@ -31,6 +31,7 @@ from fsbdd.diloco.learner.publication import (  # noqa: E402
     FragmentSnapshot,
     FragmentSnapshotCoordinator,
     SnapshotPublishError,
+    StagedFragmentSnapshot,
     build_fragment_descriptors,
     build_fragment_parameter_groups,
     serialize_fragment_parameters,
@@ -152,6 +153,27 @@ def _proposal(
 def _snapshot(proposal: Proposal) -> FragmentSnapshot:
     return FragmentSnapshot(
         proposal=proposal,
+        safe_boundary_monotonic_ns=1,
+        staging_started_monotonic_ns=2,
+        staging_completed_monotonic_ns=3,
+        gpu_to_cpu_seconds=1e-9,
+    )
+
+
+def _staged_snapshot(
+    descriptor: FragmentStateDescriptor, sequence: int, marker: bytes
+) -> StagedFragmentSnapshot:
+    return StagedFragmentSnapshot(
+        identities=IDENTITIES,
+        learner_id="learner-00",
+        descriptor=descriptor,
+        sequence=sequence,
+        base_version=0,
+        base_content_identity=_base(0, descriptor.index).content_identity,
+        local_steps=sequence,
+        processed_tokens=sequence * 10,
+        snapshot_local_step=sequence,
+        parameters=marker * (descriptor.shape[0] * 4),
         safe_boundary_monotonic_ns=1,
         staging_started_monotonic_ns=2,
         staging_completed_monotonic_ns=3,
@@ -304,6 +326,49 @@ def test_many_publications_keep_constant_resident_state(tmp_path: Path) -> None:
     publisher.close()
 
 
+def test_replaced_staged_snapshot_is_discarded_without_caller_side_hashing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    descriptor = _descriptor(0, 4)
+    entered = threading.Event()
+    release = threading.Event()
+    materialized: list[tuple[int, str]] = []
+    traces: list[dict] = []
+    original_create = Proposal.create.__func__
+
+    def tracked_create(cls, **kwargs):
+        materialized.append((int(kwargs["sequence"]), threading.current_thread().name))
+        return original_create(cls, **kwargs)
+
+    def block_first(proposal: Proposal) -> None:
+        if proposal.sequence == 1:
+            entered.set()
+            assert release.wait(5)
+
+    monkeypatch.setattr(Proposal, "create", classmethod(tracked_create))
+    publisher = BoundedProposalPublisher(
+        _store(tmp_path, (descriptor,)),
+        learner_id="learner-00",
+        before_publish=block_first,
+        trace_sink=traces.append,
+    )
+    caller = threading.current_thread().name
+    publisher.submit(_staged_snapshot(descriptor, 1, b"a"))
+    assert entered.wait(5)
+    publisher.submit(_staged_snapshot(descriptor, 2, b"b"))
+    publisher.submit(_staged_snapshot(descriptor, 3, b"c"))
+    replaced = next(item for item in traces if item["sequence"] == 2)
+    assert replaced["outcome"] == "replaced_before_publish"
+    assert replaced["parameters_sha256"] is None
+    assert replaced["proposal_content_identity"] is None
+    assert all(sequence != 2 for sequence, _thread in materialized)
+    assert all(thread != caller for _sequence, thread in materialized)
+    release.set()
+    publisher.drain()
+    assert [sequence for sequence, _thread in materialized] == [1, 3]
+    publisher.close()
+
+
 def test_inflight_old_base_and_pending_new_base_coexist_immutably(
     tmp_path: Path,
 ) -> None:
@@ -443,6 +508,77 @@ def test_snapshot_payload_stays_bytewise_immutable_during_later_mutation(
     assert published.parameters == expected
     assert published.parameters_sha256 == hashlib.sha256(expected).hexdigest()
     coordinator.close()
+
+
+def test_coordinator_materializes_proposal_identity_in_publisher_worker(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    parameter = torch.nn.Parameter(torch.arange(8, dtype=torch.float32))
+    descriptor = _descriptor(0, parameter.numel())
+    progress = LearnerProgress.initialize("learner-00", (0,))
+    caller_thread = threading.current_thread().name
+    materialization_threads: list[str] = []
+    original_create = Proposal.create.__func__
+
+    def tracked_create(cls, **kwargs):
+        materialization_threads.append(threading.current_thread().name)
+        return original_create(cls, **kwargs)
+
+    monkeypatch.setattr(Proposal, "create", classmethod(tracked_create))
+    coordinator = FragmentSnapshotCoordinator(
+        identities=IDENTITIES,
+        progress=progress,
+        descriptors=(descriptor,),
+        fragment_parameters=((parameter,),),
+        adopted_bases=(_base(0),),
+        schedule=FragmentPublicationSchedule.unified((parameter.numel() * 4,), 1),
+        store=_store(tmp_path, (descriptor,)),
+    )
+    _advance(progress)
+    coordinator.on_safe_boundary(_event(progress))
+    coordinator.drain()
+    assert materialization_threads
+    assert caller_thread not in materialization_threads
+    terminal = coordinator.summary()["publication"]["latest_terminal_per_fragment"][0]
+    assert terminal["proposal_materialization_seconds"] is not None
+    assert len(terminal["parameters_sha256"]) == 64
+    assert len(terminal["proposal_content_identity"]) == 64
+    coordinator.close()
+
+
+def test_background_proposal_materialization_failure_surfaces(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    parameter = torch.nn.Parameter(torch.arange(4, dtype=torch.float32))
+    descriptor = _descriptor(0, parameter.numel())
+    progress = LearnerProgress.initialize("learner-00", (0,))
+
+    def fail_create(cls, **kwargs):
+        raise OSError("injected identity materialization failure")
+
+    monkeypatch.setattr(Proposal, "create", classmethod(fail_create))
+    coordinator = FragmentSnapshotCoordinator(
+        identities=IDENTITIES,
+        progress=progress,
+        descriptors=(descriptor,),
+        fragment_parameters=((parameter,),),
+        adopted_bases=(_base(0),),
+        schedule=FragmentPublicationSchedule.unified((parameter.numel() * 4,), 1),
+        store=_store(tmp_path, (descriptor,)),
+    )
+    _advance(progress)
+    coordinator.on_safe_boundary(_event(progress))
+    with pytest.raises(
+        SnapshotPublishError, match="injected identity materialization failure"
+    ):
+        coordinator.drain()
+    terminal = coordinator.summary()["publication"]["latest_terminal_per_fragment"][0]
+    assert terminal["outcome"] == "failed"
+    assert terminal["publication_started_monotonic_ns"] is None
+    with pytest.raises(
+        SnapshotPublishError, match="injected identity materialization failure"
+    ):
+        coordinator.close()
 
 
 def test_background_failure_clears_slots_abandons_pending_and_surfaces(

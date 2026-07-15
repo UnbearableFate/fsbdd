@@ -25,6 +25,11 @@ from fsbdd.diloco.model.learner_assets import (
     materialize_packed_shards,
     verify_profile_assets,
 )
+from fsbdd.diloco.model.huggingface import (
+    build_frozen_adamw,
+    load_frozen_causal_lm,
+    model_parameter_digest,
+)
 from fsbdd.diloco.common.logging import StructuredLogger
 from fsbdd.auxiliary.contracts.manifest import build_manifest
 from fsbdd.diloco.model.model_registry import build_logical_layer_registry
@@ -63,21 +68,6 @@ def profile_set_digest(profiles: Sequence[FrozenLearnerProfile]) -> str:
             for profile in sorted(profiles, key=lambda item: item.profile_id)
         }
     )
-
-
-def _parameter_digest(model: Any) -> str:
-    digest = hashlib.sha256()
-    for name, parameter in sorted(model.named_parameters(), key=lambda item: item[0]):
-        value = parameter.detach().float().cpu().contiguous()
-        header = json.dumps(
-            {"name": name, "shape": list(value.shape), "dtype": str(value.dtype)},
-            sort_keys=True,
-            separators=(",", ":"),
-        ).encode("utf-8")
-        digest.update(len(header).to_bytes(8, "big"))
-        digest.update(header)
-        digest.update(value.numpy().tobytes(order="C"))
-    return digest.hexdigest()
 
 
 def _fragment_parameter_groups(
@@ -122,44 +112,6 @@ def _offline_environment() -> dict[str, str]:
     return result
 
 
-def _load_real_model(
-    profile: FrozenLearnerProfile, inventory: Mapping[str, Any], device: Any
-) -> Any:
-    import torch
-    from transformers import AutoModelForCausalLM
-    from transformers.utils import logging as transformers_logging
-
-    transformers_logging.disable_progress_bar()
-    model = AutoModelForCausalLM.from_pretrained(
-        inventory["model_root"],
-        local_files_only=True,
-        attn_implementation=str(profile.model["attention_implementation"]),
-        dtype=torch.float32,
-    )
-    model.config.use_cache = bool(profile.model["use_cache"])
-    model.loss_type = "ForCausalLM"
-    model.to(device)
-    count = sum(parameter.numel() for parameter in model.parameters())
-    if count != int(profile.model["expected_parameter_count"]):
-        raise LearnerSmokeError(
-            f"model parameter count mismatch: expected {profile.model['expected_parameter_count']}, observed {count}"
-        )
-    return model
-
-
-def _optimizer(profile: FrozenLearnerProfile, model: Any) -> Any:
-    import torch
-
-    spec = profile.training["optimizer"]
-    return torch.optim.AdamW(
-        model.parameters(),
-        lr=float(spec["lr"]),
-        betas=tuple(float(value) for value in spec["betas"]),
-        eps=float(spec["eps"]),
-        weight_decay=float(spec["weight_decay"]),
-    )
-
-
 def _optimizer_state_dtypes(optimizer: Any) -> tuple[str, ...]:
     import torch
 
@@ -198,12 +150,12 @@ def run_real_profile(
     torch.cuda.manual_seed_all(int(profile.training["seed"]))
     torch.use_deterministic_algorithms(True)
     torch.backends.cuda.matmul.allow_tf32 = False
-    model = _load_real_model(profile, inventory, device)
+    model = load_frozen_causal_lm(profile, inventory, device)
     fragment_count = int(profile.training["fragment_count"])
     registry = _registry_summary(model, fragment_count)
     fragment_groups = _fragment_parameter_groups(model, fragment_count)
-    initial_parameter_sha256 = _parameter_digest(model)
-    optimizer = _optimizer(profile, model)
+    initial_parameter_sha256 = model_parameter_digest(model)
+    optimizer = build_frozen_adamw(profile, model)
     scheduler = ConstantStepScheduler()
     progress = LearnerProgress.initialize(
         str(profile.training["learner_id"]),
@@ -241,7 +193,7 @@ def run_real_profile(
         _batch_iterator(shard, int(profile.training["batch_size"])),
         optimizer_steps=int(profile.training["optimizer_steps"]),
     )
-    final_parameter_sha256 = _parameter_digest(model)
+    final_parameter_sha256 = model_parameter_digest(model)
     if final_parameter_sha256 == initial_parameter_sha256:
         raise LearnerSmokeError("real learner run did not change its parameter digest")
     state_dtypes = _optimizer_state_dtypes(optimizer)
@@ -336,7 +288,7 @@ def run_tiny(
     torch.use_deterministic_algorithms(True)
     if device.type == "cuda":
         torch.backends.cuda.matmul.allow_tf32 = False
-    model = GPTNeoXForCausalLM(
+    model: Any = GPTNeoXForCausalLM(
         GPTNeoXConfig(
             vocab_size=128,
             hidden_size=32,
@@ -346,10 +298,11 @@ def run_tiny(
             max_position_embeddings=32,
             use_cache=False,
         )
-    ).to(device)
+    )
+    model.to(device)
     fragment_count = 2
     groups = _fragment_parameter_groups(model, fragment_count)
-    before = _parameter_digest(model)
+    before = model_parameter_digest(model)
     optimizer = torch.optim.AdamW(model.parameters(), lr=1e-3)
     scheduler = ConstantStepScheduler()
     progress = LearnerProgress.initialize("tiny-learner", (7, 11))
@@ -374,7 +327,7 @@ def run_tiny(
         logger=StructuredLogger(log_path, role="learner", run_id="s1-06-tiny"),
     )
     run = runtime.run(_tiny_batches(torch, microbatches=20), optimizer_steps=10)
-    after = _parameter_digest(model)
+    after = model_parameter_digest(model)
     if before == after:
         raise LearnerSmokeError("tiny run did not change model parameters")
     result = {

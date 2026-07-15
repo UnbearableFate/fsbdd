@@ -379,6 +379,12 @@ def run_role(
         _write_json_new(result_root / "proposal_writer.json", result)
         return result
 
+    if not isinstance(profile_backend, CountingStorageBackend) or not isinstance(
+        grace_backend, CountingStorageBackend
+    ):
+        raise ReadinessStressError(
+            "syncer role requires counting storage instrumentation"
+        )
     profile_states = profile_global.bootstrap(profile_initial).snapshot.states
     grace_states = grace_global.bootstrap(grace_initial).snapshot.states
     _replace_json(coordination / "authority-ready.json", {"complete": True})

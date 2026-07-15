@@ -10,6 +10,7 @@ import pytest
 
 from fsbdd.cli import main
 from fsbdd.diloco.protocol.global_state import (
+    BaseSnapshot,
     BootstrapFragment,
     BootstrapInterrupted,
     CountingStorageBackend,
@@ -99,6 +100,18 @@ def test_bootstrap_publishes_one_compound_current_record_per_fragment(
         f"global-current-{index:06d}.json" for index in range(4)
     ]
     assert not (tmp_path / "visibility" / "global-head.json").exists()
+
+
+def test_public_base_snapshot_constructor_validates_its_own_payload() -> None:
+    payload = b"base-payload"
+    snapshot = BaseSnapshot(
+        version=3,
+        parameters=payload,
+        parameters_sha256=hashlib.sha256(payload).hexdigest(),
+    )
+    assert snapshot.version == 3
+    with pytest.raises(GlobalStateError, match="checksum mismatch"):
+        dataclasses.replace(snapshot, parameters_sha256="f" * 64)
 
 
 def test_partial_bootstrap_fails_as_a_snapshot_and_resumes_idempotently(
@@ -240,7 +253,13 @@ def test_binary_compound_codec_rejects_trailing_bytes_and_is_frozen(
     initial = fragments(1)
     store, _ = store_at(tmp_path, initial=initial)
     state = store.bootstrap(initial).snapshot.states[0]
-    assert decode_global_state(encode_global_state(state)) == state
+    encoded = encode_global_state(state)
+    decoded = decode_global_state(encoded)
+    assert decoded == state
+    header_bytes = int.from_bytes(encoded[8:16], "big")
+    body = encoded[16 + header_bytes :]
+    assert len(body) == len(state.parameters) + len(state.outer_state)
+    assert decoded.parameters is decoded.base_history[-1].parameters
     with pytest.raises(GlobalStateError, match="trailing"):
         decode_global_state(encode_global_state(state) + b"junk")
     with pytest.raises(dataclasses.FrozenInstanceError):

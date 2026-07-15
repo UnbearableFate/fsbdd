@@ -15,7 +15,7 @@ from fsbdd.diloco.common.identity import canonical_digest
 from fsbdd.diloco.learner.runtime import LearnerProgress, SafeBoundaryEvent
 from fsbdd.diloco.learner.publication import fragment_payload_sha256
 from fsbdd.diloco.common.logging import StructuredLogger
-from fsbdd.diloco.protocol.storage import PublicationNotReady
+from fsbdd.diloco.protocol.storage import PublicationNotReady, PublicationRecord
 
 
 class AdoptionError(RuntimeError):
@@ -124,6 +124,7 @@ def optimizer_fragment_state_entry_count(
 @dataclasses.dataclass(frozen=True, slots=True)
 class PendingFragmentAdoption:
     state: FragmentGlobalState
+    record: PublicationRecord
     discovered_completed_step: int
     fetch_started_monotonic_ns: int
     fetch_completed_monotonic_ns: int
@@ -133,6 +134,23 @@ class PendingFragmentAdoption:
     def __post_init__(self) -> None:
         if not isinstance(self.state, FragmentGlobalState):
             raise AdoptionError("pending adoption requires FragmentGlobalState")
+        if not isinstance(self.record, PublicationRecord):
+            raise AdoptionError("pending adoption requires PublicationRecord")
+        expected_record_values = {
+            "run_identity": self.state.identities.run_identity,
+            "fragment_map_identity": self.state.identities.fragment_map_identity,
+            "fragment_identity": self.state.descriptor.identity,
+            "version": self.state.version,
+            "sequence": self.state.version,
+            "dtype": self.state.descriptor.dtype,
+            "shape": self.state.descriptor.shape,
+            "base_content_identity": self.state.base_content_identity,
+        }
+        if any(
+            getattr(self.record, field) != expected
+            for field, expected in expected_record_values.items()
+        ):
+            raise AdoptionError("pending adoption record differs from global state")
         for name in (
             "discovered_completed_step",
             "fetch_started_monotonic_ns",
@@ -149,13 +167,18 @@ class PendingFragmentAdoption:
         ):
             raise AdoptionError("fs_to_cpu_seconds must be finite and non-negative")
 
+    @property
+    def record_payload_identity(self) -> str:
+        return self.record.payload_identity
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "fragment_index": self.state.descriptor.index,
             "fragment_identity": self.state.descriptor.identity,
             "version": self.state.version,
             "content_identity": self.state.content_identity,
-            "parameters_sha256": hashlib.sha256(self.state.parameters).hexdigest(),
+            "record_payload_identity": self.record_payload_identity,
+            "parameters_sha256": self.state.base_history[-1].parameters_sha256,
             "discovered_completed_step": self.discovered_completed_step,
             "fetch_started_monotonic_ns": self.fetch_started_monotonic_ns,
             "fetch_completed_monotonic_ns": self.fetch_completed_monotonic_ns,
@@ -203,6 +226,8 @@ class LatestFragmentPoller:
             raise AdoptionError("completed_step must be callable")
         if trace_sink is not None and not callable(trace_sink):
             raise AdoptionError("trace_sink must be callable")
+        if not callable(clock_ns) or not callable(wall_clock_ns):
+            raise AdoptionError("poller clocks must be callable")
         self.store = store
         self.completed_step = completed_step
         self.poll_interval_seconds = _positive_float(
@@ -219,6 +244,7 @@ class LatestFragmentPoller:
         self._adopted_content_identities = list(contents)
         self._highest_observed_versions = list(versions)
         self._highest_observed_content_identities = list(contents)
+        self._highest_records: list[PublicationRecord | None] = [None for _ in versions]
         self._pending: list[PendingFragmentAdoption | None] = [None for _ in versions]
         self._maximum_pending = [0 for _ in versions]
         self._poll_cycles = 0
@@ -272,6 +298,16 @@ class LatestFragmentPoller:
                     f"global current content changed at version {state.version} "
                     f"for fragment {index}"
                 )
+            highest_record = self._highest_records[index]
+            if (
+                state.version == highest
+                and highest_record is not None
+                and observation.record != highest_record
+            ):
+                raise AdoptionError(
+                    f"global current record changed at version {state.version} "
+                    f"for fragment {index}"
+                )
             current = self._adopted_versions[index]
             pending = self._pending[index]
             if state.version <= current:
@@ -300,6 +336,7 @@ class LatestFragmentPoller:
                 self._pending_replacement_count += 1
             self._highest_observed_versions[index] = state.version
             self._highest_observed_content_identities[index] = state.content_identity
+            self._highest_records[index] = observation.record
             self._pending[index] = observation
             self._maximum_pending[index] = 1
             self._discovery_count += 1
@@ -322,6 +359,11 @@ class LatestFragmentPoller:
                 try:
                     record = self.store.peek_fragment_record(index, timeout_seconds=0)
                     with self._condition:
+                        highest = self._highest_observed_versions[index]
+                        if record.version < highest:
+                            raise AdoptionError(
+                                "global current visibility version regressed"
+                            )
                         pending = self._pending[index]
                         known_version = max(
                             self._adopted_versions[index],
@@ -329,6 +371,14 @@ class LatestFragmentPoller:
                         )
                     if record.version <= known_version:
                         with self._condition:
+                            known_record = self._highest_records[index]
+                            if record.version == known_version:
+                                if known_record is None:
+                                    self._highest_records[index] = record
+                                elif record != known_record:
+                                    raise AdoptionError(
+                                        "global current record changed at the same version"
+                                    )
                             self._read_count += 1
                             self._unchanged_record_count += 1
                             if record.version == known_version:
@@ -336,7 +386,12 @@ class LatestFragmentPoller:
                             else:
                                 self._ignored_stale_count += 1
                         continue
-                    state = self.store.load_fragment(index, timeout_seconds=0)
+                    if self.store.supports_bound_record_reads:
+                        state = self.store.load_bound_fragment_record(index, record)
+                    else:
+                        state, record = self.store.load_fragment_publication(
+                            index, timeout_seconds=0
+                        )
                 except PublicationNotReady:
                     with self._condition:
                         self._read_count += 1
@@ -346,6 +401,7 @@ class LatestFragmentPoller:
                 step = _nonnegative_int(self.completed_step(), "completed step")
                 observation = PendingFragmentAdoption(
                     state=state,
+                    record=record,
                     discovered_completed_step=step,
                     fetch_started_monotonic_ns=started,
                     fetch_completed_monotonic_ns=completed,
@@ -419,6 +475,11 @@ class LatestFragmentPoller:
                 raise AdoptionError(f"unknown fragment index: {index}") from error
             if value <= current:
                 raise AdoptionError("adopted version must strictly increase")
+            highest = self._highest_observed_versions[index]
+            if value != highest:
+                raise AdoptionError("can only adopt the latest observed fragment version")
+            if content != self._highest_observed_content_identities[index]:
+                raise AdoptionError("adopted content differs from observed content")
             self._adopted_versions[index] = value
             self._adopted_content_identities[index] = content
             pending = self._pending[index]
@@ -437,6 +498,10 @@ class LatestFragmentPoller:
                 "highest_observed_versions": list(self._highest_observed_versions),
                 "highest_observed_content_identities": list(
                     self._highest_observed_content_identities
+                ),
+                "highest_record_payload_identities": list(
+                    None if record is None else record.payload_identity
+                    for record in self._highest_records
                 ),
                 "pending": pending,
                 "pending_count": sum(item is not None for item in self._pending),
@@ -537,6 +602,8 @@ class FragmentAdoptionCoordinator:
             raise AdoptionError("base_context_sink must be callable")
         if trace_sink is not None and not callable(trace_sink):
             raise AdoptionError("trace_sink must be callable")
+        if not callable(clock_ns) or not callable(wall_clock_ns):
+            raise AdoptionError("adoption clocks must be callable")
         self.store = store
         self.progress = progress
         self.initial_states = states
@@ -720,7 +787,7 @@ class FragmentAdoptionCoordinator:
             moment_hashes_after,
             moment_entry_counts_after,
         ) = self._audit_hashes()
-        target_payload_sha256 = hashlib.sha256(state.parameters).hexdigest()
+        target_payload_sha256 = state.base_history[-1].parameters_sha256
         if self.identity_audit:
             if any(
                 before != after
@@ -761,6 +828,7 @@ class FragmentAdoptionCoordinator:
             "fragment_index": index,
             "fragment_identity": state.descriptor.identity,
             "content_identity": state.content_identity,
+            "record_payload_identity": observation.record_payload_identity,
             "from_version": version_before,
             "to_version": state.version,
             "version_jump": jump,

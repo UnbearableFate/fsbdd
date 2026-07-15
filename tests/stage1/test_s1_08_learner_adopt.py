@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import dataclasses
 import hashlib
+import json
 import math
+import shutil
 import threading
 import time
 from pathlib import Path
@@ -316,6 +318,34 @@ def test_wrong_fragment_map_identity_is_rejected_by_fixed_slot_poll(
         autostart=False,
     )
     with pytest.raises(PublicationError, match="fragment_map_identity"):
+        poller.poll_once()
+    poller.close()
+
+
+def test_poller_rejects_same_version_visibility_record_rewrite(
+    tmp_path: Path,
+) -> None:
+    parameter = torch.nn.Parameter(torch.arange(4, dtype=torch.float32))
+    store, initial = _bootstrap(tmp_path / "global", (parameter,))
+    poller = LatestFragmentPoller(
+        store,
+        adopted_versions=(0,),
+        adopted_content_identities=(initial[0].content_identity,),
+        completed_step=lambda: 0,
+        autostart=False,
+    )
+    poller.poll_once()
+    visibility = tmp_path / "global" / "visibility" / "global-current-000000.json"
+    record = json.loads(visibility.read_bytes())
+    source = tmp_path / "global" / record["payload_relative_path"]
+    replacement = tmp_path / "global" / "payloads" / "record-rewrite.bin"
+    shutil.copyfile(source, replacement)
+    record["payload_relative_path"] = "payloads/record-rewrite.bin"
+    visibility.write_text(
+        json.dumps(record, sort_keys=True, separators=(",", ":")) + "\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(AdoptionError, match="record changed at the same version"):
         poller.poll_once()
     poller.close()
 

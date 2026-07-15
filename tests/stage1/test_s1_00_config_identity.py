@@ -1,12 +1,18 @@
 from __future__ import annotations
 
 import json
+import dataclasses
 from pathlib import Path
 
 import pytest
 
 from fsbdd.auxiliary.contracts.config import ConfigError, ProgressSnapshot, load_config
-from fsbdd.diloco.common.identity import canonical_digest, file_digest
+from fsbdd.diloco.common.identity import IdentityError, canonical_digest, file_digest
+
+
+@dataclasses.dataclass
+class _IdentityFixture:
+    value: int
 
 
 def valid_config() -> dict[str, object]:
@@ -78,6 +84,12 @@ def test_identity_mutations_and_canonical_order() -> None:
         changed = json.loads(json.dumps(base))
         changed[section][field] = value
         assert canonical_digest(base) != canonical_digest(changed)
+
+
+def test_identity_accepts_dataclass_instances_but_rejects_dataclass_types() -> None:
+    assert canonical_digest(_IdentityFixture(3)) == canonical_digest({"value": 3})
+    with pytest.raises(IdentityError, match="unsupported canonical identity type"):
+        canonical_digest(_IdentityFixture)
 
 
 def test_progress_dimensions_are_not_collapsed() -> None:

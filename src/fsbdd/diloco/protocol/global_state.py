@@ -8,13 +8,15 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-from fsbdd.diloco.common.identity import canonical_bytes, canonical_digest, file_digest
+from fsbdd.diloco.common.identity import canonical_bytes, canonical_digest
 from fsbdd.diloco.protocol.storage import (
+    BoundRecordStorageBackend,
     PublicationError,
     PublicationNotFound,
     PublicationRecord,
     PublicationSpec,
     PublishedPayload,
+    RecordReadableStorageBackend,
     ReadExpectation,
     StorageBackend,
 )
@@ -28,7 +30,7 @@ class BootstrapInterrupted(GlobalStateError):
     pass
 
 
-_MAGIC = b"FSBDDGS1"
+_MAGIC = b"FSBDDGS2"
 _HEADER_LIMIT = 16 * 1024 * 1024
 _ZERO_IDENTITY = "0" * 64
 _HEX = frozenset("0123456789abcdef")
@@ -123,6 +125,8 @@ class BootstrapFragment:
     outer_state: bytes
 
     def __post_init__(self) -> None:
+        if not isinstance(self.descriptor, FragmentStateDescriptor):
+            raise GlobalStateError("bootstrap descriptor must be FragmentStateDescriptor")
         _require_bytes(self.parameters, "parameters")
         _require_bytes(self.outer_state, "outer_state")
 
@@ -141,6 +145,31 @@ class BaseSnapshot:
             raise GlobalStateError("base parameter checksum mismatch")
 
 
+def _verified_base_snapshot(
+    *, version: int, parameters: bytes, parameters_sha256: str
+) -> BaseSnapshot:
+    """Construct from a checksum already verified at the enclosing boundary."""
+
+    _require_ordinal(version, "base version")
+    _require_bytes(parameters, "base parameters")
+    _require_hex(parameters_sha256, "base parameters_sha256")
+    value = object.__new__(BaseSnapshot)
+    object.__setattr__(value, "version", version)
+    object.__setattr__(value, "parameters", parameters)
+    object.__setattr__(value, "parameters_sha256", parameters_sha256)
+    return value
+
+
+def _new_base_snapshot(*, version: int, parameters: bytes) -> BaseSnapshot:
+    _require_ordinal(version, "base version")
+    payload = _require_bytes(parameters, "base parameters")
+    return _verified_base_snapshot(
+        version=version,
+        parameters=payload,
+        parameters_sha256=hashlib.sha256(payload).hexdigest(),
+    )
+
+
 @dataclasses.dataclass(frozen=True, slots=True)
 class FragmentGlobalState:
     identities: GlobalStateIdentities
@@ -149,16 +178,33 @@ class FragmentGlobalState:
     outer_update_count: int
     parameters: bytes
     outer_state: bytes
+    outer_state_sha256: str
     base_history: tuple[BaseSnapshot, ...]
     base_content_identity: str
     content_identity: str
 
     def __post_init__(self) -> None:
+        self._validate_structure()
+        if hashlib.sha256(self.outer_state).hexdigest() != self.outer_state_sha256:
+            raise GlobalStateError("outer-state checksum mismatch")
+
+    def _validate_structure(self) -> None:
+        if not isinstance(self.identities, GlobalStateIdentities):
+            raise GlobalStateError("state identities must be GlobalStateIdentities")
+        if not isinstance(self.descriptor, FragmentStateDescriptor):
+            raise GlobalStateError("state descriptor must be FragmentStateDescriptor")
         _require_ordinal(self.version, "version")
         _require_ordinal(self.outer_update_count, "outer_update_count")
+        if self.outer_update_count != self.version:
+            raise GlobalStateError("outer_update_count must equal fragment version")
         _require_bytes(self.parameters, "parameters")
         _require_bytes(self.outer_state, "outer_state")
-        if not isinstance(self.base_history, tuple) or not self.base_history:
+        _require_hex(self.outer_state_sha256, "outer_state_sha256")
+        if (
+            not isinstance(self.base_history, tuple)
+            or not self.base_history
+            or any(not isinstance(item, BaseSnapshot) for item in self.base_history)
+        ):
             raise GlobalStateError("base_history must be a non-empty tuple")
         versions = tuple(item.version for item in self.base_history)
         if versions != tuple(range(versions[0], versions[0] + len(versions))):
@@ -177,6 +223,40 @@ class FragmentGlobalState:
                 "only version zero may use the zero base-content identity"
             )
         _require_hex(self.content_identity, "content_identity")
+
+
+def _verified_fragment_state(
+    *,
+    identities: GlobalStateIdentities,
+    descriptor: FragmentStateDescriptor,
+    version: int,
+    outer_update_count: int,
+    parameters: bytes,
+    outer_state: bytes,
+    outer_state_sha256: str,
+    base_history: tuple[BaseSnapshot, ...],
+    base_content_identity: str,
+    content_identity: str,
+) -> FragmentGlobalState:
+    """Construct after section or source checksums were verified once."""
+
+    value = object.__new__(FragmentGlobalState)
+    fields: dict[str, object] = {
+        "identities": identities,
+        "descriptor": descriptor,
+        "version": version,
+        "outer_update_count": outer_update_count,
+        "parameters": parameters,
+        "outer_state": outer_state,
+        "outer_state_sha256": outer_state_sha256,
+        "base_history": base_history,
+        "base_content_identity": base_content_identity,
+        "content_identity": content_identity,
+    }
+    for name, field_value in fields.items():
+        object.__setattr__(value, name, field_value)
+    value._validate_structure()
+    return value
 
 
 @dataclasses.dataclass(frozen=True, slots=True)
@@ -212,12 +292,18 @@ def current_slot(index: int) -> str:
 
 
 def _section(
-    name: str, content: bytes, *, version: int | None = None
+    name: str,
+    content: bytes,
+    *,
+    checksum: str | None = None,
+    version: int | None = None,
 ) -> dict[str, object]:
+    identity = hashlib.sha256(content).hexdigest() if checksum is None else checksum
+    _require_hex(identity, f"{name} checksum")
     result: dict[str, object] = {
         "name": name,
         "bytes": len(content),
-        "sha256": hashlib.sha256(content).hexdigest(),
+        "sha256": identity,
     }
     if version is not None:
         result["version"] = version
@@ -225,22 +311,39 @@ def _section(
 
 
 def _semantic_header(state: FragmentGlobalState) -> dict[str, object]:
+    # The newest retained base is exactly ``parameters`` by invariant.  Encode
+    # it as an explicit alias instead of writing a second full tensor payload.
+    # Only older S_max history entries need independent byte sections.
+    historical_bases = state.base_history[:-1]
     sections = [
-        _section("parameters", state.parameters),
-        _section("outer_state", state.outer_state),
+        _section(
+            "parameters",
+            state.parameters,
+            checksum=state.base_history[-1].parameters_sha256,
+        ),
+        _section("outer_state", state.outer_state, checksum=state.outer_state_sha256),
         *(
-            _section(f"base-{position:06d}", item.parameters, version=item.version)
-            for position, item in enumerate(state.base_history)
+            _section(
+                f"base-{position:06d}",
+                item.parameters,
+                checksum=item.parameters_sha256,
+                version=item.version,
+            )
+            for position, item in enumerate(historical_bases)
         ),
     ]
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "identities": state.identities.to_dict(),
         "fragment": state.descriptor.to_dict(),
         "version": state.version,
         "outer_update_count": state.outer_update_count,
         "base_content_identity": state.base_content_identity,
         "base_versions": [item.version for item in state.base_history],
+        "current_base_alias": {
+            "section": "parameters",
+            "version": state.base_history[-1].version,
+        },
         "sections": sections,
     }
 
@@ -256,20 +359,21 @@ def _make_state(
     base_history: tuple[BaseSnapshot, ...],
     base_content_identity: str,
 ) -> FragmentGlobalState:
-    provisional = FragmentGlobalState(
+    provisional = _verified_fragment_state(
         identities=identities,
         descriptor=descriptor,
         version=version,
         outer_update_count=outer_update_count,
         parameters=parameters,
         outer_state=outer_state,
+        outer_state_sha256=hashlib.sha256(outer_state).hexdigest(),
         base_history=base_history,
         base_content_identity=base_content_identity,
         content_identity=_ZERO_IDENTITY,
     )
-    return dataclasses.replace(
-        provisional, content_identity=canonical_digest(_semantic_header(provisional))
-    )
+    content_identity = canonical_digest(_semantic_header(provisional))
+    object.__setattr__(provisional, "content_identity", content_identity)
+    return provisional
 
 
 def encode_global_state(state: FragmentGlobalState) -> bytes:
@@ -282,12 +386,12 @@ def encode_global_state(state: FragmentGlobalState) -> bytes:
     sections = (
         state.parameters,
         state.outer_state,
-        *(item.parameters for item in state.base_history),
+        *(item.parameters for item in state.base_history[:-1]),
     )
     return _MAGIC + struct.pack(">Q", len(header)) + header + b"".join(sections)
 
 
-def _parse_json_header(payload: bytes) -> tuple[dict[str, Any], bytes]:
+def _parse_json_header(payload: bytes) -> tuple[dict[str, Any], int]:
     if len(payload) < len(_MAGIC) + 8 or payload[: len(_MAGIC)] != _MAGIC:
         raise GlobalStateError("global-state payload magic mismatch")
     header_bytes = struct.unpack(">Q", payload[len(_MAGIC) : len(_MAGIC) + 8])[0]
@@ -301,12 +405,13 @@ def _parse_json_header(payload: bytes) -> tuple[dict[str, Any], bytes]:
         raise GlobalStateError("global-state header is not complete JSON") from error
     if not isinstance(header, dict) or canonical_bytes(header) != raw_header:
         raise GlobalStateError("global-state header is not canonical")
-    return header, payload[start + header_bytes :]
+    return header, start + header_bytes
 
 
 def decode_global_state(payload: bytes) -> FragmentGlobalState:
     _require_bytes(payload, "payload")
-    header, body = _parse_json_header(payload)
+    header, body_start = _parse_json_header(payload)
+    body = memoryview(payload)[body_start:]
     expected_header = {
         "schema_version",
         "identities",
@@ -315,10 +420,11 @@ def decode_global_state(payload: bytes) -> FragmentGlobalState:
         "outer_update_count",
         "base_content_identity",
         "base_versions",
+        "current_base_alias",
         "sections",
         "content_identity",
     }
-    if set(header) != expected_header or header.get("schema_version") != 1:
+    if set(header) != expected_header or header.get("schema_version") != 2:
         raise GlobalStateError("global-state header schema mismatch")
     identities_value = header["identities"]
     fragment_value = header["fragment"]
@@ -362,13 +468,24 @@ def decode_global_state(payload: bytes) -> FragmentGlobalState:
     base_versions = tuple(
         _require_ordinal(item, "base version") for item in base_versions_value
     )
+    if not base_versions:
+        raise GlobalStateError("base_versions must be non-empty")
+    current_base_alias = header["current_base_alias"]
+    if current_base_alias != {
+        "section": "parameters",
+        "version": base_versions[-1],
+    }:
+        raise GlobalStateError("current base alias schema mismatch")
     sections = header["sections"]
-    if not isinstance(sections, list) or len(sections) != 2 + len(base_versions):
+    historical_versions = base_versions[:-1]
+    if not isinstance(sections, list) or len(sections) != 2 + len(
+        historical_versions
+    ):
         raise GlobalStateError("global-state section count mismatch")
     expected_names = (
         "parameters",
         "outer_state",
-        *(f"base-{index:06d}" for index in range(len(base_versions))),
+        *(f"base-{index:06d}" for index in range(len(historical_versions))),
     )
     contents: list[bytes] = []
     offset = 0
@@ -384,31 +501,46 @@ def decode_global_state(payload: bytes) -> FragmentGlobalState:
             raise GlobalStateError("global-state section schema mismatch")
         length = _require_ordinal(section["bytes"], "section bytes")
         checksum = _require_hex(section["sha256"], "section sha256")
-        content = body[offset : offset + length]
+        content = bytes(body[offset : offset + length])
         if len(content) != length or hashlib.sha256(content).hexdigest() != checksum:
             raise GlobalStateError("global-state section checksum mismatch")
-        if index >= 2 and section.get("version") != base_versions[index - 2]:
+        if index >= 2 and section.get("version") != historical_versions[index - 2]:
             raise GlobalStateError("global-state base version metadata mismatch")
         contents.append(content)
         offset += length
     if offset != len(body):
         raise GlobalStateError("global-state payload has trailing bytes")
-    bases = tuple(
-        BaseSnapshot(
+    historical_bases = tuple(
+        _verified_base_snapshot(
             version=base_version,
             parameters=contents[index + 2],
-            parameters_sha256=hashlib.sha256(contents[index + 2]).hexdigest(),
+            parameters_sha256=_require_hex(
+                sections[index + 2]["sha256"], "base parameters_sha256"
+            ),
         )
-        for index, base_version in enumerate(base_versions)
+        for index, base_version in enumerate(historical_versions)
+    )
+    bases = (
+        *historical_bases,
+        _verified_base_snapshot(
+            version=base_versions[-1],
+            parameters=contents[0],
+            parameters_sha256=_require_hex(
+                sections[0]["sha256"], "base parameters_sha256"
+            ),
+        ),
     )
     content_identity = _require_hex(header["content_identity"], "content_identity")
-    state = FragmentGlobalState(
+    state = _verified_fragment_state(
         identities=identities,
         descriptor=descriptor,
         version=version,
         outer_update_count=outer_update_count,
         parameters=contents[0],
         outer_state=contents[1],
+        outer_state_sha256=_require_hex(
+            sections[1]["sha256"], "outer_state_sha256"
+        ),
         base_history=bases,
         base_content_identity=_require_hex(
             header["base_content_identity"], "base_content_identity"
@@ -459,8 +591,16 @@ class GlobalStateStore:
     ) -> None:
         if not isinstance(backend, StorageBackend):
             raise GlobalStateError("backend must implement StorageBackend")
+        if not isinstance(identities, GlobalStateIdentities):
+            raise GlobalStateError("identities must be GlobalStateIdentities")
         _require_ordinal(s_max, "s_max")
-        if not isinstance(descriptors, tuple) or not descriptors:
+        if (
+            not isinstance(descriptors, tuple)
+            or not descriptors
+            or any(
+                not isinstance(item, FragmentStateDescriptor) for item in descriptors
+            )
+        ):
             raise GlobalStateError("descriptors must be a non-empty tuple")
         if tuple(item.index for item in descriptors) != tuple(range(len(descriptors))):
             raise GlobalStateError(
@@ -499,6 +639,21 @@ class GlobalStateStore:
     def _validate_published(
         self, published: PublishedPayload, descriptor: FragmentStateDescriptor
     ) -> FragmentGlobalState:
+        record = published.record
+        expected_record_values = {
+            "run_identity": self.identities.run_identity,
+            "fragment_map_identity": self.identities.fragment_map_identity,
+            "fragment_identity": descriptor.identity,
+            "dtype": descriptor.dtype,
+            "shape": descriptor.shape,
+        }
+        if any(
+            getattr(record, field) != expected
+            for field, expected in expected_record_values.items()
+        ):
+            raise GlobalStateError(
+                "global-state visibility record differs from the frozen store"
+            )
         state = decode_global_state(published.payload)
         if state.identities != self.identities:
             raise GlobalStateError("compound state frozen identity mismatch")
@@ -542,15 +697,33 @@ class GlobalStateStore:
         )
         return self._validate_published(published, descriptor), published.record
 
+    @property
+    def supports_bound_record_reads(self) -> bool:
+        return isinstance(self._backend, BoundRecordStorageBackend)
+
+    def load_bound_fragment_record(
+        self, index: int, record: PublicationRecord
+    ) -> FragmentGlobalState:
+        """Load exactly the immutable payload named by validated metadata."""
+
+        descriptor = self._descriptor(index)
+        if not isinstance(record, PublicationRecord):
+            raise GlobalStateError("bound fragment record must be PublicationRecord")
+        if not isinstance(self._backend, BoundRecordStorageBackend):
+            raise GlobalStateError("storage backend has no bound-record read")
+        published = self._backend.read_bound_record(record)
+        if published.record != record:
+            raise GlobalStateError("bound fragment read returned different metadata")
+        return self._validate_published(published, descriptor)
+
     def peek_fragment_record(
         self, index: int, *, timeout_seconds: float = 0
     ) -> PublicationRecord:
         """Validate one current record without loading an unchanged state payload."""
 
         descriptor = self._descriptor(index)
-        read_record = getattr(self._backend, "read_record", None)
-        if callable(read_record):
-            return read_record(
+        if isinstance(self._backend, RecordReadableStorageBackend):
+            return self._backend.read_record(
                 current_slot(index),
                 self._expectation(descriptor),
                 timeout_seconds=timeout_seconds,
@@ -579,11 +752,7 @@ class GlobalStateStore:
         )
 
     def _bootstrap_state(self, fragment: BootstrapFragment) -> FragmentGlobalState:
-        base = BaseSnapshot(
-            version=0,
-            parameters=fragment.parameters,
-            parameters_sha256=hashlib.sha256(fragment.parameters).hexdigest(),
-        )
+        base = _new_base_snapshot(version=0, parameters=fragment.parameters)
         return _make_state(
             identities=self.identities,
             descriptor=fragment.descriptor,
@@ -603,6 +772,7 @@ class GlobalStateStore:
     ) -> BootstrapResult:
         if (
             not isinstance(fragments, tuple)
+            or any(not isinstance(item, BootstrapFragment) for item in fragments)
             or tuple(item.descriptor for item in fragments) != self.descriptors
         ):
             raise GlobalStateError(
@@ -694,7 +864,7 @@ class GlobalStateStore:
         current = self._validate_published(visible, descriptor)
         successor, _record = self.publish_successor_from_current(
             current,
-            expected_payload_identity=visible.record.payload_identity,
+            expected_record=visible.record,
             parameters=parameters,
             outer_state=outer_state,
             crash_at=crash_at,
@@ -706,7 +876,7 @@ class GlobalStateStore:
         self,
         current: FragmentGlobalState,
         *,
-        expected_payload_identity: str,
+        expected_record: PublicationRecord,
         parameters: bytes,
         outer_state: bytes,
         crash_at: str | None = None,
@@ -716,7 +886,8 @@ class GlobalStateStore:
 
         if not isinstance(current, FragmentGlobalState):
             raise GlobalStateError("current state must be a FragmentGlobalState")
-        _require_hex(expected_payload_identity, "expected payload identity")
+        if not isinstance(expected_record, PublicationRecord):
+            raise GlobalStateError("expected_record must be PublicationRecord")
         _require_bytes(parameters, "parameters")
         _require_bytes(outer_state, "outer_state")
         index = current.descriptor.index
@@ -726,16 +897,12 @@ class GlobalStateStore:
                 "current state differs from the frozen store authority"
             )
         visible = self.peek_fragment_record(index, timeout_seconds=0)
-        if visible.payload_identity != expected_payload_identity:
+        if visible != expected_record:
             raise GlobalStateError(
                 f"fragment {index} changed before successor publication"
             )
         version = current.version + 1
-        next_base = BaseSnapshot(
-            version=version,
-            parameters=parameters,
-            parameters_sha256=hashlib.sha256(parameters).hexdigest(),
-        )
+        next_base = _new_base_snapshot(version=version, parameters=parameters)
         history = (*current.base_history, next_base)[-(self.s_max + 1) :]
         successor = _make_state(
             identities=self.identities,
@@ -750,14 +917,14 @@ class GlobalStateStore:
 
         def require_unchanged_base(_slot: str, _record: PublicationRecord) -> None:
             latest = self.peek_fragment_record(index, timeout_seconds=0)
-            if latest.payload_identity != expected_payload_identity:
+            if latest != expected_record:
                 raise GlobalStateError(
                     f"fragment {index} changed during successor publication"
                 )
             if before_visibility is not None:
                 before_visibility(successor)
                 latest = self.peek_fragment_record(index, timeout_seconds=0)
-                if latest.payload_identity != expected_payload_identity:
+                if latest != expected_record:
                     raise GlobalStateError(
                         f"fragment {index} changed during successor publication hook"
                     )
@@ -874,21 +1041,33 @@ def load_bootstrap_plan(path: Path) -> LoadedBootstrapPlan:
             shape=_require_shape(item["shape"]),
             parameter_identities=tuple(item["parameter_identities"]),
         )
-        parameters_path = (
-            base / _require_text(item["parameters_path"], "parameters_path")
-        ).resolve()
-        outer_path = (
-            base / _require_text(item["outer_state_path"], "outer_state_path")
-        ).resolve()
+
+        def resolve_input(value: object, field: str) -> Path:
+            relative = Path(_require_text(value, field))
+            if relative.is_absolute() or ".." in relative.parts:
+                raise GlobalStateError(f"{field} must be a safe relative path")
+            resolved = (base / relative).resolve()
+            try:
+                resolved.relative_to(base)
+            except ValueError as error:
+                raise GlobalStateError(f"{field} escapes the bootstrap plan") from error
+            if not resolved.is_file():
+                raise GlobalStateError(f"{field} is not a regular file")
+            return resolved
+
+        parameters_path = resolve_input(item["parameters_path"], "parameters_path")
+        outer_path = resolve_input(item["outer_state_path"], "outer_state_path")
         expected_parameter_sha = _require_hex(
             item["parameters_sha256"], "parameters_sha256"
         )
         expected_outer_sha = _require_hex(
             item["outer_state_sha256"], "outer_state_sha256"
         )
+        parameters = parameters_path.read_bytes()
+        outer_state = outer_path.read_bytes()
         if (
-            file_digest(parameters_path) != expected_parameter_sha
-            or file_digest(outer_path) != expected_outer_sha
+            hashlib.sha256(parameters).hexdigest() != expected_parameter_sha
+            or hashlib.sha256(outer_state).hexdigest() != expected_outer_sha
         ):
             raise GlobalStateError(
                 f"bootstrap plan input checksum mismatch for fragment {descriptor.index}"
@@ -897,8 +1076,8 @@ def load_bootstrap_plan(path: Path) -> LoadedBootstrapPlan:
         fragments.append(
             BootstrapFragment(
                 descriptor=descriptor,
-                parameters=parameters_path.read_bytes(),
-                outer_state=outer_path.read_bytes(),
+                parameters=parameters,
+                outer_state=outer_state,
             )
         )
     descriptors_tuple = tuple(descriptors)

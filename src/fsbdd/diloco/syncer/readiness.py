@@ -128,6 +128,7 @@ class ReadinessPhase(str, enum.Enum):
 
 @dataclasses.dataclass(frozen=True, slots=True)
 class FrozenSelection:
+    logical_syncer_id: str
     fragment_index: int
     current_version: int
     authority_identity: str
@@ -138,12 +139,100 @@ class FrozenSelection:
     weights: tuple[CandidateWeight, ...]
     selection_identity: str
 
+    def __post_init__(self) -> None:
+        if not isinstance(self.logical_syncer_id, str) or not self.logical_syncer_id:
+            raise ReadinessError("logical_syncer_id must be a non-empty string")
+        fragment_index = _require_nonnegative(self.fragment_index, "fragment_index")
+        current_version = _require_nonnegative(
+            self.current_version, "current_version"
+        )
+        if (
+            not isinstance(self.authority_identity, str)
+            or len(self.authority_identity) != 64
+            or any(
+                character not in "0123456789abcdef"
+                for character in self.authority_identity
+            )
+        ):
+            raise ReadinessError(
+                "authority_identity must be a lowercase SHA-256 identity"
+            )
+        _require_positive(self.generation, "generation")
+        grace_started_ns = _require_nonnegative(
+            self.grace_started_ns, "grace_started_ns"
+        )
+        frozen_observed_ns = _require_nonnegative(
+            self.frozen_observed_ns, "frozen_observed_ns"
+        )
+        if frozen_observed_ns < grace_started_ns:
+            raise ReadinessError("frozen observation precedes grace start")
+        if not isinstance(self.proposals, tuple) or not self.proposals:
+            raise ReadinessError("frozen proposals must be a nonempty tuple")
+        if not isinstance(self.weights, tuple) or len(self.weights) != len(
+            self.proposals
+        ):
+            raise ReadinessError("frozen proposal and weight counts differ")
+        learners: set[str] = set()
+        proposal_ids: set[str] = set()
+        weight_sum = 0.0
+        for proposal, weight in zip(self.proposals, self.weights, strict=True):
+            if not isinstance(proposal, Proposal) or not isinstance(
+                weight, CandidateWeight
+            ):
+                raise ReadinessError("frozen selection contains malformed facts")
+            if proposal.descriptor.index != fragment_index:
+                raise ReadinessError("frozen proposal fragment differs")
+            staleness = current_version - proposal.base_version
+            if staleness < 0:
+                raise ReadinessError("frozen proposal has a future base")
+            if (
+                weight.proposal_id != proposal.proposal_id
+                or weight.learner_id != proposal.learner_id
+                or weight.processed_tokens != proposal.processed_tokens
+                or weight.staleness != staleness
+            ):
+                raise ReadinessError("frozen weight facts differ from proposal")
+            if proposal.learner_id in learners:
+                raise ReadinessError("frozen selection contains a duplicate learner")
+            if proposal.proposal_id in proposal_ids:
+                raise ReadinessError("frozen selection contains a duplicate proposal")
+            learners.add(proposal.learner_id)
+            proposal_ids.add(proposal.proposal_id)
+            weight_sum += weight.normalized_weight
+        if not math.isclose(weight_sum, 1.0, rel_tol=0.0, abs_tol=2e-6):
+            raise ReadinessError("frozen normalized weights must sum to one")
+        if (
+            not isinstance(self.selection_identity, str)
+            or len(self.selection_identity) != 64
+            or any(
+                character not in "0123456789abcdef"
+                for character in self.selection_identity
+            )
+        ):
+            raise ReadinessError(
+                "selection_identity must be a lowercase SHA-256 identity"
+            )
+        semantic = {
+            "schema_version": 1,
+            "logical_syncer_id": self.logical_syncer_id,
+            "fragment_index": fragment_index,
+            "current_version": current_version,
+            "authority_identity": self.authority_identity,
+            "proposal_content_identities": [
+                item.content_identity for item in self.proposals
+            ],
+            "weights": [item.to_dict() for item in self.weights],
+        }
+        if canonical_digest(semantic) != self.selection_identity:
+            raise ReadinessError("frozen selection identity mismatch")
+
     @property
     def learner_ids(self) -> tuple[str, ...]:
         return tuple(item.learner_id for item in self.proposals)
 
     def to_dict(self) -> dict[str, object]:
         return {
+            "logical_syncer_id": self.logical_syncer_id,
             "fragment_index": self.fragment_index,
             "current_version": self.current_version,
             "authority_identity": self.authority_identity,
@@ -280,6 +369,7 @@ class SyncerReadinessMachine:
         self._fixed_slot_reads = 0
         self._claim_ordinal = 0
         self._proposal_cache: dict[tuple[str, int], Proposal] = {}
+        self._proposal_records: dict[tuple[str, int], PublicationRecord] = {}
         self._proposal_payload_identities: dict[tuple[str, int], str] = {}
         self._payload_cache_misses = 0
         self._payload_cache_hits = 0
@@ -293,6 +383,54 @@ class SyncerReadinessMachine:
             "active_to_waiting": 0,
             "authority_to_waiting": 0,
         }
+
+    def _install_proposal_observation(
+        self,
+        key: tuple[str, int],
+        record: PublicationRecord,
+        proposal: Proposal | None,
+    ) -> bool:
+        """Install one monotonic fixed-slot observation.
+
+        A payload checksum alone is not the whole visibility authority: sequence,
+        base version, and base identity are record metadata.  Treating an equal
+        payload identity as an unconditional cache hit would therefore accept a
+        same-payload record rewrite without revalidating the compound proposal.
+        """
+
+        previous_record = self._proposal_records.get(key)
+        previous_proposal = self._proposal_cache.get(key)
+        if previous_record is not None:
+            if record.sequence < previous_record.sequence:
+                raise ReadinessError("proposal visibility sequence regressed")
+            if record.version < previous_record.version:
+                raise ReadinessError("proposal visibility base version regressed")
+            if record.sequence == previous_record.sequence:
+                if record != previous_record:
+                    raise ReadinessError(
+                        "proposal visibility changed at the same sequence"
+                    )
+                if proposal is not None and proposal != previous_proposal:
+                    raise ReadinessError(
+                        "proposal content changed at the same sequence"
+                    )
+                self._payload_cache_hits += 1
+                return False
+        if proposal is None:
+            raise ReadinessError(
+                "changed proposal visibility was not validated with its payload"
+            )
+        if (
+            proposal.sequence != record.sequence
+            or proposal.base_version != record.version
+            or proposal.base_content_identity != record.base_content_identity
+        ):
+            raise ReadinessError("proposal differs from its visibility record")
+        self._proposal_cache[key] = proposal
+        self._proposal_records[key] = record
+        self._proposal_payload_identities[key] = record.payload_identity
+        self._payload_cache_misses += 1
+        return True
 
     def _validate_authority(
         self, index: int, authority: FragmentReadinessAuthority
@@ -374,6 +512,7 @@ class SyncerReadinessMachine:
             "weights": [item.to_dict() for item in weights],
         }
         round_state.selection = FrozenSelection(
+            logical_syncer_id=self.config.logical_syncer_id,
             fragment_index=index,
             current_version=round_state.authority.state.version,
             authority_identity=round_state.authority.identity,
@@ -393,7 +532,7 @@ class SyncerReadinessMachine:
     @staticmethod
     def _normalize_candidates(
         proposals: Sequence[Proposal], fragment_count: int
-    ) -> tuple[tuple[Proposal, ...], tuple[int, ...]]:
+    ) -> tuple[tuple[tuple[Proposal, ...], ...], tuple[int, ...]]:
         by_fragment: list[dict[str, Proposal]] = [{} for _ in range(fragment_count)]
         duplicates = [0] * fragment_count
         for proposal in proposals:
@@ -529,12 +668,7 @@ class SyncerReadinessMachine:
                     except PublicationNotReady:
                         transient += 1
                         continue
-                    if proposal is None:
-                        self._payload_cache_hits += 1
-                        continue
-                    self._proposal_cache[key] = proposal
-                    self._proposal_payload_identities[key] = record.payload_identity
-                    self._payload_cache_misses += 1
+                    self._install_proposal_observation(key, record, proposal)
             with self._lock:
                 report = self.observe(
                     tuple(self._proposal_cache.values()), observed_ns=observed_ns
@@ -565,8 +699,20 @@ class SyncerReadinessMachine:
                     continue
                 known = self._proposal_payload_identities.get(key)
                 if record.payload_identity == known:
-                    self._payload_cache_hits += 1
+                    self._install_proposal_observation(key, record, None)
                     continue
+                previous_record = self._proposal_records.get(key)
+                if previous_record is not None:
+                    if record.sequence < previous_record.sequence:
+                        raise ReadinessError("proposal visibility sequence regressed")
+                    if record.version < previous_record.version:
+                        raise ReadinessError(
+                            "proposal visibility base version regressed"
+                        )
+                    if record.sequence == previous_record.sequence:
+                        raise ReadinessError(
+                            "proposal visibility changed at the same sequence"
+                        )
                 changed.append((learner_id, descriptor.index, record))
         if changed:
             # Payload decoding includes two large SHA-256 authorities.  Changed
@@ -594,9 +740,7 @@ class SyncerReadinessMachine:
                         transient += 1
                         continue
                     key = (learner_id, fragment_index)
-                    self._proposal_cache[key] = proposal
-                    self._proposal_payload_identities[key] = record.payload_identity
-                    self._payload_cache_misses += 1
+                    self._install_proposal_observation(key, record, proposal)
         with self._lock:
             report = self.observe(
                 tuple(self._proposal_cache.values()), observed_ns=observed_ns

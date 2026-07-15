@@ -30,7 +30,7 @@ from fsbdd.diloco.protocol.proposal import (
     select_candidates,
 )
 from fsbdd.diloco.protocol.storage import PosixStorageBackend, PublicationInterrupted
-from fsbdd.diloco.syncer.readiness import FrozenSelection
+from fsbdd.diloco.syncer.readiness import FrozenSelection, ReadinessError
 
 
 IDENTITIES = GlobalStateIdentities(
@@ -135,6 +135,7 @@ def _selection(
         "weights": [item.to_dict() for item in weights],
     }
     return FrozenSelection(
+        logical_syncer_id="syncer-0",
         fragment_index=authority.state.descriptor.index,
         current_version=authority.version,
         authority_identity=authority.authority_identity,
@@ -312,16 +313,11 @@ def test_version_skip_stale_base_and_conflicting_same_version_fail_closed(
 
     current = store.load_fragment(0)
     valid_current = _request(current)
-    stale_selection = dataclasses.replace(
-        valid_current.selection,
-        authority_identity=hashlib.sha256(b"wrong-authority").hexdigest(),
-    )
-    stale = dataclasses.replace(
-        valid_current,
-        selection=stale_selection,
-    )
-    with pytest.raises(AtomicCommitError, match="authority identity"):
-        store.commit(stale)
+    with pytest.raises(ReadinessError, match="selection identity mismatch"):
+        dataclasses.replace(
+            valid_current.selection,
+            authority_identity=hashlib.sha256(b"wrong-authority").hexdigest(),
+        )
     assert store.load_fragment(0) == result.authority
 
 

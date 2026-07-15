@@ -66,6 +66,21 @@ def test_dual_manifest_profiles_and_qtime_semantics() -> None:
     assert pbs["scheduler"]["qtime_utc"] == pbs["run_identity"]["timestamp_utc"]
 
 
+def test_manifest_binds_optional_stage_gate_contract_identity() -> None:
+    values = identities()
+    values["config"]["gate_contract_sha256"] = "f" * 64
+    manifest = build_manifest(
+        "S1-13", "L1", "2026-07-15T00:00:00Z", "submission_utc", values
+    )
+    assert manifest["identities"]["config"]["gate_contract_sha256"] == "f" * 64
+
+    values["config"]["gate_contract_sha256"] = "invalid"
+    with pytest.raises(ManifestError, match="gate contract"):
+        build_manifest(
+            "S1-13", "L1", "2026-07-15T00:00:00Z", "submission_utc", values
+        )
+
+
 def test_package_finalization_and_mutation_matrix(tmp_path: Path) -> None:
     root = tmp_path / "package"
     package = EvidencePackage.create(root)

@@ -349,6 +349,27 @@ def test_asset_identity_and_visibility_last_materialization(
     assert manifest["shards"][1]["blocks"] >= 2
     assert (output / "complete.json").is_file()
     assert validate_materialized_shards(profile, output) == manifest
+    manifest_path = output / "manifest.json"
+    marker_path = output / "complete.json"
+    original_manifest = manifest_path.read_bytes()
+    original_marker = marker_path.read_bytes()
+    incomplete = {**manifest, "shards": []}
+    manifest_path.write_text(json.dumps(incomplete), encoding="utf-8")
+    marker_path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "status": "complete",
+                "profile_digest": profile.digest,
+                "manifest_sha256": _sha256(manifest_path),
+            }
+        ),
+        encoding="utf-8",
+    )
+    with pytest.raises(LearnerAssetError, match="shard set"):
+        validate_materialized_shards(profile, output)
+    manifest_path.write_bytes(original_manifest)
+    marker_path.write_bytes(original_marker)
     with pytest.raises(LearnerAssetError, match="overwrite"):
         materialize_packed_shards(profile, hub, output)
     with pytest.raises(LearnerAssetError, match="long-run token budget"):
@@ -374,6 +395,14 @@ def test_asset_identity_and_visibility_last_materialization(
     )
     assert second.state_dict() == second_initial_state
     assert batch["input_ids"].shape == (2, 8)
+
+    other_shard = output / manifest["shards"][1]["path"]
+    original_other = other_shard.read_bytes()
+    other_shard.write_bytes(bytes([original_other[0] ^ 1]) + original_other[1:])
+    PackedTokenShard(profile, output, learner_index=0)
+    with pytest.raises(LearnerAssetError, match="checksum mismatch"):
+        PackedTokenShard(profile, output, learner_index=1)
+    other_shard.write_bytes(original_other)
 
     shard = output / manifest["shards"][0]["path"]
     shard.write_bytes(shard.read_bytes()[:-4])

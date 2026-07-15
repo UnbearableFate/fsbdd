@@ -187,7 +187,7 @@ def _learner(
     torch.cuda.manual_seed_all(seed)
     torch.use_deterministic_algorithms(True)
     torch.backends.cuda.matmul.allow_tf32 = False
-    model = GPTNeoXForCausalLM(
+    model: Any = GPTNeoXForCausalLM(
         GPTNeoXConfig(
             vocab_size=int(model_spec["vocab_size"]),
             hidden_size=int(model_spec["hidden_size"]),
@@ -197,7 +197,8 @@ def _learner(
             max_position_embeddings=int(model_spec["max_position_embeddings"]),
             use_cache=bool(model_spec["use_cache"]),
         )
-    ).to(device)
+    )
+    model.to(device)
     registry = build_logical_layer_registry(model)
     fragment_map = build_fragment_map(registry, int(training["fragment_count"]))
     descriptors = build_fragment_descriptors(fragment_map)

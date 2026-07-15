@@ -213,3 +213,29 @@ def test_explicit_reconstructable_buffer_policy_is_reported() -> None:
     assert registry.coverage.total_buffers == 1
     assert registry.coverage.reconstructable_buffers == 1
     assert registry.buffers[0].classification == "reconstructable_from_config"
+
+
+def test_explicit_mapping_requires_canonical_tuples_and_existing_buffers() -> None:
+    model = ThirdFamily()
+    with pytest.raises(RegistryError, match="canonical tuples"):
+        build_logical_layer_registry(
+            model,
+            explicit=ExplicitMapping(
+                family="third",
+                embedding_path="tokens",
+                block_paths=["stack.0", "stack.1"],  # type: ignore[arg-type]
+                head_path="output",
+            ),
+        )
+    with pytest.raises(RegistryError, match="absent"):
+        build_logical_layer_registry(
+            model,
+            explicit=ExplicitMapping(
+                family="third",
+                embedding_path="tokens",
+                block_paths=("stack.0", "stack.1"),
+                head_path="output",
+                misc=(MiscAssignment("post", left_layer=2, right_layer=3),),
+                reconstructable_buffers=("missing",),
+            ),
+        )
