@@ -21,7 +21,10 @@ class ChasingLatestEvaluation:
 
 
 def barrier_coupled_rates(control: list[float], slowed_index: int) -> list[float]:
-    common = min(value * (0.5 if index == slowed_index else 1.0) for index, value in enumerate(control))
+    common = min(
+        value * (0.5 if index == slowed_index else 1.0)
+        for index, value in enumerate(control)
+    )
     return [common for _ in control]
 
 
@@ -31,16 +34,28 @@ class S112SemanticRed(unittest.TestCase):
         locals_ = [[8.0, 4.0], [6.0, 2.0], [9.0, -1.0], [5.0, 3.0]]
         tokens = [1.0, 3.0, 2.0, 10.0]
         expected = [
-            sum(local[column] * token for local, token in zip(locals_, tokens, strict=True)) / sum(tokens)
+            sum(
+                local[column] * token
+                for local, token in zip(locals_, tokens, strict=True)
+            )
+            / sum(tokens)
             for column in range(len(current))
         ]
-        self.assertEqual(unsafe_average(locals_), expected, "A-ALG-01 requires token-weighted production-path alignment")
+        self.assertEqual(
+            unsafe_average(locals_),
+            expected,
+            "A-ALG-01 requires token-weighted production-path alignment",
+        )
 
     def test_global_05__chasing_latest_does_not_produce_a_frozen_snapshot(self) -> None:
         evaluator = ChasingLatestEvaluation()
         captured_vector = tuple(evaluator.versions)
         loaded_vector, _ = evaluator.load()
-        self.assertEqual(loaded_vector, captured_vector, "GLOBAL-05 requires an immutable pre-load version vector")
+        self.assertEqual(
+            loaded_vector,
+            captured_vector,
+            "GLOBAL-05 requires an immutable pre-load version vector",
+        )
 
     def test_a_learn_01__slow_learner_must_not_throttle_peers(self) -> None:
         control = [100.0, 100.0, 100.0, 100.0]

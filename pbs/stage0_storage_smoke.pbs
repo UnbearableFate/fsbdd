@@ -143,7 +143,7 @@ printf '{"schema_version":1,"command":"lfs getstripe","exit_code":%s,"stdout":"p
 printf '{"schema_version":1,"command":"lfs quota -g xg24i002","exit_code":%s,"stdout":"probes/lfs_quota.stdout","stderr":"probes/lfs_quota.stderr"}\n' \
   "$QUOTA_EXIT" > "$RUN_DIR/probes/quota.json"
 
-"$PYTHON" -m fsbdd_stage0.storage_bench manifest \
+"$PYTHON" -m fsbdd.auxiliary.stage0.storage_bench manifest \
   --config "$STORAGE_CONFIG" \
   --run-id "$RUN_ID" \
   --initial-hostname "$INITIAL_HOSTNAME" \
@@ -175,7 +175,7 @@ mkdir -p "$RESULT_ROOT"
 printf '%q ' mpirun -np 2 --map-by ppr:1:node --hostfile "$PBS_NODEFILE" \
   /usr/bin/env "PYTHONPATH=$PYTHONPATH" "PBS_JOBID=$PBS_JOBID" \
   "PBS_NODEFILE=$PBS_NODEFILE" "$PYTHON" \
-  -m fsbdd_stage0.storage_bench smoke-role \
+  -m fsbdd.auxiliary.stage0.storage_bench smoke-role \
   --config "$STORAGE_CONFIG" --test-root "$TEST_ROOT" \
   --result-root "$RESULT_ROOT" --run-id "$RUN_ID" --path-mode "$SMOKE_PATH_MODE" \
   > "$RUN_DIR/commands.log"
@@ -183,7 +183,7 @@ printf '\n' >> "$RUN_DIR/commands.log"
 
 if mpirun -np 2 --map-by ppr:1:node --hostfile "$PBS_NODEFILE" \
     /usr/bin/env "PYTHONPATH=$PYTHONPATH" "PBS_JOBID=$PBS_JOBID" \
-    "PBS_NODEFILE=$PBS_NODEFILE" "$PYTHON" -m fsbdd_stage0.storage_bench smoke-role \
+    "PBS_NODEFILE=$PBS_NODEFILE" "$PYTHON" -m fsbdd.auxiliary.stage0.storage_bench smoke-role \
     --config "$STORAGE_CONFIG" \
     --test-root "$TEST_ROOT" \
     --result-root "$RESULT_ROOT" \
@@ -212,7 +212,7 @@ case "$SMOKE_EXPECTED_RESULT" in
     ;;
 esac
 
-"$PYTHON" -m fsbdd_stage0.storage_bench summarize-smoke \
+"$PYTHON" -m fsbdd.auxiliary.stage0.storage_bench summarize-smoke \
   --config "$STORAGE_CONFIG" \
   --result-root "$RESULT_ROOT" \
   --run-id "$RUN_ID" \
@@ -220,7 +220,7 @@ esac
   --expected "$SMOKE_EXPECTED_RESULT" \
   > "$RUN_DIR/results/summarize.stdout"
 
-"$PYTHON" -m fsbdd_stage0.storage_bench finalize-manifest \
+"$PYTHON" -m fsbdd.auxiliary.stage0.storage_bench finalize-manifest \
   --manifest "$RUN_DIR/manifest.json" \
   --smoke-summary "$RUN_DIR/results/smoke-summary.json" \
   --yaml-output "$RUN_DIR/manifest.yaml"

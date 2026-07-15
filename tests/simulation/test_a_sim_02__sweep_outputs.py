@@ -8,7 +8,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from fsbdd_stage0.sweep import (
+from fsbdd.auxiliary.stage0.sweep import (
     AXIS_ORDER,
     EXPECTED_SIM03_AXES,
     SweepInputError,
@@ -31,13 +31,21 @@ class TestASim02SweepOutputs(unittest.TestCase):
         run_dir_value = os.environ.get("FSBDD_SWEEP_RUN_DIR")
         cls.run_dir = Path(run_dir_value) if run_dir_value else None
         if cls.run_dir is not None:
-            cls.manifest_path = cls.run_dir / "results" / "simulation_sweep_manifest.json"
+            cls.manifest_path = (
+                cls.run_dir / "results" / "simulation_sweep_manifest.json"
+            )
             cls.summary_path = cls.run_dir / "results" / "simulation_summary.json"
-            cls.recommendation_path = cls.run_dir / "results" / "simulation_recommendation.md"
+            cls.recommendation_path = (
+                cls.run_dir / "results" / "simulation_recommendation.md"
+            )
         else:
-            cls.manifest_path = ROOT / "reports" / "stage0" / "simulation_sweep_manifest.json"
+            cls.manifest_path = (
+                ROOT / "reports" / "stage0" / "simulation_sweep_manifest.json"
+            )
             cls.summary_path = ROOT / "reports" / "stage0" / "simulation_summary.json"
-            cls.recommendation_path = ROOT / "reports" / "stage0" / "simulation_recommendation.md"
+            cls.recommendation_path = (
+                ROOT / "reports" / "stage0" / "simulation_recommendation.md"
+            )
         cls.manifest = json.loads(cls.manifest_path.read_text(encoding="utf-8"))
         cls.summary = json.loads(cls.summary_path.read_text(encoding="utf-8"))
         cls.raw_path = Path(cls.manifest["artifacts"]["raw_csv"]["path"])
@@ -48,10 +56,7 @@ class TestASim02SweepOutputs(unittest.TestCase):
     def test_sim_03__frozen_matrix_is_exact_and_unique(self) -> None:
         specs = matrix_specs(self.config)
         self.assertEqual(len(specs), 7776)
-        identities = {
-            tuple(spec[name] for name in AXIS_ORDER)
-            for spec in specs
-        }
+        identities = {tuple(spec[name] for name in AXIS_ORDER) for spec in specs}
         self.assertEqual(len(identities), 7776)
         for axis, expected in EXPECTED_SIM03_AXES.items():
             self.assertEqual(self.config["axes"][axis], expected)
@@ -116,7 +121,9 @@ class TestASim02SweepOutputs(unittest.TestCase):
             "seed": int,
         }
         for axis in AXIS_ORDER:
-            observed = sorted({converters[axis](row[axis]) for row in self.raw_rows}, key=str)
+            observed = sorted(
+                {converters[axis](row[axis]) for row in self.raw_rows}, key=str
+            )
             expected = sorted(self.config["axes"][axis], key=str)
             self.assertEqual(observed, expected, axis)
         paired = {}
@@ -158,11 +165,16 @@ class TestASim02SweepOutputs(unittest.TestCase):
         self.assertEqual(anchor["profile"]["q_fresh"], 1)
         self.assertAlmostEqual(
             anchor["profile"]["visibility_delay_over_h"],
-            anchor["profile"]["visibility_delay_seconds"] / anchor["profile"]["h_steps"],
+            anchor["profile"]["visibility_delay_seconds"]
+            / anchor["profile"]["h_steps"],
         )
         self.assertIn(
             anchor["paper_classification"],
-            {"full_second_contribution", "compressed_section", "ablation_or_discussion"},
+            {
+                "full_second_contribution",
+                "compressed_section",
+                "ablation_or_discussion",
+            },
         )
         recommendation = self.recommendation_path.read_text(encoding="utf-8")
         self.assertIn("Stage 1 Profile A recommendation", recommendation)
@@ -184,10 +196,7 @@ class TestASim02SweepOutputs(unittest.TestCase):
             self.assertAlmostEqual(
                 float(row["visibility_delay_over_h"]),
                 float(row["visibility_delay_seconds"])
-                / (
-                    float(row["h_steps"])
-                    * float(row["nominal_fastest_step_seconds"])
-                ),
+                / (float(row["h_steps"]) * float(row["nominal_fastest_step_seconds"])),
             )
             self.assertAlmostEqual(
                 float(row["accepted_token_efficiency"]),
@@ -281,7 +290,9 @@ class TestASim02SweepOutputs(unittest.TestCase):
                 rows = list(reader)
             rows[0]["accepted_token_efficiency"] = "0.9"
             with output.open("w", encoding="utf-8", newline="") as handle:
-                writer = csv.DictWriter(handle, fieldnames=fieldnames, lineterminator="\n")
+                writer = csv.DictWriter(
+                    handle, fieldnames=fieldnames, lineterminator="\n"
+                )
                 writer.writeheader()
                 writer.writerows(rows)
             with self.assertRaises(SweepInputError):

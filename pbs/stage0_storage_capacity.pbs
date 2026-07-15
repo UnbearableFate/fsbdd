@@ -134,7 +134,7 @@ printf '{"schema_version":1,"create":true,"read":true,"delete":true,"probe_remov
   "$PERMISSION_MODE" "$PERMISSION_UID" "$PERMISSION_GID" \
   > "$RUN_DIR/probes/permissions.json"
 
-"$PYTHON" -m fsbdd_stage0.storage_bench manifest \
+"$PYTHON" -m fsbdd.auxiliary.stage0.storage_bench manifest \
   --config "$STORAGE_CONFIG" \
   --run-id "$RUN_ID" \
   --initial-hostname "$INITIAL_HOSTNAME" \
@@ -160,7 +160,7 @@ RESULT_ROOT="$RUN_DIR/results"
 
 printf '%q ' mpirun -np 16 --map-by ppr:8:node --bind-to none --hostfile "$PBS_NODEFILE" \
   /usr/bin/env "PYTHONPATH=$PYTHONPATH" "PBS_JOBID=$PBS_JOBID" \
-  "PBS_NODEFILE=$PBS_NODEFILE" "$PYTHON" -m fsbdd_stage0.storage_capacity role \
+  "PBS_NODEFILE=$PBS_NODEFILE" "$PYTHON" -m fsbdd.auxiliary.stage0.storage_capacity role \
   --config "$STORAGE_CONFIG" --test-root "$TEST_ROOT" \
   --result-root "$RESULT_ROOT" --run-id "$RUN_ID" \
   > "$RUN_DIR/commands.log"
@@ -168,7 +168,7 @@ printf '\n' >> "$RUN_DIR/commands.log"
 
 if mpirun -np 16 --map-by ppr:8:node --bind-to none --hostfile "$PBS_NODEFILE" \
     /usr/bin/env "PYTHONPATH=$PYTHONPATH" "PBS_JOBID=$PBS_JOBID" \
-    "PBS_NODEFILE=$PBS_NODEFILE" "$PYTHON" -m fsbdd_stage0.storage_capacity role \
+    "PBS_NODEFILE=$PBS_NODEFILE" "$PYTHON" -m fsbdd.auxiliary.stage0.storage_capacity role \
     --config "$STORAGE_CONFIG" \
     --test-root "$TEST_ROOT" \
     --result-root "$RESULT_ROOT" \
@@ -185,18 +185,18 @@ if [[ "$MPI_EXIT" -ne 0 ]]; then
   exit "$MPI_EXIT"
 fi
 
-"$PYTHON" -m fsbdd_stage0.storage_capacity summarize \
+"$PYTHON" -m fsbdd.auxiliary.stage0.storage_capacity summarize \
   --config "$STORAGE_CONFIG" \
   --result-root "$RESULT_ROOT" \
   --run-id "$RUN_ID" \
   > "$RUN_DIR/results/summarize.stdout"
 
-"$PYTHON" -m fsbdd_stage0.storage_capacity finalize-manifest \
+"$PYTHON" -m fsbdd.auxiliary.stage0.storage_capacity finalize-manifest \
   --manifest "$RUN_DIR/manifest.json" \
   --summary "$RUN_DIR/results/capacity-summary.json" \
   --output "$RUN_DIR/manifest.yaml"
 
-"$PYTHON" -m fsbdd_stage0.storage_capacity cleanup \
+"$PYTHON" -m fsbdd.auxiliary.stage0.storage_capacity cleanup \
   --config "$STORAGE_CONFIG" \
   --test-root "$TEST_ROOT" \
   > "$RUN_DIR/results/cleanup.json"

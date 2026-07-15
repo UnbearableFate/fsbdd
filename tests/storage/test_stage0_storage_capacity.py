@@ -9,8 +9,11 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from fsbdd_stage0.storage_bench import atomic_write_json, validate_storage_config
-from fsbdd_stage0.storage_capacity import (
+from fsbdd.auxiliary.stage0.storage_bench import (
+    atomic_write_json,
+    validate_storage_config,
+)
+from fsbdd.auxiliary.stage0.storage_capacity import (
     StorageHarnessError,
     _bandwidth_summary,
     _history_summary,
@@ -55,7 +58,9 @@ def _synthetic_roles(config: dict, run_id: str = "capacity-test") -> list[dict]:
         for rank in range(16)
     ]
     for learners, fragments, layout, repeat, profile in metadata_matrix(config):
-        active_ranks = [0] if profile == "readdir" and layout == "flat" else list(range(learners))
+        active_ranks = (
+            [0] if profile == "readdir" and layout == "flat" else list(range(learners))
+        )
         for state in config["metadata"]["cache_states"]:
             phase = _metadata_phase_id(
                 learners=learners,
@@ -157,8 +162,16 @@ def _synthetic_roles(config: dict, run_id: str = "capacity-test") -> list[dict]:
             )
         roles[0]["coordinator_rounds"].extend(
             [
-                {"phase": phase, "operation": "write", "round_elapsed_ns": 1_000_000_000},
-                {"phase": phase, "operation": "read", "round_elapsed_ns": 1_000_000_000},
+                {
+                    "phase": phase,
+                    "operation": "write",
+                    "round_elapsed_ns": 1_000_000_000,
+                },
+                {
+                    "phase": phase,
+                    "operation": "read",
+                    "round_elapsed_ns": 1_000_000_000,
+                },
             ]
         )
     roles[0]["state"] = {
@@ -182,15 +195,21 @@ class TestStage0StorageCapacity(unittest.TestCase):
         matrix = metadata_matrix(config)
         self.assertEqual(len(matrix), 3 * 3 * 2 * 2 * 3)
         self.assertIn((16, 32, "per_learner", 1, "readdir"), matrix)
-        self.assertEqual(config["thresholds"]["metadata_required_ops_per_second"], 5120.0)
+        self.assertEqual(
+            config["thresholds"]["metadata_required_ops_per_second"], 5120.0
+        )
 
     def test_bench_04__bandwidth_matrix_is_complete(self) -> None:
         config = _config()
         matrix = bandwidth_matrix(config)
         self.assertEqual(len(matrix), 4 * 2 * 2)
         self.assertIn((500, 16, 1), matrix)
-        self.assertEqual(deterministic_chunk(64, identity="x"), deterministic_chunk(64, identity="x"))
-        self.assertNotEqual(deterministic_chunk(64, identity="x"), deterministic_chunk(64, identity="y"))
+        self.assertEqual(
+            deterministic_chunk(64, identity="x"), deterministic_chunk(64, identity="x")
+        )
+        self.assertNotEqual(
+            deterministic_chunk(64, identity="x"), deterministic_chunk(64, identity="y")
+        )
 
     def test_bench_04__launcher_is_two_node_sixteen_rank_and_compute_only(self) -> None:
         subprocess.run(["bash", "-n", str(PBS_PATH)], check=True)
@@ -211,7 +230,9 @@ class TestStage0StorageCapacity(unittest.TestCase):
         )
         broken = copy.deepcopy(roles)
         broken[0]["metadata"].pop()
-        with self.assertRaisesRegex(StorageHarnessError, "metadata (matrix|concurrency)"):
+        with self.assertRaisesRegex(
+            StorageHarnessError, "metadata (matrix|concurrency)"
+        ):
             _metadata_summary(broken, config)
 
         missing_interval = copy.deepcopy(roles)
@@ -219,7 +240,9 @@ class TestStage0StorageCapacity(unittest.TestCase):
         with self.assertRaisesRegex(StorageHarnessError, "coordinator interval"):
             _metadata_summary(missing_interval, config)
 
-    def test_bench_03__disjoint_rank_local_intervals_cannot_prove_capacity(self) -> None:
+    def test_bench_03__disjoint_rank_local_intervals_cannot_prove_capacity(
+        self,
+    ) -> None:
         config = _config()
         roles = _synthetic_roles(config)
         for interval in roles[0]["metadata_coordinator_rounds"]:
@@ -259,14 +282,18 @@ class TestStage0StorageCapacity(unittest.TestCase):
         with self.assertRaisesRegex(StorageHarnessError, "checksum mismatch"):
             _bandwidth_summary(broken, config)
 
-    def test_fs_06__full_summary_requires_bounded_state_and_two_host_mapping(self) -> None:
+    def test_fs_06__full_summary_requires_bounded_state_and_two_host_mapping(
+        self,
+    ) -> None:
         config = _config()
         roles = _synthetic_roles(config)
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             for role in roles:
                 atomic_write_json(root / f"capacity-rank-{role['rank']}.json", role)
-            summary = summarize_capacity(config=config, run_id="capacity-test", result_root=root)
+            summary = summarize_capacity(
+                config=config, run_id="capacity-test", result_root=root
+            )
             self.assertEqual(summary["outcome"], "target_lustre_capacity_pass")
             self.assertEqual(summary["decision"]["A-BENCH-03"], "PASS")
             self.assertEqual(summary["decision"]["A-BENCH-04"], "PASS")

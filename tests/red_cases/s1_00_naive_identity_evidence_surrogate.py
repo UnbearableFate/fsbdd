@@ -41,7 +41,9 @@ with tempfile.TemporaryDirectory() as tmp:
 if {"schema_version": 1, "unknown": True}.get("schema_version") == 1:
     failures.append("DISC-03: naive schema accepted an unknown field")
 if {"time_source": "invalid", "scheduler": {}}.get("scheduler") is not None:
-    failures.append("FS-07: naive manifest accepted invalid time source and empty scheduler")
+    failures.append(
+        "FS-07: naive manifest accepted invalid time source and empty scheduler"
+    )
 
 if failures:
     raise AssertionError("\n".join(failures))

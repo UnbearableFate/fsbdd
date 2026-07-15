@@ -125,7 +125,7 @@ mkdir "$TEST_ROOT"
 printf '%q ' mpirun -np 2 --map-by ppr:1:node --hostfile "$PBS_NODEFILE" \
   /usr/bin/env "PYTHONPATH=$PYTHONPATH" "PBS_JOBID=$PBS_JOBID" \
   "PBS_NODEFILE=$PBS_NODEFILE" "OMP_NUM_THREADS=$OMP_NUM_THREADS" \
-  "$PYTHON" -m fsbdd.global_commit_stress role \
+  "$PYTHON" -m fsbdd.auxiliary.stress.global_commit_stress role \
   --root "$TEST_ROOT" --result-root "$EVIDENCE_ROOT/runtime/roles" \
   --run-id "$RUN_ID" --config-path "$PROJECT_ROOT/$CONFIG_SOURCE" \
   --config-identity "$CONFIG_SHA256" >> "$EVIDENCE_ROOT/commands.log"
@@ -134,13 +134,13 @@ printf '\n' >> "$EVIDENCE_ROOT/commands.log"
 mpirun -np 2 --map-by ppr:1:node --hostfile "$PBS_NODEFILE" \
   /usr/bin/env "PYTHONPATH=$PYTHONPATH" "PBS_JOBID=$PBS_JOBID" \
   "PBS_NODEFILE=$PBS_NODEFILE" "OMP_NUM_THREADS=$OMP_NUM_THREADS" \
-  "$PYTHON" -m fsbdd.global_commit_stress role \
+  "$PYTHON" -m fsbdd.auxiliary.stress.global_commit_stress role \
   --root "$TEST_ROOT" --result-root "$EVIDENCE_ROOT/runtime/roles" \
   --run-id "$RUN_ID" --config-path "$PROJECT_ROOT/$CONFIG_SOURCE" \
   --config-identity "$CONFIG_SHA256" \
   > "$EVIDENCE_ROOT/stdout/mpirun.log" 2> "$EVIDENCE_ROOT/stderr/mpirun.log"
 
-"$PYTHON" -m fsbdd.global_commit_stress summarize \
+"$PYTHON" -m fsbdd.auxiliary.stress.global_commit_stress summarize \
   --result-root "$EVIDENCE_ROOT/runtime/roles" \
   --config-path "$PROJECT_ROOT/$CONFIG_SOURCE" --config-identity "$CONFIG_SHA256" \
   --output "$EVIDENCE_ROOT/analysis/global-commit-summary.json" \
@@ -149,7 +149,7 @@ mpirun -np 2 --map-by ppr:1:node --hostfile "$PBS_NODEFILE" \
 
 cp -a "$TEST_ROOT" "$EVIDENCE_ROOT/runtime/shared-state"
 
-"$PYTHON" -m fsbdd.global_commit_stress manifest \
+"$PYTHON" -m fsbdd.auxiliary.stress.global_commit_stress manifest \
   --repository "$REPOSITORY" --branch "$BRANCH" --commit "$EXPECTED_COMMIT" \
   --run-id "$RUN_ID" --config-sha256 "$CONFIG_SHA256" \
   --research-sha256 "$RESEARCH_SHA256" --spec-sha256 "$SPEC_SHA256" \

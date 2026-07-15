@@ -10,9 +10,9 @@ from collections.abc import Iterator, Sequence
 import numpy as np
 import pytest
 
-from fsbdd.global_state import FragmentStateDescriptor
-from fsbdd.identity import canonical_digest
-from fsbdd.syncer_merge import (
+from fsbdd.diloco.protocol.global_state import FragmentStateDescriptor
+from fsbdd.diloco.common.identity import canonical_digest
+from fsbdd.diloco.syncer.merge import (
     ContributionFact,
     DirectWeightedAverage,
     FragmentMergeRequest,
@@ -25,7 +25,11 @@ from fsbdd.syncer_merge import (
     execute_numpy_streaming_fragment_update,
     execute_streaming_fragment_update,
 )
-from fsbdd_stage0.oracle import OuterSGDState, outer_sgd_step, weighted_direct_merge
+from fsbdd.auxiliary.stage0.oracle import (
+    OuterSGDState,
+    outer_sgd_step,
+    weighted_direct_merge,
+)
 
 
 MAP_ID = hashlib.sha256(b"s1-10-map").hexdigest()
@@ -143,7 +147,9 @@ def make_request(
     )
 
 
-def assert_close(actual: bytes, expected: Sequence[float], tolerance: float = 1e-6) -> None:
+def assert_close(
+    actual: bytes, expected: Sequence[float], tolerance: float = 1e-6
+) -> None:
     assert np.allclose(values(actual), expected, rtol=0.0, atol=tolerance)
 
 
@@ -229,7 +235,9 @@ def test_cpu_only_numpy_profile_a_kernel_matches_torch_transition() -> None:
     )
     assert_close(numpy_result.parameters, values(torch_result.parameters))
     assert_close(numpy_result.merged_gradient, values(torch_result.merged_gradient))
-    assert numpy_result.outer_state.update_count == torch_result.outer_state.update_count
+    assert (
+        numpy_result.outer_state.update_count == torch_result.outer_state.update_count
+    )
     assert_close(
         numpy_result.outer_state.momentum_buffer,
         values(torch_result.outer_state.momentum_buffer),
@@ -299,7 +307,9 @@ def test_nesterov_uses_updated_buffer_and_matches_stage0_two_steps() -> None:
     for version, gradient in enumerate(([2.0, -4.0], [-1.0, 3.0])):
         current = payload(parameters)
         current_identity = hashlib.sha256(f"current-{version}".encode()).hexdigest()
-        local = payload([left - right for left, right in zip(parameters, gradient, strict=True)])
+        local = payload(
+            [left - right for left, right in zip(parameters, gradient, strict=True)]
+        )
         fact = make_fact(
             f"proposal-{version}",
             local,
@@ -459,10 +469,22 @@ def test_update_identity_binds_normative_facts() -> None:
         dataclasses.replace(facts[0], normalized_weight=0.5),
         dataclasses.replace(facts[1], normalized_weight=0.5),
     )
-    assert canonical_digest(
-        build_update_facts(dataclasses.replace(request, contributions=changed_weights), merge, outer)
-    ) != original
-    assert canonical_digest(build_update_facts(request, merge, OuterSGDPolicy(0.2, 0.9, True))) != original
+    assert (
+        canonical_digest(
+            build_update_facts(
+                dataclasses.replace(request, contributions=changed_weights),
+                merge,
+                outer,
+            )
+        )
+        != original
+    )
+    assert (
+        canonical_digest(
+            build_update_facts(request, merge, OuterSGDPolicy(0.2, 0.9, True))
+        )
+        != original
+    )
 
 
 class RecordingDirectPolicy(MergePolicy):
@@ -539,7 +561,11 @@ def test_checksum_dtype_duplicate_and_outer_state_guards_fail_closed() -> None:
             ),
         )
     with pytest.raises(MergeError, match="float32 fragment"):
-        make_request(current, (fact,), descriptor=dataclasses.replace(DESCRIPTOR, dtype="safetensors"))
+        make_request(
+            current,
+            (fact,),
+            descriptor=dataclasses.replace(DESCRIPTOR, dtype="safetensors"),
+        )
     with pytest.raises(MergeError, match="descriptor shape differs"):
         make_request(
             current,
@@ -550,7 +576,9 @@ def test_checksum_dtype_duplicate_and_outer_state_guards_fail_closed() -> None:
         make_request(current, (fact,), outer_state=FragmentOuterState(1))
     with pytest.raises(MergeError, match="momentum-free"):
         execute_streaming_fragment_update(
-            make_request(current, (fact,), outer_state=FragmentOuterState(0, payload([0.0, 0.0]))),
+            make_request(
+                current, (fact,), outer_state=FragmentOuterState(0, payload([0.0, 0.0]))
+            ),
             MemorySource({"p": local}),
             OuterSGDPolicy(1.0, 0.0, False),
         )

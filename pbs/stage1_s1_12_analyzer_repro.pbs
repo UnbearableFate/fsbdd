@@ -45,7 +45,7 @@ git rev-parse HEAD > "$ROOT/git-commit.txt"
 qstat -f "$PBS_JOBID" > "$ROOT/qstat.txt"
 "$PYTHON" -m pytest -q tests/stage1/test_s1_12_analyzer.py \
   > "$ROOT/pytest.log" 2> "$ROOT/pytest.err"
-"$PYTHON" -m fsbdd.profile_a_stress summarize \
+"$PYTHON" -m fsbdd.auxiliary.stress.profile_a_stress summarize \
   --result-root "$FAILED_FORMAL/runtime/roles" \
   --shared-root "$FAILED_SHARED" \
   --config-path "$PROJECT_ROOT/$CONFIG_SOURCE" \

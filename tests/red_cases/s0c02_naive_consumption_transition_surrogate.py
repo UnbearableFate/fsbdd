@@ -31,9 +31,7 @@ class TestNaiveConsumptionTransitionSurrogate(unittest.TestCase):
         old_buffer = [0.0, 0.0]
         wrong = [
             value - learning_rate * (grad + momentum * old)
-            for value, grad, old in zip(
-                parameters, gradient, old_buffer, strict=True
-            )
+            for value, grad, old in zip(parameters, gradient, old_buffer, strict=True)
         ]
         self.assertEqual(
             wrong,

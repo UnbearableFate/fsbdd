@@ -20,7 +20,9 @@ def naive_greedy(weights: tuple[int, ...], fragment_count: int) -> tuple[int, ..
         latest_end = len(weights) - (remaining_fragments - 1)
         while end < latest_end:
             candidate = weights[end]
-            if end > start and abs(subtotal - target) <= abs(subtotal + candidate - target):
+            if end > start and abs(subtotal - target) <= abs(
+                subtotal + candidate - target
+            ):
                 break
             subtotal += candidate
             end += 1
@@ -66,11 +68,15 @@ for seed in ("1", "2"):
     )
     digests.append(result.stdout.strip())
 if len(set(digests)) != 1:
-    failures.append("FRAG-05/07: unordered tie selection changes the map digest across processes")
+    failures.append(
+        "FRAG-05/07: unordered tie selection changes the map digest across processes"
+    )
 
 invalid_counts_accepted = [0, 1, len(weights), len(weights) + 1]
 if invalid_counts_accepted:
-    failures.append("FRAG-02/03: naive mapper has no production bounds or nonempty-interval validation")
+    failures.append(
+        "FRAG-02/03: naive mapper has no production bounds or nonempty-interval validation"
+    )
 
 naive_parameter_buckets = ({"p0", "p1"}, {"p1", "p2"})
 flattened = [identity for bucket in naive_parameter_buckets for identity in bucket]

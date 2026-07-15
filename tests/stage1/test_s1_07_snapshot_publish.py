@@ -12,19 +12,19 @@ import pytest
 torch = pytest.importorskip("torch")
 transformers = pytest.importorskip("transformers")
 
-from fsbdd.fragment_map import build_fragment_map  # noqa: E402
-from fsbdd.global_state import (  # noqa: E402
+from fsbdd.diloco.model.fragment_map import build_fragment_map  # noqa: E402
+from fsbdd.diloco.protocol.global_state import (  # noqa: E402
     FragmentStateDescriptor,
     GlobalStateIdentities,
 )
-from fsbdd.learner import (  # noqa: E402
+from fsbdd.diloco.learner.runtime import (  # noqa: E402
     ConstantStepScheduler,
     LearnerProgress,
     LearnerRng,
     LearnerRuntime,
     SafeBoundaryEvent,
 )
-from fsbdd.learner_publish import (  # noqa: E402
+from fsbdd.diloco.learner.publication import (  # noqa: E402
     AdoptedFragmentBase,
     BoundedProposalPublisher,
     FragmentPublicationSchedule,
@@ -35,13 +35,13 @@ from fsbdd.learner_publish import (  # noqa: E402
     build_fragment_parameter_groups,
     serialize_fragment_parameters,
 )
-from fsbdd.model_registry import build_logical_layer_registry  # noqa: E402
-from fsbdd.learner_publish_stress import (  # noqa: E402
+from fsbdd.diloco.model.model_registry import build_logical_layer_registry  # noqa: E402
+from fsbdd.auxiliary.stress.learner_publish_stress import (  # noqa: E402
     SnapshotStressError,
     write_manifest,
 )
-from fsbdd.proposal import Proposal, ProposalStore  # noqa: E402
-from fsbdd.storage import PosixStorageBackend  # noqa: E402
+from fsbdd.diloco.protocol.proposal import Proposal, ProposalStore  # noqa: E402
+from fsbdd.diloco.protocol.storage import PosixStorageBackend  # noqa: E402
 
 
 IDENTITIES = GlobalStateIdentities(
@@ -170,9 +170,10 @@ def test_weighted_offsets_are_deterministic_spread_and_byte_accounted() -> None:
         for index in range(4)
     ] == [1, 1, 1, 1]
     budget = schedule.frequency_budget()
-    assert budget["exact_numerator"] / budget["exact_denominator"] == sum(
-        pythia_bytes
-    ) / 50
+    assert (
+        budget["exact_numerator"] / budget["exact_denominator"]
+        == sum(pythia_bytes) / 50
+    )
     assert budget["maximum_due_bytes"] == max(pythia_bytes)
 
     unequal = FragmentPublicationSchedule.unified((90, 5, 5), 8)
@@ -254,7 +255,9 @@ def test_bounded_publisher_replaces_pending_but_never_inflight(
     final = publisher.summary()
     assert final["maximum_in_flight_per_fragment"] == [1]
     assert final["maximum_pending_per_fragment"] == [1]
-    assert [trace["outcome"] for trace in sorted(traces, key=lambda row: row["sequence"])] == [
+    assert [
+        trace["outcome"] for trace in sorted(traces, key=lambda row: row["sequence"])
+    ] == [
         "skipped_nonmonotonic",
         "published",
         "replaced_before_publish",
@@ -389,7 +392,9 @@ def test_restart_uses_the_next_reserved_sequence(tmp_path: Path) -> None:
         descriptors=(descriptor,),
         fragment_parameters=((restored_parameter,),),
         adopted_bases=(_base(3),),
-        schedule=FragmentPublicationSchedule.unified((restored_parameter.numel() * 4,), 1),
+        schedule=FragmentPublicationSchedule.unified(
+            (restored_parameter.numel() * 4,), 1
+        ),
         store=store,
     )
     _advance(restored)

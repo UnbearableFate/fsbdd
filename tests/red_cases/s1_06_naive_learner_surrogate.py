@@ -18,7 +18,9 @@ def forbidden_distributed_setup() -> None:
 class NaiveLearner:
     """Conflates microbatches and steps and never mutates model parameters."""
 
-    def __init__(self, model: torch.nn.Module, batches: list[dict[str, torch.Tensor]]) -> None:
+    def __init__(
+        self, model: torch.nn.Module, batches: list[dict[str, torch.Tensor]]
+    ) -> None:
         self.model = model
         self.batches = batches
         self.global_step = 0
@@ -72,13 +74,17 @@ def main() -> int:
     if all(torch.equal(left, right) for left, right in zip(before, after, strict=True)):
         failures.append("LEARN-01/TEL-04: ten real HF forwards changed no parameter")
     if learner.global_step != 5:
-        failures.append("PROG-04/PROG-05: microbatches advanced the collapsed global step")
+        failures.append(
+            "PROG-04/PROG-05: microbatches advanced the collapsed global step"
+        )
     if any("loss" not in event for event in learner.events):
         failures.append("TEL-04: optimizer-boundary loss telemetry is missing")
     if any(not math.isfinite(float(event["throughput"])) for event in learner.events):
         failures.append("TEL-01: throughput is nonfinite")
     else:
-        failures.append("TEL-01: throughput is a synthetic rank-rate sum without an interval")
+        failures.append(
+            "TEL-01: throughput is a synthetic rank-rate sum without an interval"
+        )
     if any("fragment_local_steps" not in event for event in learner.events):
         failures.append("LEARN-01/PROG-04: per-fragment progress is absent")
 

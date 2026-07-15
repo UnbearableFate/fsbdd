@@ -10,8 +10,11 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from fsbdd_stage0.storage_bench import StorageHarnessError, validate_storage_config
-from fsbdd_stage0.storage_stress import (
+from fsbdd.auxiliary.stage0.storage_bench import (
+    StorageHarnessError,
+    validate_storage_config,
+)
+from fsbdd.auxiliary.stage0.storage_stress import (
     TIMING_METHOD,
     TIMING_ORIGIN,
     build_atomic_record,
@@ -76,7 +79,9 @@ def atomic_results(config: dict) -> tuple[dict, dict]:
                     {
                         "reader_id": reader_id,
                         "polls": config["atomicity"]["minimum_observations_per_reader"],
-                        "observations": config["atomicity"]["minimum_observations_per_reader"],
+                        "observations": config["atomicity"][
+                            "minimum_observations_per_reader"
+                        ],
                         "first_observed_monotonic_ns": 10,
                         "last_observed_monotonic_ns": 20,
                         "final_seen": True,
@@ -87,7 +92,10 @@ def atomic_results(config: dict) -> tuple[dict, dict]:
                 ],
             }
         )
-    return {"record_sizes": writer_sizes}, {"record_sizes": reader_sizes, "violations": 0}
+    return {"record_sizes": writer_sizes}, {
+        "record_sizes": reader_sizes,
+        "violations": 0,
+    }
 
 
 class TestVisibilityAtomicityContracts(unittest.TestCase):
@@ -105,7 +113,10 @@ class TestVisibilityAtomicityContracts(unittest.TestCase):
         config = load_config()
         samples = latency_samples(config)
         summary = validate_latency_samples(samples, config)
-        self.assertEqual(summary["clock_skew_handling"], "writer_clock_elapsed_only_no_cross_host_subtraction")
+        self.assertEqual(
+            summary["clock_skew_handling"],
+            "writer_clock_elapsed_only_no_cross_host_subtraction",
+        )
         self.assertIn("max_seconds", summary["profiles"]["loaded"])
 
         wrong_origin = copy.deepcopy(samples)
@@ -131,28 +142,47 @@ class TestVisibilityAtomicityContracts(unittest.TestCase):
         for record_size in (256, 4096):
             content = build_atomic_record("run-a", record_size, 7)
             self.assertEqual(len(content), record_size)
-            self.assertEqual(validate_atomic_record(content, run_id="run-a", record_size=record_size), 7)
+            self.assertEqual(
+                validate_atomic_record(
+                    content, run_id="run-a", record_size=record_size
+                ),
+                7,
+            )
             with self.assertRaisesRegex(StorageHarnessError, "record length"):
-                validate_atomic_record(content[: len(content) // 2], run_id="run-a", record_size=record_size)
+                validate_atomic_record(
+                    content[: len(content) // 2],
+                    run_id="run-a",
+                    record_size=record_size,
+                )
             corrupt = bytearray(content)
             corrupt[corrupt.index(b"a")] = ord("b")
             with self.assertRaises(StorageHarnessError):
-                validate_atomic_record(bytes(corrupt), run_id="run-a", record_size=record_size)
+                validate_atomic_record(
+                    bytes(corrupt), run_id="run-a", record_size=record_size
+                )
 
     def test_bench_02__visibility_replace_exposes_complete_records(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "current.json"
             replace_visibility_bytes(path, build_atomic_record("run-a", 256, 1))
             self.assertEqual(
-                validate_atomic_record(path.read_bytes(), run_id="run-a", record_size=256), 1
+                validate_atomic_record(
+                    path.read_bytes(), run_id="run-a", record_size=256
+                ),
+                1,
             )
             replace_visibility_bytes(path, build_atomic_record("run-a", 256, 2))
             self.assertEqual(
-                validate_atomic_record(path.read_bytes(), run_id="run-a", record_size=256), 2
+                validate_atomic_record(
+                    path.read_bytes(), run_id="run-a", record_size=256
+                ),
+                2,
             )
             self.assertEqual(list(path.parent.glob(".*.visibility-*")), [])
 
-    def test_bench_02__summary_requires_100k_zero_violations_and_four_readers(self) -> None:
+    def test_bench_02__summary_requires_100k_zero_violations_and_four_readers(
+        self,
+    ) -> None:
         config = load_config()
         writer, reader = atomic_results(config)
         summary = validate_atomicity_results(writer, reader, config)
@@ -201,10 +231,14 @@ class TestVisibilityAtomicityContracts(unittest.TestCase):
         ).hexdigest()
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            (root / "atomic_publications_256.jsonl").write_text(content, encoding="utf-8")
+            (root / "atomic_publications_256.jsonl").write_text(
+                content, encoding="utf-8"
+            )
             validate_atomicity_results(writer, reader, config, result_root=root)
             corrupt = content.replace('"sequence":1', '"sequence":2', 1)
-            (root / "atomic_publications_256.jsonl").write_text(corrupt, encoding="utf-8")
+            (root / "atomic_publications_256.jsonl").write_text(
+                corrupt, encoding="utf-8"
+            )
             with self.assertRaisesRegex(StorageHarnessError, "sequence"):
                 validate_atomicity_results(writer, reader, config, result_root=root)
 

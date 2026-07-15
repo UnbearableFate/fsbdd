@@ -7,8 +7,12 @@ from pathlib import Path
 import pytest
 
 from fsbdd.cli import main
-from fsbdd.logging import StructuredLogger
-from fsbdd.requirements import MatrixError, authority_ids, validate_matrix
+from fsbdd.diloco.common.logging import StructuredLogger
+from fsbdd.auxiliary.contracts.requirements import (
+    MatrixError,
+    authority_ids,
+    validate_matrix,
+)
 
 
 def test_requirement_ids_are_derived_from_authority(tmp_path: Path) -> None:
@@ -63,7 +67,9 @@ def test_structured_logger_serializes_concurrent_role_threads(tmp_path: Path) ->
 
     with ThreadPoolExecutor(max_workers=4) as pool:
         list(pool.map(emit, range(4)))
-    records = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
+    records = [
+        json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()
+    ]
     assert len(records) == 100
     assert {(item["worker"], item["sequence"]) for item in records} == {
         (worker, sequence) for worker in range(4) for sequence in range(25)

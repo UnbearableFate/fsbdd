@@ -14,7 +14,7 @@ import pytest
 torch = pytest.importorskip("torch")
 transformers = pytest.importorskip("transformers")
 
-from fsbdd.learner import (  # noqa: E402
+from fsbdd.diloco.learner.runtime import (  # noqa: E402
     ConstantStepScheduler,
     LearnerError,
     LearnerProgress,
@@ -22,23 +22,23 @@ from fsbdd.learner import (  # noqa: E402
     LearnerRuntime,
     PackedTokenShard,
 )
-from fsbdd.learner_assets import (  # noqa: E402
+from fsbdd.diloco.model.learner_assets import (  # noqa: E402
     LearnerAssetError,
     load_learner_profile,
     materialize_packed_shards,
     validate_materialized_shards,
     verify_profile_assets,
 )
-from fsbdd.learner_smoke import (  # noqa: E402
+from fsbdd.auxiliary.stress.learner_smoke import (  # noqa: E402
     LearnerSmokeError,
     _fragment_parameter_groups,
     main as learner_smoke_main,
     profile_set_digest,
     summarize_runs,
 )
-from fsbdd.logging import StructuredLogger  # noqa: E402
-from fsbdd.manifest import validate_manifest  # noqa: E402
-from fsbdd.model_registry import build_logical_layer_registry  # noqa: E402
+from fsbdd.diloco.common.logging import StructuredLogger  # noqa: E402
+from fsbdd.auxiliary.contracts.manifest import validate_manifest  # noqa: E402
+from fsbdd.diloco.model.model_registry import build_logical_layer_registry  # noqa: E402
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -173,8 +173,12 @@ def _tiny_model(seed: int = 1606) -> torch.nn.Module:
     )
 
 
-def _groups(model: torch.nn.Module, count: int = 2) -> tuple[tuple[torch.nn.Parameter, ...], ...]:
-    parameters = tuple(parameter for parameter in model.parameters() if parameter.requires_grad)
+def _groups(
+    model: torch.nn.Module, count: int = 2
+) -> tuple[tuple[torch.nn.Parameter, ...], ...]:
+    parameters = tuple(
+        parameter for parameter in model.parameters() if parameter.requires_grad
+    )
     split = len(parameters) // count
     return (parameters[:split], parameters[split:])
 
@@ -188,7 +192,9 @@ def _batches(count: int, *, padding: bool = True) -> list[dict[str, torch.Tensor
             mask[:, -2:] = 0
         labels = input_ids.clone()
         labels[mask == 0] = -100
-        result.append({"input_ids": input_ids, "labels": labels, "attention_mask": mask})
+        result.append(
+            {"input_ids": input_ids, "labels": labels, "attention_mask": mask}
+        )
     return result
 
 
@@ -218,7 +224,9 @@ def _runtime(
 ) -> LearnerRuntime:
     progress = progress or LearnerProgress.initialize("learner-a", (2, 5))
     scheduler = scheduler or ConstantStepScheduler(progress.local_optimizer_steps)
-    rng = rng or LearnerRng.initialize(progress.learner_id, rng_seed, torch.device("cpu"))
+    rng = rng or LearnerRng.initialize(
+        progress.learner_id, rng_seed, torch.device("cpu")
+    )
     optimizer = (
         torch.optim.AdamW(model.parameters(), lr=lr)
         if optimizer_type == "adamw"
@@ -266,8 +274,14 @@ def test_tracked_profiles_freeze_distinct_real_workloads_and_no_torch_change() -
     [
         (lambda row: row["model"].update(revision="main"), "immutable 40-character"),
         (lambda row: row["dataset"].update(normalization="strip"), "skip only empty"),
-        (lambda row: row["training"].update(gradient_accumulation_steps=0), "must be an integer"),
-        (lambda row: row["training"]["scheduler"].update(basis="tokens"), "only constant"),
+        (
+            lambda row: row["training"].update(gradient_accumulation_steps=0),
+            "must be an integer",
+        ),
+        (
+            lambda row: row["training"]["scheduler"].update(basis="tokens"),
+            "only constant",
+        ),
     ],
 )
 def test_profile_schema_fails_closed(tmp_path: Path, mutation, message: str) -> None:
@@ -320,7 +334,11 @@ def test_asset_identity_and_visibility_last_materialization(
         def iter_batches(**_kwargs):
             yield Batch(["", "abcdefg", "hijklmn", "opqrstu", "vwxyzab", "moretext"])
 
-    monkeypatch.setattr(transformers.AutoTokenizer, "from_pretrained", lambda *_args, **_kwargs: Tokenizer())
+    monkeypatch.setattr(
+        transformers.AutoTokenizer,
+        "from_pretrained",
+        lambda *_args, **_kwargs: Tokenizer(),
+    )
     import pyarrow.parquet
 
     monkeypatch.setattr(pyarrow.parquet, "ParquetFile", ParquetFile)
@@ -344,8 +362,16 @@ def test_asset_identity_and_visibility_last_materialization(
     state = first.state_dict()
     assert state["learner_index"] != second_initial_state["learner_index"]
     assert second.state_dict() == second_initial_state
-    resumed = PackedTokenShard(profile, output, learner_index=0, epoch=state["epoch"], position=state["position"])
-    assert torch.equal(first.next_batch(1)["input_ids"], resumed.next_batch(1)["input_ids"])
+    resumed = PackedTokenShard(
+        profile,
+        output,
+        learner_index=0,
+        epoch=state["epoch"],
+        position=state["position"],
+    )
+    assert torch.equal(
+        first.next_batch(1)["input_ids"], resumed.next_batch(1)["input_ids"]
+    )
     assert second.state_dict() == second_initial_state
     assert batch["input_ids"].shape == (2, 8)
 
@@ -355,7 +381,9 @@ def test_asset_identity_and_visibility_last_materialization(
         validate_materialized_shards(profile, output)
 
 
-def test_optimizer_boundary_accumulation_tokens_loss_and_fragment_counters(tmp_path: Path) -> None:
+def test_optimizer_boundary_accumulation_tokens_loss_and_fragment_counters(
+    tmp_path: Path,
+) -> None:
     model = _tiny_model()
     log = tmp_path / "learner.jsonl"
     runtime = _runtime(
@@ -370,24 +398,43 @@ def test_optimizer_boundary_accumulation_tokens_loss_and_fragment_counters(tmp_p
     assert [event.local_optimizer_step for event in result.events] == [1, 2]
     assert all(event.microbatches == 2 for event in result.events)
     expected_input = sum(int(batch["attention_mask"].sum()) for batch in _batches(4))
-    expected_targets = sum(int(batch["attention_mask"][:, 1:].sum()) for batch in _batches(4))
+    expected_targets = sum(
+        int(batch["attention_mask"][:, 1:].sum()) for batch in _batches(4)
+    )
     assert result.processed_input_tokens == expected_input
     assert result.loss_bearing_target_tokens == expected_targets
     assert result.progress["local_optimizer_steps"] == 2
-    assert [row["local_steps_since_adoption"] for row in result.progress["fragments"]] == [2, 2]
-    assert [row["processed_input_tokens_since_adoption"] for row in result.progress["fragments"]] == [expected_input] * 2
-    assert math.isclose(result.common_interval_input_tokens_per_second, expected_input / 4.0)
-    records = [json.loads(line) for line in log.read_text(encoding="utf-8").splitlines()]
+    assert [
+        row["local_steps_since_adoption"] for row in result.progress["fragments"]
+    ] == [2, 2]
+    assert [
+        row["processed_input_tokens_since_adoption"]
+        for row in result.progress["fragments"]
+    ] == [expected_input] * 2
+    assert math.isclose(
+        result.common_interval_input_tokens_per_second, expected_input / 4.0
+    )
+    records = [
+        json.loads(line) for line in log.read_text(encoding="utf-8").splitlines()
+    ]
     assert [record["event"] for record in records] == ["safe_boundary", "safe_boundary"]
-    assert all(record["lr_schedule_basis"] == "local_optimizer_steps" for record in records)
+    assert all(
+        record["lr_schedule_basis"] == "local_optimizer_steps" for record in records
+    )
     assert all(record["distributed_initialized"] is False for record in records)
-    assert all(set(record["inactive_metrics"].values()) == {
-        "not_exercised_until_S1-07",
-        "not_exercised_until_S1-08",
-    } for record in records)
+    assert all(
+        set(record["inactive_metrics"].values())
+        == {
+            "not_exercised_until_S1-07",
+            "not_exercised_until_S1-08",
+        }
+        for record in records
+    )
 
 
-def test_long_run_sampling_and_dynamic_stop_keep_complete_loss_log(tmp_path: Path) -> None:
+def test_long_run_sampling_and_dynamic_stop_keep_complete_loss_log(
+    tmp_path: Path,
+) -> None:
     progress = LearnerProgress.initialize("learner-a", (2, 5))
     log = tmp_path / "sampled.jsonl"
     runtime = _runtime(
@@ -403,11 +450,17 @@ def test_long_run_sampling_and_dynamic_stop_keep_complete_loss_log(tmp_path: Pat
         optimizer_steps=5,
         stop_requested=lambda: progress.local_optimizer_steps >= 3,
     )
-    records = [json.loads(line) for line in log.read_text(encoding="utf-8").splitlines()]
+    records = [
+        json.loads(line) for line in log.read_text(encoding="utf-8").splitlines()
+    ]
     assert result.optimizer_steps_completed == 3
     assert result.events == ()
     assert [record["local_optimizer_step"] for record in records] == [1, 2, 3]
-    assert [bool(record["fragment_update_norms"]) for record in records] == [True, True, False]
+    assert [bool(record["fragment_update_norms"]) for record in records] == [
+        True,
+        True,
+        False,
+    ]
 
 
 def test_padding_aware_accumulation_matches_one_combined_token_mean_update() -> None:
@@ -432,7 +485,9 @@ def test_padding_aware_accumulation_matches_one_combined_token_mean_update() -> 
     reference(**combined).loss.backward()
     torch.nn.utils.clip_grad_norm_(reference.parameters(), 1.0, error_if_nonfinite=True)
     optimizer.step()
-    for actual, expected in zip(model.parameters(), reference.parameters(), strict=True):
+    for actual, expected in zip(
+        model.parameters(), reference.parameters(), strict=True
+    ):
         assert torch.allclose(actual, expected, atol=2e-6, rtol=2e-6)
 
 
@@ -473,9 +528,9 @@ def test_resume_preserves_progress_versions_and_scheduler_basis() -> None:
     assert restored.to_dict() == original.to_dict()
     scheduler = ConstantStepScheduler(5)
     model = _tiny_model()
-    result = _runtime(model, progress=restored, scheduler=scheduler, gradient_accumulation=1).run(
-        _batches(1), optimizer_steps=1
-    )
+    result = _runtime(
+        model, progress=restored, scheduler=scheduler, gradient_accumulation=1
+    ).run(_batches(1), optimizer_steps=1)
     assert result.progress["local_optimizer_steps"] == 6
     assert result.events[0].local_optimizer_step == 6
     assert result.events[0].fragment_global_versions == (3, 9)
@@ -518,7 +573,10 @@ def test_two_learners_have_disjoint_model_optimizer_and_owned_rng_streams() -> N
     assert runtime_a.model is not runtime_b.model
     assert runtime_a.optimizer is not runtime_b.optimizer
     assert runtime_a.progress is not runtime_b.progress
-    assert not ({id(parameter) for parameter in model_a.parameters()} & {id(parameter) for parameter in model_b.parameters()})
+    assert not (
+        {id(parameter) for parameter in model_a.parameters()}
+        & {id(parameter) for parameter in model_b.parameters()}
+    )
     assert rng_a is not rng_b
     assert rng_a.state_sha256() != rng_b.state_sha256()
 
@@ -529,7 +587,11 @@ def test_two_learners_have_disjoint_model_optimizer_and_owned_rng_streams() -> N
     assert torch.equal(torch.get_rng_state(), process_rng_before)
     assert model_a.draws != model_b.draws
     assert result_a.rng["seed"] == 101 and result_b.rng["seed"] == 202
-    assert result_a.rng["scope"] == result_b.rng["scope"] == "runtime_owned_forked_torch_rng"
+    assert (
+        result_a.rng["scope"]
+        == result_b.rng["scope"]
+        == "runtime_owned_forked_torch_rng"
+    )
     assert result_a.rng["process_global_state_restored"] is True
     assert result_b.rng["process_global_state_restored"] is True
 
@@ -546,7 +608,9 @@ def test_two_learners_have_disjoint_model_optimizer_and_owned_rng_streams() -> N
 
 def test_gpt2_registry_covers_position_embedding_static_buffers_and_tied_head() -> None:
     model = transformers.GPT2LMHeadModel(
-        transformers.GPT2Config(n_layer=2, n_head=2, n_embd=16, n_positions=32, vocab_size=64)
+        transformers.GPT2Config(
+            n_layer=2, n_head=2, n_embd=16, n_positions=32, vocab_size=64
+        )
     )
     registry = build_logical_layer_registry(model)
     assert registry.family == "gpt2"
@@ -600,7 +664,9 @@ class _OverflowGradientModel(_MissingLossModel):
         (_tiny_model, [], "data source exhausted"),
     ],
 )
-def test_failure_semantics_zero_grad_without_optimizer_boundary(model_factory, batches, message: str) -> None:
+def test_failure_semantics_zero_grad_without_optimizer_boundary(
+    model_factory, batches, message: str
+) -> None:
     model = model_factory()
     parameters = tuple(model.parameters())
     midpoint = max(1, len(parameters) // 2)
@@ -628,7 +694,10 @@ def test_failure_semantics_zero_grad_without_optimizer_boundary(model_factory, b
     with pytest.raises(LearnerError, match=message):
         runtime.run(batches, optimizer_steps=1)
     assert runtime.progress.local_optimizer_steps == 0
-    assert all(torch.equal(left, right) for left, right in zip(before, model.parameters(), strict=True))
+    assert all(
+        torch.equal(left, right)
+        for left, right in zip(before, model.parameters(), strict=True)
+    )
 
 
 def test_zero_lr_is_rejected_as_no_real_parameter_update() -> None:
@@ -639,7 +708,7 @@ def test_zero_lr_is_rejected_as_no_real_parameter_update() -> None:
 
 
 def test_runtime_source_has_no_distributed_trainer_global_step_or_protocol_io() -> None:
-    import fsbdd.learner as learner_source
+    import fsbdd.diloco.learner.runtime as learner_source
 
     source = inspect.getsource(learner_source)
     assert "init_process_group" not in source
@@ -680,7 +749,9 @@ def _run_record(profile_id: str, *, parameter_count: int | None = None) -> dict:
             "token_weighted_loss": 3.95,
             "common_interval_input_tokens_per_second": 32.0,
             "rng": {
-                "learner_id": "tiny-learner" if parameter_count is None else "learner-0",
+                "learner_id": "tiny-learner"
+                if parameter_count is None
+                else "learner-0",
                 "seed": 1606 if parameter_count is None else 20260714,
                 "scope": "runtime_owned_forked_torch_rng",
                 "owner_pid": 123,
@@ -715,7 +786,10 @@ def _run_record(profile_id: str, *, parameter_count: int | None = None) -> dict:
         row["runtime"]["processed_input_tokens"] = 20_480
         row["runtime"]["loss_bearing_target_tokens"] = 20_440
         row["runtime"]["common_interval_input_tokens_per_second"] = 2_048.0
-        row["runtime"]["events"][-1]["fragment_processed_input_tokens"] = [20_480, 20_480]
+        row["runtime"]["events"][-1]["fragment_processed_input_tokens"] = [
+            20_480,
+            20_480,
+        ]
         for event in row["runtime"]["events"]:
             event["microbatches"] = 1
     else:
@@ -724,7 +798,9 @@ def _run_record(profile_id: str, *, parameter_count: int | None = None) -> dict:
     return row
 
 
-def test_summary_keeps_three_workloads_and_common_intervals_separate(tmp_path: Path) -> None:
+def test_summary_keeps_three_workloads_and_common_intervals_separate(
+    tmp_path: Path,
+) -> None:
     paths = []
     records = {
         "tiny": _run_record("tiny"),
@@ -744,8 +820,16 @@ def test_summary_keeps_three_workloads_and_common_intervals_separate(tmp_path: P
     assert set(summary["profiles"]) == {"tiny", "gpt2_wikitext", "pythia160m_fineweb"}
     assert summary["aggregation"]["combined_rank_rate"] is None
     assert summary["profiles"]["tiny"]["common_interval_input_tokens_per_second"] == 32
-    assert summary["profiles"]["gpt2_wikitext"]["common_interval_input_tokens_per_second"] == 2048
-    assert summary["profiles"]["pythia160m_fineweb"]["common_interval_input_tokens_per_second"] == 2048
+    assert (
+        summary["profiles"]["gpt2_wikitext"]["common_interval_input_tokens_per_second"]
+        == 2048
+    )
+    assert (
+        summary["profiles"]["pythia160m_fineweb"][
+            "common_interval_input_tokens_per_second"
+        ]
+        == 2048
+    )
     broken = _run_record("tiny")
     broken["runtime"]["common_interval_input_tokens_per_second"] = 96
     paths[0].write_text(json.dumps(broken), encoding="utf-8")

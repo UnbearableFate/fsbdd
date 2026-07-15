@@ -39,7 +39,7 @@ RUN_ID="s1-13-smoke-2n-${PBS_JOBID}"
 mpirun -np 1 --host "${HOSTS[1]}" /usr/bin/env \
   PYTHONPATH="$PYTHONPATH" OMP_NUM_THREADS=1 TOKENIZERS_PARALLELISM=false \
   HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 HF_DATASETS_OFFLINE=1 CUDA_VISIBLE_DEVICES="" \
-  "$PROJECT_ROOT/.venv/bin/python" -m fsbdd.stage1_close syncer \
+  "$PROJECT_ROOT/.venv/bin/python" -m fsbdd.auxiliary.stage1.close syncer \
   --shared-root "$SHARED" --result-root "$OUTPUT_ROOT/results" --run-id "$RUN_ID" \
   --config-path "$RESOLVED_CONFIG" --config-sha256 "$CONFIG_SHA256" \
   --asset-marker-sha256 "$ASSET_MARKER_SHA256" --learner-count-override 1 \
@@ -52,7 +52,7 @@ SYNCER_PID=$!
 mpirun -np 1 --host "${HOSTS[0]}" /usr/bin/env \
   PYTHONPATH="$PYTHONPATH" OMP_NUM_THREADS=1 TOKENIZERS_PARALLELISM=false \
   HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 HF_DATASETS_OFFLINE=1 CUDA_VISIBLE_DEVICES=0 \
-  "$PROJECT_ROOT/.venv/bin/python" -m fsbdd.stage1_close learner \
+  "$PROJECT_ROOT/.venv/bin/python" -m fsbdd.auxiliary.stage1.close learner \
   --shared-root "$SHARED" --result-root "$OUTPUT_ROOT/results" --run-id "$RUN_ID" \
   --config-path "$RESOLVED_CONFIG" --config-sha256 "$CONFIG_SHA256" \
   --asset-marker-sha256 "$ASSET_MARKER_SHA256" --hub-cache "$HF_HOME/hub" \

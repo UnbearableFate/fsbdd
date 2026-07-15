@@ -39,7 +39,10 @@ class NaiveBootstrap:
                 continue
             outer = path.with_name("outer-state.bin")
             # Wrong: missing compound state is accepted as empty outer state.
-            result[path.parent.name] = (path.read_bytes(), outer.read_bytes() if outer.exists() else b"")
+            result[path.parent.name] = (
+                path.read_bytes(),
+                outer.read_bytes() if outer.exists() else b"",
+            )
         return result
 
 
@@ -59,7 +62,9 @@ def main() -> int:
         # Same identity with different content must not overwrite version zero.
         naive.bootstrap({"fragment-0": b"different", "fragment-1": b"beta"})
         if (root / "history/fragment-0/parameters.bin").read_bytes() == b"different":
-            failures.append("GLOBAL-03/GLOBAL-06: conflicting bootstrap overwrote version zero")
+            failures.append(
+                "GLOBAL-03/GLOBAL-06: conflicting bootstrap overwrote version zero"
+            )
 
         # Per-fragment authority must not depend on a shared global head.
         if (root / "global-head.json").exists():
@@ -79,9 +84,15 @@ def main() -> int:
             hashlib.sha256(path.read_bytes()).hexdigest()
             for path in (root / "history").rglob("parameters.bin")
         ]
-        live_candidates = sum(1 for path in (root / "history").rglob("*") if path.is_file())
-        if len(payload_identities) != len(initial) or live_candidates > 2 * len(initial):
-            failures.append("SYNC-02/FS-06: storage has no bounded authoritative live-set contract")
+        live_candidates = sum(
+            1 for path in (root / "history").rglob("*") if path.is_file()
+        )
+        if len(payload_identities) != len(initial) or live_candidates > 2 * len(
+            initial
+        ):
+            failures.append(
+                "SYNC-02/FS-06: storage has no bounded authoritative live-set contract"
+            )
 
     if not failures:
         raise SystemExit("surrogate unexpectedly satisfied S1-04")

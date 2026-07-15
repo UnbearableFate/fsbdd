@@ -8,13 +8,13 @@ from pathlib import Path
 
 import pytest
 
-from fsbdd.global_commit_stress import (
+from fsbdd.auxiliary.stress.global_commit_stress import (
     GlobalCommitStressError,
     analyze_roles,
     build_analyzer_fixture,
     manifest_command,
 )
-from fsbdd.identity import canonical_digest
+from fsbdd.diloco.common.identity import canonical_digest
 
 
 CONFIG = Path("configs/stage1/s1_11_global_commit.json")
@@ -204,7 +204,11 @@ def test_manifest_command_uses_two_distinct_formal_roles(tmp_path: Path) -> None
     )
     assert manifest["loop_id"] == "S1-11"
     roles = manifest["identities"]["roles"]
-    assert roles["declared"] == roles["actual"] == {
-        "proposal_writer_reader": ["writer-host"],
-        "atomic_committer": ["committer-host"],
-    }
+    assert (
+        roles["declared"]
+        == roles["actual"]
+        == {
+            "proposal_writer_reader": ["writer-host"],
+            "atomic_committer": ["committer-host"],
+        }
+    )

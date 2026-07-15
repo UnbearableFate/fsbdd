@@ -48,7 +48,7 @@ mpirun -np 4 --oversubscribe --map-by slot \
   /usr/bin/env "PYTHONPATH=$PYTHONPATH" "OMP_NUM_THREADS=$OMP_NUM_THREADS" \
   "HF_HUB_OFFLINE=$HF_HUB_OFFLINE" "TRANSFORMERS_OFFLINE=$TRANSFORMERS_OFFLINE" \
   "HF_DATASETS_OFFLINE=$HF_DATASETS_OFFLINE" \
-  "$PYTHON" -m fsbdd.profile_a_stress role \
+  "$PYTHON" -m fsbdd.auxiliary.stress.profile_a_stress role \
   --root "$SHARED" --result-root "$ROLES" --run-id "s1-12-targeted-${PBS_JOBID}" \
   --config-path "$PROJECT_ROOT/$CONFIG_SOURCE" --config-identity "$CONFIG_SHA256" \
   > "$ROOT/mpirun.log" 2> "$ROOT/mpirun.err"
@@ -58,8 +58,8 @@ import json
 import sys
 from pathlib import Path
 
-from fsbdd.evaluation import load_evaluation_snapshot
-from fsbdd.profile_a_stress import _analyze_numeric
+from fsbdd.diloco.model.evaluation import load_evaluation_snapshot
+from fsbdd.auxiliary.stress.profile_a_stress import _analyze_numeric
 
 roles = Path(sys.argv[1])
 shared = Path(sys.argv[2])

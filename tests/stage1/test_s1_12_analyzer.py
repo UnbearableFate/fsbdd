@@ -6,12 +6,12 @@ from pathlib import Path
 
 import pytest
 
-from fsbdd.evaluation import (
+from fsbdd.diloco.model.evaluation import (
     FrozenEvaluationPlan,
     load_evaluation_snapshot,
     materialize_evaluation_snapshot,
 )
-from fsbdd.profile_a_stress import (
+from fsbdd.auxiliary.stress.profile_a_stress import (
     ProfileAStressError,
     analyze,
     run_numeric_e2e,
@@ -128,7 +128,8 @@ def _build_fixture(tmp_path: Path) -> tuple[Path, Path, dict, str]:
                     "local_optimizer_steps_after": control_steps + injected_steps,
                     "completed_steps": injected_steps,
                     "processed_input_tokens_before": control_steps * 64,
-                    "processed_input_tokens_after": (control_steps + injected_steps) * 64,
+                    "processed_input_tokens_after": (control_steps + injected_steps)
+                    * 64,
                     "processed_input_tokens": injected_steps * 64,
                     "step_completion_unix_ns": list(
                         range(11_000_000_101, 11_000_000_101 + injected_steps)
@@ -203,7 +204,9 @@ def test_analyzer_independently_recomputes_full_fixture(tmp_path: Path) -> None:
     assert summary["numeric"]["fifty_update_maximum_relative_l2"] <= 1e-6
     assert summary["speed_heterogeneity"]["maximum_unaffected_change"] == 0
     assert summary["speed_heterogeneity"]["slow_ratio"] == 0.5
-    assert summary["mixed_version_training"]["finite_consecutive_steps_per_learner"] == [
+    assert summary["mixed_version_training"][
+        "finite_consecutive_steps_per_learner"
+    ] == [
         5,
         5,
         5,
@@ -223,7 +226,9 @@ def test_analyzer_independently_recomputes_full_fixture(tmp_path: Path) -> None:
         )
 
 
-def test_analyzer_rejects_peer_throttling_and_mutable_evaluation(tmp_path: Path) -> None:
+def test_analyzer_rejects_peer_throttling_and_mutable_evaluation(
+    tmp_path: Path,
+) -> None:
     result_root, shared_root, config, identity = _build_fixture(tmp_path)
     learner = json.loads((result_root / "learner-01.json").read_text())
     learner["speed"]["injected"]["common_interval_input_tokens_per_second"] *= 0.9

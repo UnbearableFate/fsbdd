@@ -4,9 +4,9 @@ import argparse
 import json
 from pathlib import Path
 
-from .config import freeze_config, load_config
-from .evidence import EvidencePackage, validate_package
-from .requirements import validate_matrix
+from fsbdd.auxiliary.contracts.config import freeze_config, load_config
+from fsbdd.auxiliary.contracts.evidence import EvidencePackage, validate_package
+from fsbdd.auxiliary.contracts.requirements import validate_matrix
 
 
 _ROLES = ("bootstrap", "learner", "syncer", "checker")
@@ -59,8 +59,11 @@ def main(argv: list[str] | None = None) -> int:
             return 0
         if args.plan is None or args.storage_root is None:
             raise SystemExit("bootstrap requires --plan and --storage-root")
-        from .global_state import GlobalStateStore, load_bootstrap_plan
-        from .storage import PosixStorageBackend
+        from fsbdd.diloco.protocol.global_state import (
+            GlobalStateStore,
+            load_bootstrap_plan,
+        )
+        from fsbdd.diloco.protocol.storage import PosixStorageBackend
 
         plan = load_bootstrap_plan(args.plan)
         store = GlobalStateStore(

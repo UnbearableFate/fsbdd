@@ -11,8 +11,8 @@ LOOP_CARD = ROOT / "plans/FS_DILOCO_CODEX_EXECUTION_PLAN/loops/stage1/S1-10.md"
 MATRIX = ROOT / "reports/stage1/S1-10-requirement-matrix.csv"
 CONTRACT = ROOT / "reports/stage1/S1-10-evidence-contract.json"
 CONFIG = ROOT / "configs/stage1/s1_10_streaming_merge.json"
-PRODUCTION = ROOT / "src/fsbdd/syncer_merge.py"
-STRESS = ROOT / "src/fsbdd/syncer_merge_stress.py"
+PRODUCTION = ROOT / "src/fsbdd/diloco/syncer/merge.py"
+STRESS = ROOT / "src/fsbdd/auxiliary/stress/syncer_merge_stress.py"
 FORMAL_PBS = ROOT / "pbs/stage1_s1_10_streaming_merge.pbs"
 TARGETED_PBS = ROOT / "pbs/stage1_s1_10_targeted.pbs"
 
@@ -35,9 +35,7 @@ def test_requirement_matrix_is_derived_complete_and_structural() -> None:
     assert len(rows) == len(_card_ids()) == 9
     for row in rows:
         assert all(row[field].strip() for field in row)
-        assert row["evidence_path"].startswith(
-            "runtime_runs/S1-10/formal-l2-retry2/"
-        )
+        assert row["evidence_path"].startswith("runtime_runs/S1-10/formal-l2-retry2/")
 
 
 def test_config_and_contract_freeze_numeric_memory_and_topology_semantics() -> None:
@@ -55,7 +53,9 @@ def test_config_and_contract_freeze_numeric_memory_and_topology_semantics() -> N
     assert contract["topology"]["nodes"] == contract["topology"]["ranks"] == 2
     assert contract["topology"]["application_coordination"] == "filesystem_only"
     assert contract["numeric_contract"]["application"].startswith("apply the merged")
-    assert contract["memory_contract"]["active_payload_gate"].startswith("maximum simultaneous")
+    assert contract["memory_contract"]["active_payload_gate"].startswith(
+        "maximum simultaneous"
+    )
     assert len(contract["update_identity"]["required_fields"]) == 16
 
 
@@ -79,5 +79,5 @@ def test_pbs_scripts_preserve_compute_routing_and_formal_identity_guards() -> No
     assert "git status --porcelain" in formal
     assert "evidence validate" in formal
     assert "mpirun -np 2 --map-by ppr:1:node" in formal
-    assert "fsbdd.syncer_merge_stress role" in formal
+    assert "fsbdd.auxiliary.stress.syncer_merge_stress role" in formal
     assert "tests/stage1" in formal

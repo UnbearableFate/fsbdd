@@ -8,7 +8,7 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 def test_closure_runtime_has_no_application_network_data_plane() -> None:
-    source = (ROOT / "src/fsbdd/stage1_close.py").read_text(encoding="utf-8")
+    source = (ROOT / "src/fsbdd/auxiliary/stage1/close.py").read_text(encoding="utf-8")
     for token in (
         "init_process_group(",
         "DistributedDataParallel(",
@@ -19,7 +19,10 @@ def test_closure_runtime_has_no_application_network_data_plane() -> None:
         assert token not in source
     assert '"network_data_plane": False' in source
     assert '"application_coordination": "shared_filesystem_only"' in source
-    assert 'minimum_step_seconds=float(execution_contract["minimum_step_seconds"])' in source
+    assert (
+        'minimum_step_seconds=float(execution_contract["minimum_step_seconds"])'
+        in source
+    )
     assert 'merge_backend="numpy"' in source
 
 
@@ -36,18 +39,22 @@ def test_formal_topologies_freeze_independent_9n_and_coallocated_4_plus_1() -> N
     assert "mpirun -np 5 --map-by ppr:1:node" in long
     assert "CUDA_VISIBLE_DEVICES" in long or "stage1_close mpi" in long
     assert (ROOT / "pbs/stage1_s1_13_numpy_correction.pbs").is_file()
-    smoke = (ROOT / "pbs/stage1_s1_13_long_smoke.pbs").read_text(
-        encoding="utf-8"
-    )
+    smoke = (ROOT / "pbs/stage1_s1_13_long_smoke.pbs").read_text(encoding="utf-8")
     assert "#PBS -l select=5" in smoke
     assert "--non-formal-long-smoke" in smoke
     assert "stage1_gate" in smoke
 
 
-def test_formal_package_retains_current_protocol_samples_and_rejects_placeholders() -> None:
-    source = (ROOT / "src/fsbdd/stage1_package.py").read_text(encoding="utf-8")
+def test_formal_package_retains_current_protocol_samples_and_rejects_placeholders() -> (
+    None
+):
+    source = (ROOT / "src/fsbdd/auxiliary/stage1/package.py").read_text(
+        encoding="utf-8"
+    )
     assert "_reject_placeholders(resolved_config)" in source
-    assert "_capture_current_protocol_samples(arguments.shared_root, evidence)" in source
+    assert (
+        "_capture_current_protocol_samples(arguments.shared_root, evidence)" in source
+    )
     assert "raw-metadata/classified-current-inventory.json" in source
     assert "nine-node package requires a submission marker" in source
     assert '"gate_contract_sha256"' in source
@@ -59,7 +66,11 @@ def test_unresolved_contract_freezes_both_non_substitutable_workloads() -> None:
     )
     nine = config["workloads"]["nine_node"]
     long = config["workloads"]["long_run"]
-    assert (nine["learner_count"], nine["syncer_count"], nine["target_global_cycles"]) == (8, 1, 10)
+    assert (
+        nine["learner_count"],
+        nine["syncer_count"],
+        nine["target_global_cycles"],
+    ) == (8, 1, 10)
     assert nine["independent_pbs_roles"] is True
     assert (long["learner_count"], long["syncer_count"]) == (4, 1)
     assert long["minimum_aggregate_processed_input_tokens"] >= 1_000_000_000
@@ -71,14 +82,15 @@ def test_unresolved_contract_freezes_both_non_substitutable_workloads() -> None:
 
 def test_frozen_gate_contract_covers_heartbeat_stalls_and_long_capacity_smoke() -> None:
     contract = json.loads(
-        (ROOT / "reports/stage1/S1-13-gate-contract.json").read_text(
-            encoding="utf-8"
-        )
+        (ROOT / "reports/stage1/S1-13-gate-contract.json").read_text(encoding="utf-8")
     )
     runtime = contract["runtime"]
     smoke = contract["long_run"]["preflight_smoke"]
     assert runtime["maximum_unexpected_heartbeat_gap_multiple"] == 2.0
-    assert runtime["pending_stall_rejection"]["learner_publication_pending_upload_count"] == 0
+    assert (
+        runtime["pending_stall_rejection"]["learner_publication_pending_upload_count"]
+        == 0
+    )
     assert smoke["optimizer_steps_per_learner"] == 3000
     assert smoke["publication_opportunities_per_fragment_per_learner"] == 60
     assert smoke["minimum_global_cycles"] == 59
@@ -92,10 +104,7 @@ def test_frozen_gate_contract_covers_heartbeat_stalls_and_long_capacity_smoke() 
 
 def test_resolved_configs_bind_the_complete_immutable_asset_bundle() -> None:
     expected_marker = "6d13e621bb912495ba9e983a305991bf716f9307d24fe241d34a39e5f0b62c7f"
-    asset_root = (
-        "/work/xg24i002/x10041/fsbdd/runtime_runs/S1-13/"
-        "assets-2389469.opbs"
-    )
+    asset_root = "/work/xg24i002/x10041/fsbdd/runtime_runs/S1-13/assets-2389469.opbs"
     for workload, learners in (("nine_node", 8), ("long_run", 4)):
         path = ROOT / "configs" / "stage1" / f"s1_13_{workload}_resolved.json"
         text = path.read_text(encoding="utf-8")

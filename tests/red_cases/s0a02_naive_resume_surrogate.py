@@ -6,7 +6,9 @@ import unittest
 
 
 class TestNaiveResumeSurrogate(unittest.TestCase):
-    def test_resume__existing_checkpoint_must_not_be_rejected_unconditionally(self) -> None:
+    def test_resume__existing_checkpoint_must_not_be_rejected_unconditionally(
+        self,
+    ) -> None:
         run_directory_exists = True
         naive_entrypoint_exits_73 = run_directory_exists
         self.assertFalse(

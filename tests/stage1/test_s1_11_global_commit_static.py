@@ -12,9 +12,9 @@ MATRIX = ROOT / "reports/stage1/S1-11-requirement-matrix.csv"
 CONTRACT = ROOT / "reports/stage1/S1-11-evidence-contract.json"
 INJECTIONS = ROOT / "reports/stage1/S1-11-publication-injection-points.json"
 CONFIG = ROOT / "configs/stage1/s1_11_global_commit.json"
-PRODUCTION = ROOT / "src/fsbdd/global_commit.py"
-GLOBAL_STATE = ROOT / "src/fsbdd/global_state.py"
-STRESS = ROOT / "src/fsbdd/global_commit_stress.py"
+PRODUCTION = ROOT / "src/fsbdd/diloco/protocol/global_commit.py"
+GLOBAL_STATE = ROOT / "src/fsbdd/diloco/protocol/global_state.py"
+STRESS = ROOT / "src/fsbdd/auxiliary/stress/global_commit_stress.py"
 FORMAL_PBS = ROOT / "pbs/stage1_s1_11_global_commit.pbs"
 TARGETED_PBS = ROOT / "pbs/stage1_s1_11_targeted.pbs"
 
@@ -110,5 +110,5 @@ def test_pbs_scripts_preserve_compute_routing_and_formal_identity_guards() -> No
     assert "git status --porcelain" in formal
     assert "evidence validate" in formal
     assert "mpirun -np 2 --map-by ppr:1:node" in formal
-    assert "fsbdd.global_commit_stress role" in formal
+    assert "fsbdd.auxiliary.stress.global_commit_stress role" in formal
     assert "tests/stage1" in formal

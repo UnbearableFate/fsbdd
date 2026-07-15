@@ -142,7 +142,7 @@ printf '{"schema_version":1,"command":"lfs getstripe","exit_code":%s,"stdout":"p
 printf '{"schema_version":1,"command":"lfs quota -g xg24i002","exit_code":%s,"stdout":"probes/lfs_quota.stdout","stderr":"probes/lfs_quota.stderr"}\n' \
   "$QUOTA_EXIT" > "$RUN_DIR/probes/quota.json"
 
-"$PYTHON" -m fsbdd_stage0.storage_bench manifest \
+"$PYTHON" -m fsbdd.auxiliary.stage0.storage_bench manifest \
   --config "$STORAGE_CONFIG" \
   --run-id "$RUN_ID" \
   --initial-hostname "$INITIAL_HOSTNAME" \
@@ -170,7 +170,7 @@ mkdir -p "$RESULT_ROOT"
 printf '%q ' mpirun -np 2 --map-by ppr:1:node --hostfile "$PBS_NODEFILE" \
   /usr/bin/env "PYTHONPATH=$PYTHONPATH" "PBS_JOBID=$PBS_JOBID" \
   "PBS_NODEFILE=$PBS_NODEFILE" "$PYTHON" \
-  -m fsbdd_stage0.storage_stress role \
+  -m fsbdd.auxiliary.stage0.storage_stress role \
   --config "$STORAGE_CONFIG" --test-root "$TEST_ROOT" \
   --result-root "$RESULT_ROOT" --run-id "$RUN_ID" --mode "$FSBDD_STRESS_MODE" \
   > "$RUN_DIR/commands.log"
@@ -178,7 +178,7 @@ printf '\n' >> "$RUN_DIR/commands.log"
 
 if mpirun -np 2 --map-by ppr:1:node --hostfile "$PBS_NODEFILE" \
     /usr/bin/env "PYTHONPATH=$PYTHONPATH" "PBS_JOBID=$PBS_JOBID" \
-    "PBS_NODEFILE=$PBS_NODEFILE" "$PYTHON" -m fsbdd_stage0.storage_stress role \
+    "PBS_NODEFILE=$PBS_NODEFILE" "$PYTHON" -m fsbdd.auxiliary.stage0.storage_stress role \
     --config "$STORAGE_CONFIG" \
     --test-root "$TEST_ROOT" \
     --result-root "$RESULT_ROOT" \
@@ -196,14 +196,14 @@ if [[ "$MPI_EXIT" -ne 0 ]]; then
   exit "$MPI_EXIT"
 fi
 
-"$PYTHON" -m fsbdd_stage0.storage_stress summarize \
+"$PYTHON" -m fsbdd.auxiliary.stage0.storage_stress summarize \
   --config "$STORAGE_CONFIG" \
   --result-root "$RESULT_ROOT" \
   --run-id "$RUN_ID" \
   --mode "$FSBDD_STRESS_MODE" \
   > "$RUN_DIR/results/summarize.stdout"
 
-"$PYTHON" -m fsbdd_stage0.storage_stress finalize-manifest \
+"$PYTHON" -m fsbdd.auxiliary.stage0.storage_stress finalize-manifest \
   --manifest "$RUN_DIR/manifest.json" \
   --summary "$RUN_DIR/results/stress-summary.json" \
   --yaml-output "$RUN_DIR/manifest.yaml"

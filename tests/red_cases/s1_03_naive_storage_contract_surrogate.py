@@ -17,7 +17,9 @@ class NaiveStorage:
 failures: list[str] = []
 surface = {name for name in dir(NaiveStorage) if not name.startswith("_")}
 if surface != {"publish", "read"}:
-    failures.append("STOR-01/FS-01/INV-04: naive interface exposes payload history listing")
+    failures.append(
+        "STOR-01/FS-01/INV-04: naive interface exposes payload history listing"
+    )
 
 record = {
     "schema_version": 1,
@@ -34,7 +36,9 @@ record = {
 }
 payload = NaiveStorage().read()
 if payload and record:
-    failures.append("FS-02/03/07/PROP-02/A-PROP-01: naive reader accepts partial bytes and wrong checksum")
+    failures.append(
+        "FS-02/03/07/PROP-02/A-PROP-01: naive reader accepts partial bytes and wrong checksum"
+    )
 
 if failures:
     raise AssertionError("\n".join(failures))

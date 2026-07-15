@@ -6,8 +6,8 @@ from types import SimpleNamespace
 
 import pytest
 
-from fsbdd.identity import file_digest
-from fsbdd.learner_adopt_stress import (
+from fsbdd.diloco.common.identity import file_digest
+from fsbdd.auxiliary.stress.learner_adopt_stress import (
     AdoptionStressError,
     summarize,
     write_manifest,
@@ -142,9 +142,7 @@ def test_analyzer_fails_closed_on_optimizer_moment_rewrite(tmp_path: Path) -> No
         {
             "local_optimizer_step": step,
             "token_weighted_loss": 4.0 - step / 100,
-            "fragment_global_versions": [0, 0, 0, 0]
-            if step == 1
-            else [3, 0, 1, 0],
+            "fragment_global_versions": [0, 0, 0, 0] if step == 1 else [3, 0, 1, 0],
         }
         for step in range(1, 21)
     ]

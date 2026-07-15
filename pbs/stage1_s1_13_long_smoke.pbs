@@ -64,7 +64,7 @@ mpirun -np 5 --map-by ppr:1:node --hostfile "$PBS_NODEFILE" nvidia-smi -L \
 mpirun -np 5 --map-by ppr:1:node --hostfile "$PBS_NODEFILE" \
   /usr/bin/env PYTHONPATH="$PYTHONPATH" OMP_NUM_THREADS=1 TOKENIZERS_PARALLELISM=false \
   HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 HF_DATASETS_OFFLINE=1 \
-  "$PYTHON" -m fsbdd.stage1_close mpi \
+  "$PYTHON" -m fsbdd.auxiliary.stage1.close mpi \
   --shared-root "$SHARED_ROOT" --result-root "$RESULT_ROOT" --run-id "$RUN_ID" \
   --config-path "$RESOLVED_CONFIG" --config-sha256 "$CONFIG_SHA256" \
   --asset-marker-sha256 "$ASSET_MARKER_SHA256" --hub-cache "$HF_HOME/hub" \
@@ -73,7 +73,7 @@ mpirun -np 5 --map-by ppr:1:node --hostfile "$PBS_NODEFILE" \
   --non-formal-long-smoke --timeout-seconds 1200 \
   > "$RESULT_ROOT/stdout/mpirun.log" 2> "$RESULT_ROOT/stderr/mpirun.log"
 
-"$PYTHON" -m fsbdd.stage1_gate \
+"$PYTHON" -m fsbdd.auxiliary.stage1.gate \
   --result-root "$RESULT_ROOT" --config "$RESOLVED_CONFIG" \
   --gate-contract "$GATE_CONTRACT" --output-root "$RESULT_ROOT/analysis" \
   --non-formal-long-smoke \

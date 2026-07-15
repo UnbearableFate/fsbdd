@@ -8,29 +8,29 @@ from pathlib import Path
 
 import pytest
 
-from fsbdd.global_commit import (
+from fsbdd.diloco.protocol.global_commit import (
     AtomicCommitError,
     AtomicCommitRequest,
     AtomicGlobalCommitStore,
     decode_commit_envelope,
     encode_commit_envelope,
 )
-from fsbdd.global_state import (
+from fsbdd.diloco.protocol.global_state import (
     BootstrapFragment,
     FragmentStateDescriptor,
     GlobalStateIdentities,
     GlobalStateStore,
 )
-from fsbdd.identity import canonical_digest
-from fsbdd.proposal import (
+from fsbdd.diloco.common.identity import canonical_digest
+from fsbdd.diloco.protocol.proposal import (
     EligibilityPolicy,
     Proposal,
     RetainedBaseIdentity,
     compute_candidate_weights,
     select_candidates,
 )
-from fsbdd.storage import PosixStorageBackend, PublicationInterrupted
-from fsbdd.syncer_readiness import FrozenSelection
+from fsbdd.diloco.protocol.storage import PosixStorageBackend, PublicationInterrupted
+from fsbdd.diloco.syncer.readiness import FrozenSelection
 
 
 IDENTITIES = GlobalStateIdentities(
@@ -101,8 +101,7 @@ def _proposal(
     resolved_sequence = authority.version if sequence is None else sequence
     return Proposal.create(
         proposal_id=(
-            proposal_id
-            or f"{learner_id}-v{authority.version}-s{resolved_sequence}"
+            proposal_id or f"{learner_id}-v{authority.version}-s{resolved_sequence}"
         ),
         identities=authority.state.identities,
         learner_id=learner_id,
@@ -188,9 +187,7 @@ def _eligibility(authority, proposal: Proposal) -> tuple[bool, dict[str, str]]:
             learner_ids=LEARNERS,
             current_version=authority.version,
             retained_bases=(
-                RetainedBaseIdentity(
-                    authority.version, authority.content_identity
-                ),
+                RetainedBaseIdentity(authority.version, authority.content_identity),
             ),
             s_max=0,
             q=1,
@@ -461,7 +458,9 @@ def test_envelope_integrity_schema_and_policy_fail_closed(tmp_path: Path) -> Non
         wrong.load_fragment(0)
 
 
-def test_frontier_shape_remains_fixed_at_large_sequence_ordinals(tmp_path: Path) -> None:
+def test_frontier_shape_remains_fixed_at_large_sequence_ordinals(
+    tmp_path: Path,
+) -> None:
     store, _ = _system(tmp_path / "global")
     authority = store.load_fragment(0)
     request = _request(authority)

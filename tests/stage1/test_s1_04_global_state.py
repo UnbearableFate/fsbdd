@@ -9,7 +9,7 @@ from pathlib import Path
 import pytest
 
 from fsbdd.cli import main
-from fsbdd.global_state import (
+from fsbdd.diloco.protocol.global_state import (
     BootstrapFragment,
     BootstrapInterrupted,
     CountingStorageBackend,
@@ -20,7 +20,11 @@ from fsbdd.global_state import (
     decode_global_state,
     encode_global_state,
 )
-from fsbdd.storage import PosixStorageBackend, PublicationError, PublicationNotFound
+from fsbdd.diloco.protocol.storage import (
+    PosixStorageBackend,
+    PublicationError,
+    PublicationNotFound,
+)
 
 
 def identities(**changes) -> GlobalStateIdentities:
@@ -295,9 +299,9 @@ def test_tiny_real_hugging_face_model_round_trips_exact_fragment_tensors(
     torch = pytest.importorskip("torch")
     transformers = pytest.importorskip("transformers")
     safetensors_torch = pytest.importorskip("safetensors.torch")
-    from fsbdd.fragment_map import build_fragment_map
-    from fsbdd.model_registry import build_logical_layer_registry
-    from fsbdd.model_state import freeze_hf_model_fragments
+    from fsbdd.diloco.model.fragment_map import build_fragment_map
+    from fsbdd.diloco.model.model_registry import build_logical_layer_registry
+    from fsbdd.diloco.model.model_state import freeze_hf_model_fragments
 
     torch.manual_seed(1704)
     config = transformers.GPTNeoXConfig(
@@ -337,7 +341,10 @@ def test_tiny_real_hugging_face_model_round_trips_exact_fragment_tensors(
 
 
 def test_pbs_contract_is_two_node_and_bootstrap_focused() -> None:
-    from fsbdd.global_state_stress import _fragments, derive_stress_identities
+    from fsbdd.auxiliary.stress.global_state_stress import (
+        _fragments,
+        derive_stress_identities,
+    )
 
     project_root = Path(__file__).resolve().parents[2]
     script = project_root / "pbs" / "stage1_s1_04_global_state.pbs"
@@ -345,7 +352,7 @@ def test_pbs_contract_is_two_node_and_bootstrap_focused() -> None:
     content = script.read_text(encoding="utf-8")
     assert "#PBS -l select=2" in content
     assert "--map-by ppr:1:node" in content
-    assert "fsbdd.global_state_stress role" in content
+    assert "fsbdd.auxiliary.stress.global_state_stress role" in content
     assert "HISTORY_OBJECTS=10000" in content
     assert "fsbdd.cli evidence finalize" in content
     assert "--config-identity" in content

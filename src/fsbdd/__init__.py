@@ -1,5 +1,5 @@
-"""Production package for FS-Based Decoupled DiLoCo."""
+"""Filesystem-based Decoupled DiLoCo research package."""
 
-from .identity import canonical_digest
+from .diloco.common.identity import canonical_digest
 
 __all__ = ["canonical_digest"]

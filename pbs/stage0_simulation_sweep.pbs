@@ -176,13 +176,13 @@ fi
 pids=()
 for ((shard=0; shard<SHARD_COUNT; shard++)); do
   output="$RUN_DIR/shards/shard-${shard}.csv"
-  printf '%q -m fsbdd_stage0.sweep run-shard --config %q --output %q --shard-index %q --shard-count %q --generator-commit %q --generator-digest %q' \
+  printf '%q -m fsbdd.auxiliary.stage0.sweep run-shard --config %q --output %q --shard-index %q --shard-count %q --generator-commit %q --generator-digest %q' \
     "$PYTHON" "$SWEEP_CONFIG" "$output" "$shard" "$SHARD_COUNT" "$CODE_COMMIT" "$CONFIG_DIGEST" >> "$RUN_DIR/commands.log"
   if [[ -n "$MAX_NEW_ROWS_PER_SHARD" ]]; then
     printf ' --max-new-rows %q' "$MAX_NEW_ROWS_PER_SHARD" >> "$RUN_DIR/commands.log"
   fi
   printf '\n' >> "$RUN_DIR/commands.log"
-  "$PYTHON" -m fsbdd_stage0.sweep run-shard \
+  "$PYTHON" -m fsbdd.auxiliary.stage0.sweep run-shard \
     --config "$SWEEP_CONFIG" \
     --output "$output" \
     --shard-index "$shard" \
@@ -228,11 +228,11 @@ SHARD_ARGS=()
 for ((shard=0; shard<SHARD_COUNT; shard++)); do
   SHARD_ARGS+=(--shard "$RUN_DIR/shards/shard-${shard}.csv")
 done
-printf '%q -m fsbdd_stage0.sweep aggregate --config %q --output-dir %q --publish-root %q --run-id %q --code-commit %q --evidence-config-digest %q --pbs-job-id %q --hostname %q --initial-pbs-job-id %q --session-count %q' \
+printf '%q -m fsbdd.auxiliary.stage0.sweep aggregate --config %q --output-dir %q --publish-root %q --run-id %q --code-commit %q --evidence-config-digest %q --pbs-job-id %q --hostname %q --initial-pbs-job-id %q --session-count %q' \
   "$PYTHON" "$SWEEP_CONFIG" "$RUN_DIR/results" "$PROJECT_ROOT" "$RUN_ID" "$CODE_COMMIT" "$CONFIG_DIGEST" "$PBS_JOBID" "$HOST" "$INITIAL_PBS_JOB_ID" "$SESSION_COUNT" >> "$RUN_DIR/commands.log"
 printf ' --shard %q' "$RUN_DIR"/shards/shard-*.csv >> "$RUN_DIR/commands.log"
 printf '\n' >> "$RUN_DIR/commands.log"
-"$PYTHON" -m fsbdd_stage0.sweep aggregate \
+"$PYTHON" -m fsbdd.auxiliary.stage0.sweep aggregate \
   --config "$SWEEP_CONFIG" \
   --output-dir "$RUN_DIR/results" \
   --publish-root "$PROJECT_ROOT" \

@@ -56,7 +56,7 @@ if [[ "$(git -C "$MIYABI_SKILL_DIR" rev-parse HEAD)" != "$MIYABI_SKILL_COMMIT" ]
 fi
 ACTUAL_CONFIG_SHA256="$(
   PYTHONPATH="$PROJECT_ROOT/src" "$PYTHON" -c \
-    'import sys; from pathlib import Path; from fsbdd.config import load_config; print(load_config(Path(sys.argv[1])).digest)' \
+    'import sys; from pathlib import Path; from fsbdd.auxiliary.contracts.config import load_config; print(load_config(Path(sys.argv[1])).digest)' \
     "$PROJECT_ROOT/$CONFIG_SOURCE"
 )"
 if [[ "$ACTUAL_CONFIG_SHA256" != "$CONFIG_SHA256" ]]; then
@@ -102,7 +102,7 @@ printf '\n' >> "$EVIDENCE_ROOT/commands.log"
 mkdir -p "$TEST_ROOT"
 printf '%q ' mpirun -np 2 --map-by ppr:1:node --hostfile "$PBS_NODEFILE" \
   /usr/bin/env "PYTHONPATH=$PYTHONPATH" "PBS_JOBID=$PBS_JOBID" "PBS_NODEFILE=$PBS_NODEFILE" \
-  "$PYTHON" -m fsbdd.global_state_stress role --root "$TEST_ROOT" \
+  "$PYTHON" -m fsbdd.auxiliary.stress.global_state_stress role --root "$TEST_ROOT" \
   --result-root "$EVIDENCE_ROOT/runtime/roles" --run-id "$RUN_ID" \
   --fragment-count "$FRAGMENT_COUNT" --payload-bytes "$PAYLOAD_BYTES" \
   --history-objects "$HISTORY_OBJECTS" --interrupt-after "$INTERRUPT_AFTER" --s-max "$S_MAX" \
@@ -113,7 +113,7 @@ printf '\n' >> "$EVIDENCE_ROOT/commands.log"
 
 mpirun -np 2 --map-by ppr:1:node --hostfile "$PBS_NODEFILE" \
   /usr/bin/env "PYTHONPATH=$PYTHONPATH" "PBS_JOBID=$PBS_JOBID" "PBS_NODEFILE=$PBS_NODEFILE" \
-  "$PYTHON" -m fsbdd.global_state_stress role --root "$TEST_ROOT" \
+  "$PYTHON" -m fsbdd.auxiliary.stress.global_state_stress role --root "$TEST_ROOT" \
   --result-root "$EVIDENCE_ROOT/runtime/roles" --run-id "$RUN_ID" \
   --fragment-count "$FRAGMENT_COUNT" --payload-bytes "$PAYLOAD_BYTES" \
   --history-objects "$HISTORY_OBJECTS" --interrupt-after "$INTERRUPT_AFTER" --s-max "$S_MAX" \
@@ -121,7 +121,7 @@ mpirun -np 2 --map-by ppr:1:node --hostfile "$PBS_NODEFILE" \
   --fragment-map-identity "$STATE_FRAGMENT_MAP_IDENTITY" \
   > "$EVIDENCE_ROOT/stdout/mpirun.log" 2> "$EVIDENCE_ROOT/stderr/mpirun.log"
 
-"$PYTHON" -m fsbdd.global_state_stress summarize --root "$TEST_ROOT" \
+"$PYTHON" -m fsbdd.auxiliary.stress.global_state_stress summarize --root "$TEST_ROOT" \
   --result-root "$EVIDENCE_ROOT/runtime/roles" --run-id "$RUN_ID" \
   --fragment-count "$FRAGMENT_COUNT" --history-objects "$HISTORY_OBJECTS" \
   --interrupt-after "$INTERRUPT_AFTER" --s-max "$S_MAX" \
@@ -131,7 +131,7 @@ mpirun -np 2 --map-by ppr:1:node --hostfile "$PBS_NODEFILE" \
   > "$EVIDENCE_ROOT/stdout/global-state-summary.json" \
   2> "$EVIDENCE_ROOT/stderr/global-state-summary.log"
 
-"$PYTHON" -m fsbdd.global_state_stress manifest \
+"$PYTHON" -m fsbdd.auxiliary.stress.global_state_stress manifest \
   --repository "$REPOSITORY" --branch "$BRANCH" --commit "$EXPECTED_COMMIT" \
   --run-id "$RUN_ID" \
   --config-sha256 "$CONFIG_SHA256" --research-sha256 "$RESEARCH_SHA256" \

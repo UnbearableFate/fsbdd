@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from fsbdd.evaluation import (
+from fsbdd.diloco.model.evaluation import (
     EvaluationAccessAudit,
     EvaluationSnapshotError,
     FrozenEvaluationPlan,
@@ -121,7 +121,9 @@ def test_manifest_or_state_tampering_fails_closed(tmp_path: Path) -> None:
     manifest_path = destination / "manifest.json"
     value = json.loads(manifest_path.read_text())
     value["version_vector"][0] = 99
-    manifest_path.write_text(json.dumps(value, sort_keys=True, separators=(",", ":")) + "\n")
+    manifest_path.write_text(
+        json.dumps(value, sort_keys=True, separators=(",", ":")) + "\n"
+    )
     with pytest.raises(EvaluationSnapshotError):
         load_evaluation_snapshot(destination)
 
@@ -131,4 +133,6 @@ def test_materialization_is_fail_if_exists(tmp_path: Path) -> None:
     destination = tmp_path / "evaluation"
     destination.mkdir()
     with pytest.raises(EvaluationSnapshotError, match="must be new"):
-        materialize_evaluation_snapshot(FrozenEvaluationPlan.capture(atomic), destination)
+        materialize_evaluation_snapshot(
+            FrozenEvaluationPlan.capture(atomic), destination
+        )

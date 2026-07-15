@@ -6,17 +6,18 @@ import hashlib
 import json
 from pathlib import Path
 
-from fsbdd.global_state import FragmentStateDescriptor, GlobalStateIdentities
-from fsbdd.profile_a_stress import _catalog_matches_model
+from fsbdd.diloco.protocol.global_state import (
+    FragmentStateDescriptor,
+    GlobalStateIdentities,
+)
+from fsbdd.auxiliary.stress.profile_a_stress import _catalog_matches_model
 
 
 ROOT = Path(__file__).resolve().parents[2]
 
 
 def test_frozen_profile_a_config_and_four_node_topology() -> None:
-    value = json.loads(
-        (ROOT / "configs/stage1/s1_12_profile_a_e2e.json").read_text()
-    )
+    value = json.loads((ROOT / "configs/stage1/s1_12_profile_a_e2e.json").read_text())
     assert value["profile"] == {
         "name": "profile-a-fresh-reference",
         "learner_count": 4,
@@ -40,7 +41,7 @@ def test_frozen_profile_a_config_and_four_node_topology() -> None:
 
 
 def test_application_source_uses_mpi_only_as_launcher() -> None:
-    source = (ROOT / "src/fsbdd/profile_a_stress.py").read_text()
+    source = (ROOT / "src/fsbdd/auxiliary/stress/profile_a_stress.py").read_text()
     forbidden = (
         "init_process_group(",
         "all_reduce(",
@@ -56,7 +57,9 @@ def test_application_source_uses_mpi_only_as_launcher() -> None:
 
 
 def test_real_role_reuses_its_runtime_owned_rng_across_training_phases() -> None:
-    tree = ast.parse((ROOT / "src/fsbdd/profile_a_stress.py").read_text())
+    tree = ast.parse(
+        (ROOT / "src/fsbdd/auxiliary/stress/profile_a_stress.py").read_text()
+    )
     role = next(
         node
         for node in tree.body
@@ -83,11 +86,11 @@ def test_real_role_reuses_its_runtime_owned_rng_across_training_phases() -> None
 
 
 def test_speed_measurement_uses_the_integrated_fs_path_not_a_standalone_model() -> None:
-    tree = ast.parse((ROOT / "src/fsbdd/profile_a_stress.py").read_text())
+    tree = ast.parse(
+        (ROOT / "src/fsbdd/auxiliary/stress/profile_a_stress.py").read_text()
+    )
     functions = {
-        node.name: node
-        for node in tree.body
-        if isinstance(node, ast.FunctionDef)
+        node.name: node for node in tree.body if isinstance(node, ast.FunctionDef)
     }
     trial = functions["_speed_trial"]
     trial_calls = {
@@ -97,9 +100,12 @@ def test_speed_measurement_uses_the_integrated_fs_path_not_a_standalone_model() 
     }
     assert "_model" not in trial_calls
     assert "_runtime" not in trial_calls
-    assert {
-        argument.arg for argument in trial.args.kwonlyargs
-    } >= {"runtime", "progress", "publisher", "adoption"}
+    assert {argument.arg for argument in trial.args.kwonlyargs} >= {
+        "runtime",
+        "progress",
+        "publisher",
+        "adoption",
+    }
 
     path = functions["_run_integrated_speed_path"]
     constructors = {
@@ -135,7 +141,7 @@ def test_requirement_matrix_has_exact_loop_ids() -> None:
 
 
 def test_evaluation_loader_has_no_store_or_latest_argument() -> None:
-    source = (ROOT / "src/fsbdd/evaluation.py").read_text()
+    source = (ROOT / "src/fsbdd/diloco/model/evaluation.py").read_text()
     start = source.index("def load_evaluation_snapshot(")
     body = source[start:]
     assert "AtomicGlobalCommitStore" not in body.split("def ", 2)[1]

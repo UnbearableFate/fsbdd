@@ -48,7 +48,9 @@ class TestIncompleteCapacitySurrogate(unittest.TestCase):
         }
         self.assertEqual(naive, required)
 
-    def test_bench_04__concurrent_round_must_be_compared_with_ten_percent_h(self) -> None:
+    def test_bench_04__concurrent_round_must_be_compared_with_ten_percent_h(
+        self,
+    ) -> None:
         synchronization_period_seconds = 50.0
         naive_report = {"aggregate_megabytes_per_second": 2000.0}
         self.assertIn("concurrent_round_seconds", naive_report)

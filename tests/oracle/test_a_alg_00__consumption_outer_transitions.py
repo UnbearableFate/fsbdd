@@ -7,7 +7,7 @@ import re
 import unittest
 from pathlib import Path
 
-from fsbdd_stage0.oracle import (
+from fsbdd.auxiliary.stage0.oracle import (
     CandidatePolicy,
     ConsumptionFrontier,
     OuterSGDState,
@@ -24,12 +24,7 @@ ROOT = Path(__file__).resolve().parents[2]
 FIXTURE = ROOT / "tests" / "fixtures" / "stage0_decision_vectors.json"
 TRACEABILITY = ROOT / "reports" / "stage0" / "requirement_to_evidence.csv"
 LOOP_CARD = (
-    ROOT
-    / "plans"
-    / "FS_DILOCO_CODEX_EXECUTION_PLAN"
-    / "loops"
-    / "stage0"
-    / "S0C-02.md"
+    ROOT / "plans" / "FS_DILOCO_CODEX_EXECUTION_PLAN" / "loops" / "stage0" / "S0C-02.md"
 )
 
 
@@ -86,7 +81,9 @@ class TestAAlg00ConsumptionOuterTransitions(unittest.TestCase):
         for order in itertools.permutations(proposals):
             self.assert_case(case, list(order))
 
-    def test_inv_05__effective_token_priority_is_exact_above_binary64_limit(self) -> None:
+    def test_inv_05__effective_token_priority_is_exact_above_binary64_limit(
+        self,
+    ) -> None:
         proposals = [
             Proposal("a", "a", 2, 0, 2**53, 1, True),
             Proposal("b", "b", 1, 0, 2**53 + 1, 1, True),
@@ -109,7 +106,9 @@ class TestAAlg00ConsumptionOuterTransitions(unittest.TestCase):
         self.assertEqual(commit_consumption(initial, result.selected, False), initial)
         committed = commit_consumption(initial, result.selected, True)
         self.assertEqual(committed["a"], ConsumptionFrontier(9, 4))
-        repeated = select_proposals(self.make_proposals(case), committed, self.policy(case))
+        repeated = select_proposals(
+            self.make_proposals(case), committed, self.policy(case)
+        )
         self.assertFalse(repeated.ready)
         self.assertEqual(repeated.rejections["a-seq9-base4"], "consumed_sequence")
 
@@ -222,8 +221,7 @@ class TestAAlg00ConsumptionOuterTransitions(unittest.TestCase):
         )
         self.assertIsNotNone(requirement_row)
         required.update(
-            requirement.strip()
-            for requirement in requirement_row.group(1).split(",")
+            requirement.strip() for requirement in requirement_row.group(1).split(",")
         )
         validate_requirement_evidence(rows, required)
 

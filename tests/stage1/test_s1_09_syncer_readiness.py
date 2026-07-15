@@ -9,28 +9,28 @@ from pathlib import Path
 
 import pytest
 
-from fsbdd.global_state import (
+from fsbdd.diloco.protocol.global_state import (
     BootstrapFragment,
     CountingStorageBackend,
     FragmentStateDescriptor,
     GlobalStateIdentities,
     GlobalStateStore,
 )
-from fsbdd.proposal import (
+from fsbdd.diloco.protocol.proposal import (
     ConsumptionFrontiers,
     Proposal,
     ProposalStore,
     commit_consumption,
 )
-from fsbdd.storage import PosixStorageBackend, PublicationNotReady
-from fsbdd.syncer_readiness import (
+from fsbdd.diloco.protocol.storage import PosixStorageBackend, PublicationNotReady
+from fsbdd.diloco.syncer.readiness import (
     FragmentReadinessAuthority,
     ReadinessConfig,
     ReadinessError,
     ReadinessPhase,
     SyncerReadinessMachine,
 )
-from fsbdd.syncer_readiness_stress import _validate_frozen_selection
+from fsbdd.auxiliary.stress.syncer_readiness_stress import _validate_frozen_selection
 
 
 IDENTITIES = GlobalStateIdentities(
@@ -133,8 +133,7 @@ def _proposal(
     learner_id = store.learner_ids[learner_index]
     return Proposal.create(
         proposal_id=(
-            proposal_id
-            or f"{learner_id}-fragment-{fragment_index}-sequence-{sequence}"
+            proposal_id or f"{learner_id}-fragment-{fragment_index}-sequence-{sequence}"
         ),
         identities=store.identities,
         learner_id=learner_id,
@@ -191,9 +190,7 @@ def test_distinct_learner_quorum_ignores_duplicate_files(tmp_path: Path) -> None
     selection = machine.selection_for(0)
     assert selection is not None
     assert len(selection.proposals) == len(set(selection.learner_ids)) == 3
-    assert replacement.proposal_id in {
-        item.proposal_id for item in selection.proposals
-    }
+    assert replacement.proposal_id in {item.proposal_id for item in selection.proposals}
 
 
 def test_exact_duplicate_observation_is_one_and_conflict_fails_closed(
@@ -206,17 +203,13 @@ def test_exact_duplicate_observation_is_one_and_conflict_fails_closed(
     report = machine.observe((first, first), observed_ns=0)
     assert report.fragments[0].eligible_distinct == 1
     assert report.fragments[0].duplicate_observations == 1
-    conflicting = _proposal(
-        store, authorities, 0, 0, sequence=2, proposal_id="same"
-    )
+    conflicting = _proposal(store, authorities, 0, 0, sequence=2, proposal_id="same")
     with pytest.raises(ReadinessError, match="conflicting duplicate"):
         machine.observe((first, conflicting), observed_ns=1)
 
 
 def test_cpu_poll_count_never_substitutes_for_quorum(tmp_path: Path) -> None:
-    machine, _, _, _ = _system(
-        tmp_path, learner_count=4, fragment_count=1, q=3
-    )
+    machine, _, _, _ = _system(tmp_path, learner_count=4, fragment_count=1, q=3)
     for index in range(1000):
         report = machine.observe((), observed_ns=index)
     assert report.fragments[0].phase == ReadinessPhase.WAITING
@@ -299,7 +292,10 @@ def test_fixed_grace_includes_pre_freeze_and_excludes_post_freeze_arrivals(
         grace_period_ns=10,
     )
     first = tuple(_proposal(store, authorities, index, 0) for index in range(3))
-    assert machine.observe(first, observed_ns=100).fragments[0].phase == ReadinessPhase.GRACE
+    assert (
+        machine.observe(first, observed_ns=100).fragments[0].phase
+        == ReadinessPhase.GRACE
+    )
     before_freeze = (*first, _proposal(store, authorities, 3, 0))
     machine.observe(before_freeze, observed_ns=109)
     assert machine.selection_for(0) is None
@@ -329,8 +325,14 @@ def test_quorum_loss_cancels_grace_and_recovery_gets_full_interval(
     assert lost.grace_started_ns is None
     recovered = machine.observe(quorum, observed_ns=8).fragments[0]
     assert recovered.grace_deadline_ns == 18
-    assert machine.observe(quorum, observed_ns=17).fragments[0].phase == ReadinessPhase.GRACE
-    assert machine.observe(quorum, observed_ns=18).fragments[0].phase == ReadinessPhase.FROZEN
+    assert (
+        machine.observe(quorum, observed_ns=17).fragments[0].phase
+        == ReadinessPhase.GRACE
+    )
+    assert (
+        machine.observe(quorum, observed_ns=18).fragments[0].phase
+        == ReadinessPhase.FROZEN
+    )
 
 
 def test_round_robin_bounds_continuously_ready_service_window(
@@ -447,8 +449,14 @@ def test_restart_rebuilds_from_authority_and_conservatively_restarts_grace(
     view = restarted.observe(proposals, observed_ns=100).fragments[0]
     assert view.phase == ReadinessPhase.GRACE
     assert view.grace_started_ns == 100 and view.grace_deadline_ns == 110
-    assert restarted.observe(proposals, observed_ns=109).fragments[0].phase == ReadinessPhase.GRACE
-    assert restarted.observe(proposals, observed_ns=110).fragments[0].phase == ReadinessPhase.FROZEN
+    assert (
+        restarted.observe(proposals, observed_ns=109).fragments[0].phase
+        == ReadinessPhase.GRACE
+    )
+    assert (
+        restarted.observe(proposals, observed_ns=110).fragments[0].phase
+        == ReadinessPhase.FROZEN
+    )
 
 
 def test_equal_clock_ties_are_deterministic_and_regression_is_rejected(
@@ -555,7 +563,9 @@ def test_transiently_unavailable_slot_is_retried_without_stopping_polling(
         maximum_processed_tokens=store.maximum_processed_tokens,
     )
     machine = SyncerReadinessMachine(
-        retry_store, authorities=authorities, config=ReadinessConfig("syncer", 2, 2, 2, 0)
+        retry_store,
+        authorities=authorities,
+        config=ReadinessConfig("syncer", 2, 2, 2, 0),
     )
     first = machine.poll_store(observed_ns=0)
     assert first.fixed_slot_reads == 2
@@ -587,9 +597,7 @@ def test_selection_identity_excludes_wall_clock_and_restart_history(
 
 
 def test_authority_identity_binds_fixed_frontiers(tmp_path: Path) -> None:
-    _, store, authorities, _ = _system(
-        tmp_path, learner_count=2, fragment_count=1, q=2
-    )
+    _, store, authorities, _ = _system(tmp_path, learner_count=2, fragment_count=1, q=2)
     proposals = _all(store, authorities)
     consumed = commit_consumption(authorities[0].frontiers, proposals, True)
     changed = FragmentReadinessAuthority(authorities[0].state, consumed)

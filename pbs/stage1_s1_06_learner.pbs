@@ -72,8 +72,8 @@ export CUBLAS_WORKSPACE_CONFIG=:4096:8
 
 ACTUAL_PROFILE_SET_SHA256="$($PYTHON -c '
 from pathlib import Path
-from fsbdd.learner_assets import load_learner_profile
-from fsbdd.learner_smoke import profile_set_digest
+from fsbdd.diloco.model.learner_assets import load_learner_profile
+from fsbdd.auxiliary.stress.learner_smoke import profile_set_digest
 import sys
 print(profile_set_digest(tuple(load_learner_profile(Path(path)) for path in sys.argv[1:])))
 ' "$GPT2_PROFILE" "$PYTHIA_PROFILE")"
@@ -127,10 +127,10 @@ for profile in gpt2 pythia; do
     source_profile="$PYTHIA_PROFILE"
     output_root="$TEST_ROOT/pythia160m-fineweb"
   fi
-  printf '%q ' "$PYTHON" -m fsbdd.learner_smoke materialize --profile "$source_profile" \
+  printf '%q ' "$PYTHON" -m fsbdd.auxiliary.stress.learner_smoke materialize --profile "$source_profile" \
     --hub-cache "$HUB_CACHE" --output "$output_root" >> "$EVIDENCE_ROOT/commands.log"
   printf '\n' >> "$EVIDENCE_ROOT/commands.log"
-  "$PYTHON" -m fsbdd.learner_smoke materialize --profile "$source_profile" \
+  "$PYTHON" -m fsbdd.auxiliary.stress.learner_smoke materialize --profile "$source_profile" \
     --hub-cache "$HUB_CACHE" --output "$output_root" \
     > "$EVIDENCE_ROOT/stdout/materialize-${profile}.json" \
     2> "$EVIDENCE_ROOT/stderr/materialize-${profile}.log"
@@ -148,11 +148,11 @@ cp "$TEST_ROOT/gpt2-wikitext/complete.json" "$EVIDENCE_ROOT/configs/materialized
 cp "$TEST_ROOT/pythia160m-fineweb/manifest.json" "$EVIDENCE_ROOT/configs/materialized/pythia160m-fineweb-manifest.json"
 cp "$TEST_ROOT/pythia160m-fineweb/complete.json" "$EVIDENCE_ROOT/configs/materialized/pythia160m-fineweb-complete.json"
 
-printf '%q ' "$PYTHON" -m fsbdd.learner_smoke run-tiny \
+printf '%q ' "$PYTHON" -m fsbdd.auxiliary.stress.learner_smoke run-tiny \
   --output "$EVIDENCE_ROOT/runtime/profiles/tiny.json" \
   --log "$EVIDENCE_ROOT/runtime/profiles/tiny.jsonl" >> "$EVIDENCE_ROOT/commands.log"
 printf '\n' >> "$EVIDENCE_ROOT/commands.log"
-"$PYTHON" -m fsbdd.learner_smoke run-tiny \
+"$PYTHON" -m fsbdd.auxiliary.stress.learner_smoke run-tiny \
   --output "$EVIDENCE_ROOT/runtime/profiles/tiny.json" \
   --log "$EVIDENCE_ROOT/runtime/profiles/tiny.jsonl" \
   > "$EVIDENCE_ROOT/stdout/tiny.json" 2> "$EVIDENCE_ROOT/stderr/tiny.log"
@@ -167,19 +167,19 @@ for profile in gpt2 pythia; do
     materialized="$TEST_ROOT/pythia160m-fineweb"
     name="pythia160m-fineweb"
   fi
-  printf '%q ' "$PYTHON" -m fsbdd.learner_smoke run-real --profile "$source_profile" \
+  printf '%q ' "$PYTHON" -m fsbdd.auxiliary.stress.learner_smoke run-real --profile "$source_profile" \
     --hub-cache "$HUB_CACHE" --materialized-root "$materialized" \
     --output "$EVIDENCE_ROOT/runtime/profiles/${name}.json" \
     --log "$EVIDENCE_ROOT/runtime/profiles/${name}.jsonl" >> "$EVIDENCE_ROOT/commands.log"
   printf '\n' >> "$EVIDENCE_ROOT/commands.log"
-  "$PYTHON" -m fsbdd.learner_smoke run-real --profile "$source_profile" \
+  "$PYTHON" -m fsbdd.auxiliary.stress.learner_smoke run-real --profile "$source_profile" \
     --hub-cache "$HUB_CACHE" --materialized-root "$materialized" \
     --output "$EVIDENCE_ROOT/runtime/profiles/${name}.json" \
     --log "$EVIDENCE_ROOT/runtime/profiles/${name}.jsonl" \
     > "$EVIDENCE_ROOT/stdout/${name}.json" 2> "$EVIDENCE_ROOT/stderr/${name}.log"
 done
 
-"$PYTHON" -m fsbdd.learner_smoke summarize \
+"$PYTHON" -m fsbdd.auxiliary.stress.learner_smoke summarize \
   --tiny "$EVIDENCE_ROOT/runtime/profiles/tiny.json" \
   --gpt2 "$EVIDENCE_ROOT/runtime/profiles/gpt2-wikitext.json" \
   --pythia "$EVIDENCE_ROOT/runtime/profiles/pythia160m-fineweb.json" \
@@ -187,7 +187,7 @@ done
   > "$EVIDENCE_ROOT/stdout/learner-summary.json" \
   2> "$EVIDENCE_ROOT/stderr/learner-summary.log"
 
-"$PYTHON" -m fsbdd.learner_smoke manifest \
+"$PYTHON" -m fsbdd.auxiliary.stress.learner_smoke manifest \
   --repository "$REPOSITORY" --branch "$BRANCH" --commit "$EXPECTED_COMMIT" \
   --run-id "$RUN_ID" --config-sha256 "$PROFILE_SET_SHA256" \
   --research-sha256 "$RESEARCH_SHA256" --spec-sha256 "$SPEC_SHA256" \

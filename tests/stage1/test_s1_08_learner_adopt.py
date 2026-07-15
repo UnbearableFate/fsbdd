@@ -13,27 +13,27 @@ import pytest
 torch = pytest.importorskip("torch")
 transformers = pytest.importorskip("transformers")
 
-from fsbdd.fragment_map import build_fragment_map  # noqa: E402
-from fsbdd.global_state import (  # noqa: E402
+from fsbdd.diloco.model.fragment_map import build_fragment_map  # noqa: E402
+from fsbdd.diloco.protocol.global_state import (  # noqa: E402
     BootstrapFragment,
     FragmentStateDescriptor,
     GlobalStateIdentities,
     GlobalStateStore,
 )
-from fsbdd.learner import (  # noqa: E402
+from fsbdd.diloco.learner.runtime import (  # noqa: E402
     ConstantStepScheduler,
     LearnerProgress,
     LearnerRng,
     LearnerRuntime,
     SafeBoundaryEvent,
 )
-from fsbdd.learner_adopt import (  # noqa: E402
+from fsbdd.diloco.learner.adoption import (  # noqa: E402
     AdoptionError,
     FragmentAdoptionCoordinator,
     LatestFragmentPoller,
     optimizer_fragment_state_sha256,
 )
-from fsbdd.learner_publish import (  # noqa: E402
+from fsbdd.diloco.learner.publication import (  # noqa: E402
     AdoptedFragmentBase,
     FragmentPublicationSchedule,
     FragmentSnapshotCoordinator,
@@ -42,9 +42,9 @@ from fsbdd.learner_publish import (  # noqa: E402
     fragment_payload_sha256,
     serialize_fragment_parameters,
 )
-from fsbdd.model_registry import build_logical_layer_registry  # noqa: E402
-from fsbdd.proposal import ProposalStore  # noqa: E402
-from fsbdd.storage import (  # noqa: E402
+from fsbdd.diloco.model.model_registry import build_logical_layer_registry  # noqa: E402
+from fsbdd.diloco.protocol.proposal import ProposalStore  # noqa: E402
+from fsbdd.diloco.protocol.storage import (  # noqa: E402
     PosixStorageBackend,
     PublicationError,
     PublicationNotReady,
@@ -59,7 +59,9 @@ IDENTITIES = GlobalStateIdentities(
 )
 
 
-def _descriptors(parameters: tuple[torch.nn.Parameter, ...]) -> tuple[FragmentStateDescriptor, ...]:
+def _descriptors(
+    parameters: tuple[torch.nn.Parameter, ...],
+) -> tuple[FragmentStateDescriptor, ...]:
     return tuple(
         FragmentStateDescriptor(
             index=index,
@@ -178,7 +180,9 @@ def test_latest_only_target_scope_counters_and_moments(tmp_path: Path) -> None:
             outer_state=f"outer-v{version}".encode(),
         )
     latest = store.load_fragment(0)
-    before_parameters = [fragment_payload_sha256((parameter,)) for parameter in parameters]
+    before_parameters = [
+        fragment_payload_sha256((parameter,)) for parameter in parameters
+    ]
     before_moments = [
         optimizer_fragment_state_sha256(optimizer, (parameter,))
         for parameter in parameters
@@ -200,18 +204,28 @@ def test_latest_only_target_scope_counters_and_moments(tmp_path: Path) -> None:
     trace = metrics["adoption_traces"][0]
     assert (trace["from_version"], trace["to_version"]) == (0, 3)
     assert trace["skipped_intermediate_versions"] == 2
-    assert trace["target_payload_sha256"] == hashlib.sha256(latest.parameters).hexdigest()
+    assert (
+        trace["target_payload_sha256"] == hashlib.sha256(latest.parameters).hexdigest()
+    )
     assert trace["parameter_hashes_after"][0] == trace["target_payload_sha256"]
-    assert trace["optimizer_state_hashes_before"] == trace["optimizer_state_hashes_after"]
+    assert (
+        trace["optimizer_state_hashes_before"] == trace["optimizer_state_hashes_after"]
+    )
     assert trace["optimizer_state_entry_counts_before"] == [1, 1, 1]
     assert trace["optimizer_state_entry_counts_after"] == [1, 1, 1]
-    assert [fragment_payload_sha256((parameter,)) for parameter in parameters][1:] == before_parameters[1:]
+    assert [fragment_payload_sha256((parameter,)) for parameter in parameters][
+        1:
+    ] == before_parameters[1:]
     assert [
         optimizer_fragment_state_sha256(optimizer, (parameter,))
         for parameter in parameters
     ] == before_moments
     assert [fragment.global_version for fragment in progress.fragments] == [3, 0, 0]
-    assert [fragment.local_steps_since_adoption for fragment in progress.fragments] == [0, 1, 1]
+    assert [fragment.local_steps_since_adoption for fragment in progress.fragments] == [
+        0,
+        1,
+        1,
+    ]
     assert [
         fragment.processed_input_tokens_since_adoption
         for fragment in progress.fragments
@@ -288,7 +302,9 @@ def test_wrong_fragment_map_identity_is_rejected_by_fixed_slot_poll(
     store, _initial = _bootstrap(tmp_path / "global", (parameter,))
     wrong = GlobalStateStore(
         PosixStorageBackend(tmp_path / "global"),
-        identities=dataclasses.replace(store.identities, fragment_map_identity="f" * 64),
+        identities=dataclasses.replace(
+            store.identities, fragment_map_identity="f" * 64
+        ),
         descriptors=store.descriptors,
         s_max=0,
     )
@@ -465,13 +481,18 @@ def test_real_learner_sustains_finite_mixed_version_training(tmp_path: Path) -> 
     )
     run = runtime.run(_batches(8), optimizer_steps=8)
     adoption = run.events[0].active_metrics["adoption_traces"][0]
-    assert adoption["optimizer_state_hashes_before"] == adoption["optimizer_state_hashes_after"]
+    assert (
+        adoption["optimizer_state_hashes_before"]
+        == adoption["optimizer_state_hashes_after"]
+    )
     mixed_window = run.events[1:]
     assert len(mixed_window) == 7
     assert all(event.fragment_global_versions == (1, 0) for event in mixed_window)
     assert all(math.isfinite(event.token_weighted_loss) for event in mixed_window)
     assert [event.local_optimizer_step for event in mixed_window] == list(range(2, 9))
-    assert all("fs_to_cpu_seconds" not in event.inactive_metrics for event in run.events)
+    assert all(
+        "fs_to_cpu_seconds" not in event.inactive_metrics for event in run.events
+    )
     assert all(not event.distributed_initialized for event in run.events)
     coordinator.close()
 
@@ -502,10 +523,13 @@ def test_tied_parameter_has_one_fragment_owner_and_target_only_adoption(
         for fragment in fragment_map.fragments
         if tied_identity in fragment.parameter_identities
     )
-    assert sum(
-        tied_identity in fragment.parameter_identities
-        for fragment in fragment_map.fragments
-    ) == 1
+    assert (
+        sum(
+            tied_identity in fragment.parameter_identities
+            for fragment in fragment_map.fragments
+        )
+        == 1
+    )
     identities = dataclasses.replace(
         IDENTITIES,
         model_identity=registry.digest,

@@ -7,8 +7,8 @@ from collections.abc import Iterator
 
 import numpy as np
 
-from fsbdd.global_state import FragmentStateDescriptor
-from fsbdd.syncer_merge import (
+from fsbdd.diloco.protocol.global_state import FragmentStateDescriptor
+from fsbdd.diloco.syncer.merge import (
     ContributionFact,
     FragmentMergeRequest,
     FragmentOuterState,

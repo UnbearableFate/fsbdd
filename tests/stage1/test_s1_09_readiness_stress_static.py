@@ -17,9 +17,18 @@ def _sha256(path: Path) -> str:
 
 
 def test_frozen_readiness_profile_and_contract_are_exact() -> None:
-    assert _sha256(CONFIG) == "8ff3fe364fca10bb48fe80ebf0bcede63163731e47cc26fc87512b298e3c225d"
-    assert _sha256(CONTRACT) == "af5ed55da568d5c67800690644e15acb3f603ac9bef16f320eefd43b34d722c0"
-    assert _sha256(MATRIX) == "609930d526397361b8640cdac0157faac320f33584d5fe50d2eff394307be4bb"
+    assert (
+        _sha256(CONFIG)
+        == "8ff3fe364fca10bb48fe80ebf0bcede63163731e47cc26fc87512b298e3c225d"
+    )
+    assert (
+        _sha256(CONTRACT)
+        == "af5ed55da568d5c67800690644e15acb3f603ac9bef16f320eefd43b34d722c0"
+    )
+    assert (
+        _sha256(MATRIX)
+        == "609930d526397361b8640cdac0157faac320f33584d5fe50d2eff394307be4bb"
+    )
     config = json.loads(CONFIG.read_text(encoding="utf-8"))
     profile = config["profile_a"]
     grace = config["decoupled_grace"]
@@ -46,11 +55,11 @@ def test_formal_pbs_freezes_two_node_filesystem_only_contract() -> None:
     assert "#PBS -q debug-g" in source
     assert "#PBS -l select=2" in source
     assert "mpirun -np 2 --map-by ppr:1:node" in source
-    assert "fsbdd.syncer_readiness_stress role" in source
+    assert "fsbdd.auxiliary.stress.syncer_readiness_stress role" in source
     assert "EXPECTED_COMMIT ==" not in source
     assert "status --porcelain" in source
     assert "evidence finalize" in source and "evidence validate" in source
-    assert "--config-identity \"$CONFIG_SHA256\"" in source
+    assert '--config-identity "$CONFIG_SHA256"' in source
     assert "tests/stage1" in source
     for forbidden in ("torchrun", "nccl", "init_process_group", "curl ", "wget "):
         assert forbidden not in source.lower()
@@ -65,7 +74,9 @@ def test_targeted_pbs_is_one_node_and_commit_bound() -> None:
 
 
 def test_formal_roles_do_not_import_torch_or_application_networking() -> None:
-    source = Path("src/fsbdd/syncer_readiness_stress.py").read_text(encoding="utf-8")
+    source = Path("src/fsbdd/auxiliary/stress/syncer_readiness_stress.py").read_text(
+        encoding="utf-8"
+    )
     assert "import torch" not in source
     assert "torch.distributed" not in source
     assert "mpi4py" not in source

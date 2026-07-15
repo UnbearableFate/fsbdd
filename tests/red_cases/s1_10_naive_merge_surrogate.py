@@ -8,7 +8,10 @@ import unittest
 def naive_current_relative_merge(current, declared_bases, locals_, weights):
     del declared_bases
     return [
-        sum(weight * (current[index] - local[index]) for weight, local in zip(weights, locals_, strict=True))
+        sum(
+            weight * (current[index] - local[index])
+            for weight, local in zip(weights, locals_, strict=True)
+        )
         for index in range(len(current))
     ]
 
@@ -41,8 +44,12 @@ def naive_outer_update(store, fragment_index):
     return store.load_model()[fragment_index]
 
 
-def naive_old_buffer_nesterov(parameters, gradient, old_buffer, learning_rate, momentum):
-    next_buffer = [momentum * old + grad for old, grad in zip(old_buffer, gradient, strict=True)]
+def naive_old_buffer_nesterov(
+    parameters, gradient, old_buffer, learning_rate, momentum
+):
+    next_buffer = [
+        momentum * old + grad for old, grad in zip(old_buffer, gradient, strict=True)
+    ]
     # Wrong: Nesterov must use the updated buffer.
     next_parameters = [
         value - learning_rate * (grad + momentum * old)
@@ -60,12 +67,16 @@ class S110SemanticRed(unittest.TestCase):
             [[1.0, 1.0], [8.0, -4.0]],
             [0.5, 0.5],
         )
-        self.assertEqual(actual, [3.0, 3.0], "OPT-01 requires declared-base displacements")
+        self.assertEqual(
+            actual, [3.0, 3.0], "OPT-01 requires declared-base displacements"
+        )
 
     def test_sync_06__only_one_local_payload_may_be_live(self):
         source = CacheAllSource([bytes(32) for _ in range(8)])
         source.open_all()
-        self.assertLessEqual(source.maximum_active, 1, "SYNC-06 forbids cache-all M payloads")
+        self.assertLessEqual(
+            source.maximum_active, 1, "SYNC-06 forbids cache-all M payloads"
+        )
 
     def test_sync_07__steady_update_must_not_read_full_model(self):
         store = WholeModelStore()

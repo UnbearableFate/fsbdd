@@ -11,12 +11,12 @@ from pathlib import Path
 
 import pytest
 
-from fsbdd.global_state import (
+from fsbdd.diloco.protocol.global_state import (
     CountingStorageBackend,
     FragmentStateDescriptor,
     GlobalStateIdentities,
 )
-from fsbdd.proposal import (
+from fsbdd.diloco.protocol.proposal import (
     ConsumptionFrontier,
     ConsumptionFrontiers,
     EligibilityPolicy,
@@ -31,12 +31,12 @@ from fsbdd.proposal import (
     proposal_slot,
     select_candidates,
 )
-from fsbdd.storage import (
+from fsbdd.diloco.protocol.storage import (
     PosixStorageBackend,
     PublicationInterrupted,
     PublicationNotFound,
 )
-from fsbdd_stage0.oracle import inverse_staleness_weights
+from fsbdd.auxiliary.stage0.oracle import inverse_staleness_weights
 
 
 IDENTITIES = GlobalStateIdentities(
@@ -226,9 +226,7 @@ def test_single_writer_rejects_a_second_in_flight_publication(
 
     def publish_old() -> None:
         try:
-            store.publish(
-                make_proposal("a-seq2", sequence=2), before_visibility=delay
-            )
+            store.publish(make_proposal("a-seq2", sequence=2), before_visibility=delay)
         except ProposalError as error:
             errors.append(error)
 
@@ -334,14 +332,13 @@ def test_fixed_slot_record_is_bound_to_body_learner_sequence_and_base(
     [
         ({"learner_id": "unknown"}, "unknown learner"),
         (
-            {
-                "identities": dataclasses.replace(
-                    IDENTITIES, model_identity="d" * 64
-                )
-            },
+            {"identities": dataclasses.replace(IDENTITIES, model_identity="d" * 64)},
             "frozen identity",
         ),
-        ({"descriptor": dataclasses.replace(DESCRIPTORS[0], dtype="float32")}, "descriptor"),
+        (
+            {"descriptor": dataclasses.replace(DESCRIPTORS[0], dtype="float32")},
+            "descriptor",
+        ),
         ({"local_steps": 0}, "local_steps"),
         ({"processed_tokens": 0}, "processed_tokens"),
         ({"snapshot_local_step": 0}, "snapshot_local_step"),
@@ -355,12 +352,14 @@ def test_publish_rejects_wrong_identity_and_progress_before_visibility(
     store = make_store(tmp_path)
     with pytest.raises(ProposalError, match=message):
         store.publish(make_proposal(**changes))
-    assert not (tmp_path / "visibility").joinpath(
-        proposal_slot("a", 0) + ".json"
-    ).exists()
+    assert (
+        not (tmp_path / "visibility").joinpath(proposal_slot("a", 0) + ".json").exists()
+    )
 
 
-def _shared_case(case: dict[str, object]) -> tuple[list[Proposal], ConsumptionFrontiers, EligibilityPolicy]:
+def _shared_case(
+    case: dict[str, object],
+) -> tuple[list[Proposal], ConsumptionFrontiers, EligibilityPolicy]:
     learner_ids = sorted(
         {
             item["learner_id"]
@@ -438,14 +437,15 @@ def test_shared_stage0_decision_vectors_match_for_every_permutation() -> None:
         (make_proposal("future", base_version=4), "future_base"),
         (make_proposal("stale", base_version=1), "too_stale"),
         (
-            make_proposal(
-                "wrong-base", base_content_identity="f" * 64
-            ),
+            make_proposal("wrong-base", base_content_identity="f" * 64),
             "base_identity_mismatch",
         ),
         (make_proposal("steps-zero", local_steps=0), "nonpositive_local_steps"),
         (make_proposal("tokens-zero", processed_tokens=0), "nonpositive_tokens"),
-        (make_proposal("snapshot-zero", snapshot_local_step=0), "nonpositive_snapshot_step"),
+        (
+            make_proposal("snapshot-zero", snapshot_local_step=0),
+            "nonpositive_snapshot_step",
+        ),
         (make_proposal("steps-high", local_steps=101), "local_steps_exceeded"),
         (
             make_proposal("tokens-high", processed_tokens=1_000_001),
@@ -568,7 +568,9 @@ def test_smax_zero_and_positive_use_the_same_generic_eligibility_function() -> N
     assert positive.rejections == {"stale": "duplicate_learner"}
     assert [item.proposal_id for item in positive.selected] == ["fresh"]
     source = inspect.getsource(
-        __import__("fsbdd.proposal", fromlist=["_eligibility_reason"])._eligibility_reason
+        __import__(
+            "fsbdd.diloco.protocol.proposal", fromlist=["_eligibility_reason"]
+        )._eligibility_reason
     )
     assert "s_max == 0" not in source
     assert "base_version == policy.current_version" not in source
@@ -598,7 +600,9 @@ def test_consumption_frontier_is_fixed_size_and_advances_only_after_publish() ->
             True,
         )
     assert len(committed.entries) == len(LEARNERS)
-    same_base = make_proposal("a-new-sequence-same-base", sequence=20_000, base_version=10_003)
+    same_base = make_proposal(
+        "a-new-sequence-same-base", sequence=20_000, base_version=10_003
+    )
     result = select_candidates(
         [same_base],
         committed,
@@ -633,9 +637,7 @@ def test_float32_weights_match_shared_oracle_and_report_telemetry() -> None:
         make_proposal("b", learner_id="b", processed_tokens=20, base_version=2),
         make_proposal("c", learner_id="c", processed_tokens=30, base_version=1),
     ]
-    weights = compute_candidate_weights(
-        proposals, current_version=3, lambda_s=1.0
-    )
+    weights = compute_candidate_weights(proposals, current_version=3, lambda_s=1.0)
     expected = inverse_staleness_weights([10, 20, 30], [0, 1, 2], 1.0)
     assert [item.normalized_weight for item in weights] == expected
     assert [item.staleness for item in weights] == [0, 1, 2]
@@ -645,7 +647,9 @@ def test_float32_weights_match_shared_oracle_and_report_telemetry() -> None:
     monotonic = compute_candidate_weights(
         [
             make_proposal("fresh", processed_tokens=100, base_version=3),
-            make_proposal("stale", learner_id="b", processed_tokens=100, base_version=2),
+            make_proposal(
+                "stale", learner_id="b", processed_tokens=100, base_version=2
+            ),
         ],
         current_version=3,
     )
@@ -656,7 +660,7 @@ def test_s1_05_pbs_is_two_node_clean_and_runs_production_stress() -> None:
     script = Path("pbs/stage1_s1_05_proposal.pbs").read_text(encoding="utf-8")
     assert "#PBS -l select=2" in script
     assert "--map-by ppr:1:node" in script
-    assert "fsbdd.proposal_stress role" in script
+    assert "fsbdd.auxiliary.stress.proposal_stress role" in script
     assert "tests/stage1" in script
     assert "EXPECTED_COMMIT" in script
     assert "status --porcelain" in script

@@ -136,7 +136,7 @@ printf '%q ' mpirun -np 4 --map-by ppr:1:node --hostfile "$PBS_NODEFILE" \
   "PBS_NODEFILE=$PBS_NODEFILE" "OMP_NUM_THREADS=$OMP_NUM_THREADS" \
   "HF_HUB_OFFLINE=$HF_HUB_OFFLINE" "TRANSFORMERS_OFFLINE=$TRANSFORMERS_OFFLINE" \
   "HF_DATASETS_OFFLINE=$HF_DATASETS_OFFLINE" \
-  "$PYTHON" -m fsbdd.profile_a_stress role \
+  "$PYTHON" -m fsbdd.auxiliary.stress.profile_a_stress role \
   --root "$TEST_ROOT" --result-root "$EVIDENCE_ROOT/runtime/roles" \
   --run-id "$RUN_ID" --config-path "$PROJECT_ROOT/$CONFIG_SOURCE" \
   --config-identity "$CONFIG_SHA256" >> "$EVIDENCE_ROOT/commands.log"
@@ -147,7 +147,7 @@ mpirun -np 4 --map-by ppr:1:node --hostfile "$PBS_NODEFILE" \
   "PBS_NODEFILE=$PBS_NODEFILE" "OMP_NUM_THREADS=$OMP_NUM_THREADS" \
   "HF_HUB_OFFLINE=$HF_HUB_OFFLINE" "TRANSFORMERS_OFFLINE=$TRANSFORMERS_OFFLINE" \
   "HF_DATASETS_OFFLINE=$HF_DATASETS_OFFLINE" \
-  "$PYTHON" -m fsbdd.profile_a_stress role \
+  "$PYTHON" -m fsbdd.auxiliary.stress.profile_a_stress role \
   --root "$TEST_ROOT" --result-root "$EVIDENCE_ROOT/runtime/roles" \
   --run-id "$RUN_ID" --config-path "$PROJECT_ROOT/$CONFIG_SOURCE" \
   --config-identity "$CONFIG_SHA256" \
@@ -155,7 +155,7 @@ mpirun -np 4 --map-by ppr:1:node --hostfile "$PBS_NODEFILE" \
 
 cp -a "$EVIDENCE_ROOT/runtime/roles/evaluation" "$EVIDENCE_ROOT/evaluation"
 
-"$PYTHON" -m fsbdd.profile_a_stress summarize \
+"$PYTHON" -m fsbdd.auxiliary.stress.profile_a_stress summarize \
   --result-root "$EVIDENCE_ROOT/runtime/roles" --shared-root "$TEST_ROOT" \
   --config-path "$PROJECT_ROOT/$CONFIG_SOURCE" --config-identity "$CONFIG_SHA256" \
   --output "$EVIDENCE_ROOT/analysis/profile-a-summary.json" \
@@ -164,7 +164,7 @@ cp -a "$EVIDENCE_ROOT/runtime/roles/evaluation" "$EVIDENCE_ROOT/evaluation"
 
 cp -a "$TEST_ROOT" "$EVIDENCE_ROOT/runtime/shared-state"
 
-"$PYTHON" -m fsbdd.profile_a_stress manifest \
+"$PYTHON" -m fsbdd.auxiliary.stress.profile_a_stress manifest \
   --repository "$REPOSITORY" --branch "$BRANCH" --commit "$EXPECTED_COMMIT" \
   --run-id "$RUN_ID" --config-sha256 "$CONFIG_SHA256" \
   --research-sha256 "$RESEARCH_SHA256" --spec-sha256 "$SPEC_SHA256" \

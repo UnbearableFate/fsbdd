@@ -29,9 +29,13 @@ if owners[1] is None:
 if owners[2] is None:
     failures.append("MODEL-03/05: final norm remained unowned")
 if owners[0] == owners[3] == "embedding":
-    failures.append("MODEL-04: tied aliases would be emitted twice under one guessed bucket")
+    failures.append(
+        "MODEL-04: tied aliases would be emitted twice under one guessed bucket"
+    )
 if naive_owner("unknown.layers.0.weight") is None:
-    failures.append("MODEL-06: parser cannot distinguish ambiguity from unsupported structure")
+    failures.append(
+        "MODEL-06: parser cannot distinguish ambiguity from unsupported structure"
+    )
 
 if failures:
     raise AssertionError("\n".join(failures))

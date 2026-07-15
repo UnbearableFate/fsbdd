@@ -49,7 +49,7 @@ export TOKENIZERS_PARALLELISM=false OMP_NUM_THREADS=1
   > "$LOG_ROOT/hf-fineweb.txt" 2> "$LOG_ROOT/hf-fineweb.err"
 
 export HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 HF_DATASETS_OFFLINE=1
-"$PYTHON" -m fsbdd.stage1_assets prepare \
+"$PYTHON" -m fsbdd.auxiliary.stage1.assets prepare \
   --config configs/stage1/s1_13_stage1_close.json \
   --hub-cache "$HUB_CACHE" --output "$OUTPUT_ROOT" \
   --reuse-gpt-train runtime_runs/S1-06/materialized/gpt2-wikitext \

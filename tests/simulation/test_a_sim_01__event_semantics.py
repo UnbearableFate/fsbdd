@@ -4,7 +4,7 @@ import json
 import unittest
 from pathlib import Path
 
-from fsbdd_stage0.simulation import (
+from fsbdd.auxiliary.stage0.simulation import (
     SimulationConfig,
     evaluate_decision_case,
     simulate,
@@ -68,7 +68,9 @@ class TestASim01EventSemantics(unittest.TestCase):
             )
         )
 
-    def test_stale_01__visibility_and_heterogeneity_create_real_stale_events(self) -> None:
+    def test_stale_01__visibility_and_heterogeneity_create_real_stale_events(
+        self,
+    ) -> None:
         common = dict(
             learners=4,
             fragments=2,
@@ -116,9 +118,7 @@ class TestASim01EventSemantics(unittest.TestCase):
         reversed_initialization = simulate(config, learner_order=(3, 2, 1, 0))
         self.assertEqual(first.as_dict(), repeated.as_dict())
         self.assertEqual(first.as_dict(), reversed_initialization.as_dict())
-        changed_seed = simulate(
-            SimulationConfig(**{**config.as_dict(), "seed": 102})
-        )
+        changed_seed = simulate(SimulationConfig(**{**config.as_dict(), "seed": 102}))
         self.assertNotEqual(first.as_dict(), changed_seed.as_dict())
 
     def test_inv_08__operational_state_and_trace_are_bounded(self) -> None:
@@ -141,8 +141,12 @@ class TestASim01EventSemantics(unittest.TestCase):
             max_trace_events=32,
         )
         result = simulate(config)
-        self.assertLessEqual(result.max_latest_slots, config.learners * config.fragments)
-        self.assertLessEqual(result.max_frontier_slots, config.learners * config.fragments)
+        self.assertLessEqual(
+            result.max_latest_slots, config.learners * config.fragments
+        )
+        self.assertLessEqual(
+            result.max_frontier_slots, config.learners * config.fragments
+        )
         self.assertLessEqual(
             result.max_rejection_tracking_slots,
             config.learners * config.fragments,
@@ -152,7 +156,9 @@ class TestASim01EventSemantics(unittest.TestCase):
             config.learners * config.fragments,
         )
         self.assertLessEqual(len(result.trace), config.max_trace_events)
-        self.assertLessEqual(result.max_event_queue, config.learners * config.fragments * 4)
+        self.assertLessEqual(
+            result.max_event_queue, config.learners * config.fragments * 4
+        )
         json.dumps(result.as_dict(), sort_keys=True, allow_nan=False)
 
     def test_sim_01__rejects_profiles_outside_stage0_bounds(self) -> None:

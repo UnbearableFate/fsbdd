@@ -83,7 +83,7 @@ QUEUE="$(awk -F' = ' '/^[[:space:]]*queue =/{print $2}' "$EVIDENCE_ROOT/env/qsta
 mkdir -p "$TEST_ROOT"
 printf '%q ' mpirun -np 2 --map-by ppr:1:node --hostfile "$PBS_NODEFILE" \
   /usr/bin/env "PYTHONPATH=$PYTHONPATH" "PBS_JOBID=$PBS_JOBID" "PBS_NODEFILE=$PBS_NODEFILE" \
-  "$PYTHON" -m fsbdd.storage_stress role --root "$TEST_ROOT" \
+  "$PYTHON" -m fsbdd.auxiliary.stress.storage_stress role --root "$TEST_ROOT" \
   --result-root "$EVIDENCE_ROOT/runtime/roles" --run-id "$RUN_ID" \
   --publications "$PUBLICATIONS" --payload-bytes "$PAYLOAD_BYTES" \
   --visibility-delay-seconds 0.0005 > "$EVIDENCE_ROOT/commands.log"
@@ -91,18 +91,18 @@ printf '\n' >> "$EVIDENCE_ROOT/commands.log"
 
 mpirun -np 2 --map-by ppr:1:node --hostfile "$PBS_NODEFILE" \
   /usr/bin/env "PYTHONPATH=$PYTHONPATH" "PBS_JOBID=$PBS_JOBID" "PBS_NODEFILE=$PBS_NODEFILE" \
-  "$PYTHON" -m fsbdd.storage_stress role --root "$TEST_ROOT" \
+  "$PYTHON" -m fsbdd.auxiliary.stress.storage_stress role --root "$TEST_ROOT" \
   --result-root "$EVIDENCE_ROOT/runtime/roles" --run-id "$RUN_ID" \
   --publications "$PUBLICATIONS" --payload-bytes "$PAYLOAD_BYTES" \
   --visibility-delay-seconds 0.0005 \
   > "$EVIDENCE_ROOT/stdout/mpirun.log" 2> "$EVIDENCE_ROOT/stderr/mpirun.log"
 
-"$PYTHON" -m fsbdd.storage_stress summarize --root "$TEST_ROOT" \
+"$PYTHON" -m fsbdd.auxiliary.stress.storage_stress summarize --root "$TEST_ROOT" \
   --result-root "$EVIDENCE_ROOT/runtime/roles" --run-id "$RUN_ID" \
   --publications "$PUBLICATIONS" --output "$EVIDENCE_ROOT/analysis/storage-summary.json" \
   > "$EVIDENCE_ROOT/stdout/storage-summary.json" 2> "$EVIDENCE_ROOT/stderr/storage-summary.log"
 
-"$PYTHON" -m fsbdd.storage_stress manifest \
+"$PYTHON" -m fsbdd.auxiliary.stress.storage_stress manifest \
   --repository "$REPOSITORY" --branch "$BRANCH" --commit "$EXPECTED_COMMIT" \
   --config-sha256 "$CONFIG_SHA256" --research-sha256 "$RESEARCH_SHA256" \
   --spec-sha256 "$SPEC_SHA256" --skill-repository "$SKILL_REPOSITORY" \

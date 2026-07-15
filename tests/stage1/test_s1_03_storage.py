@@ -4,12 +4,11 @@ import dataclasses
 import json
 import subprocess
 import threading
-import time
 from pathlib import Path
 
 import pytest
 
-from fsbdd.storage import (
+from fsbdd.diloco.protocol.storage import (
     PosixStorageBackend,
     PublicationError,
     PublicationInterrupted,
@@ -60,11 +59,21 @@ def test_payload_first_visibility_last_and_hook(tmp_path: Path) -> None:
     hook_observations = []
 
     def hook(slot, record) -> None:
-        hook_observations.append((slot, record.sequence, (tmp_path / record.payload_relative_path).read_bytes()))
+        hook_observations.append(
+            (
+                slot,
+                record.sequence,
+                (tmp_path / record.payload_relative_path).read_bytes(),
+            )
+        )
         assert not (tmp_path / "visibility" / "current.json").exists()
 
-    record = backend.publish("current", b"0123456789abcdef", spec(1), visibility_hook=hook)
-    published = backend.read("current", expectation(sequence=1, version=1, dtype="float32", shape=(4,)))
+    record = backend.publish(
+        "current", b"0123456789abcdef", spec(1), visibility_hook=hook
+    )
+    published = backend.read(
+        "current", expectation(sequence=1, version=1, dtype="float32", shape=(4,))
+    )
     assert hook_observations == [("current", 1, b"0123456789abcdef")]
     assert published.payload == b"0123456789abcdef"
     assert published.record == record
@@ -150,12 +159,16 @@ def test_record_schema_corruption_and_payload_truncation_reject(tmp_path: Path) 
 
 def test_compound_payload_is_visible_as_one_complete_object(tmp_path: Path) -> None:
     backend = PosixStorageBackend(tmp_path)
-    compound = json.dumps({"parameters": [1, 2], "outer_state": [3, 4]}, sort_keys=True).encode()
+    compound = json.dumps(
+        {"parameters": [1, 2], "outer_state": [3, 4]}, sort_keys=True
+    ).encode()
     backend.publish("fragment-current", compound, spec(7))
     assert backend.read("fragment-current", expectation(sequence=7)).payload == compound
 
 
-def test_multiple_concurrent_readers_observe_no_invalid_publication(tmp_path: Path) -> None:
+def test_multiple_concurrent_readers_observe_no_invalid_publication(
+    tmp_path: Path,
+) -> None:
     backend = PosixStorageBackend(tmp_path)
     backend.publish("latest", b"0" * 4096, spec(0))
     finished = threading.Event()
@@ -200,7 +213,12 @@ def test_eventual_payload_readability_retries(tmp_path: Path, monkeypatch) -> No
         return original(path)
 
     monkeypatch.setattr(Path, "read_bytes", delayed)
-    assert backend.read("current", expectation(), timeout_seconds=1, poll_interval_seconds=0).payload == b"complete"
+    assert (
+        backend.read(
+            "current", expectation(), timeout_seconds=1, poll_interval_seconds=0
+        ).payload
+        == b"complete"
+    )
     assert attempts == 2
 
 
@@ -212,8 +230,10 @@ def test_slot_path_traversal_and_invalid_spec_reject(tmp_path: Path) -> None:
         backend.publish("current", b"x", spec(0, fragment_map_identity="not-a-digest"))
 
 
-def test_stress_summary_checks_cross_node_roles_and_crash_matrix(tmp_path: Path) -> None:
-    from fsbdd.storage_stress import summarize
+def test_stress_summary_checks_cross_node_roles_and_crash_matrix(
+    tmp_path: Path,
+) -> None:
+    from fsbdd.auxiliary.stress.storage_stress import summarize
 
     result_root = tmp_path / "results"
     result_root.mkdir()
@@ -258,7 +278,7 @@ def test_pbs_contract_is_two_node_batch_and_filesystem_data_plane() -> None:
     content = script.read_text(encoding="utf-8")
     assert "#PBS -l select=2" in content
     assert "--map-by ppr:1:node" in content
-    assert "fsbdd.storage_stress role" in content
+    assert "fsbdd.auxiliary.stress.storage_stress role" in content
     assert "fsbdd.cli evidence finalize" in content
     assert 'date -u -d "$QTIME_RAW JST"' in content
     assert "torchrun" not in content

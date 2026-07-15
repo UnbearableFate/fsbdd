@@ -9,18 +9,35 @@ from pathlib import Path
 
 import pytest
 
-from fsbdd.global_state import BootstrapFragment, FragmentStateDescriptor, GlobalStateIdentities, GlobalStateStore
-from fsbdd.proposal import ConsumptionFrontiers, Proposal, ProposalStore
-from fsbdd.storage import PosixStorageBackend, PublicationSpec, ReadExpectation
-from fsbdd.syncer_readiness import FragmentReadinessAuthority, ReadinessConfig, SyncerReadinessMachine
-from fsbdd.stage1_gate import _runtime_gate, _topology_gate
-from fsbdd.stage1_package import Stage1PackageError, _capture_current_protocol_samples, _reject_placeholders
-from fsbdd.stage1_submit import (
+from fsbdd.diloco.protocol.global_state import (
+    BootstrapFragment,
+    FragmentStateDescriptor,
+    GlobalStateIdentities,
+    GlobalStateStore,
+)
+from fsbdd.diloco.protocol.proposal import ConsumptionFrontiers, Proposal, ProposalStore
+from fsbdd.diloco.protocol.storage import (
+    PosixStorageBackend,
+    PublicationSpec,
+    ReadExpectation,
+)
+from fsbdd.diloco.syncer.readiness import (
+    FragmentReadinessAuthority,
+    ReadinessConfig,
+    SyncerReadinessMachine,
+)
+from fsbdd.auxiliary.stage1.gate import _runtime_gate, _topology_gate
+from fsbdd.auxiliary.stage1.package import (
+    Stage1PackageError,
+    _capture_current_protocol_samples,
+    _reject_placeholders,
+)
+from fsbdd.auxiliary.stage1.submit import (
     Stage1SubmissionError,
     prepare_nine_node_roots,
     validate_nine_node_roots,
 )
-from fsbdd.evidence import EvidencePackage
+from fsbdd.auxiliary.contracts.evidence import EvidencePackage
 
 
 IDENTITIES = GlobalStateIdentities(
@@ -51,9 +68,14 @@ def _spec(sequence: int) -> PublicationSpec:
     )
 
 
-def test_metadata_only_read_and_bounded_payload_reclamation(tmp_path: Path, monkeypatch) -> None:
+def test_metadata_only_read_and_bounded_payload_reclamation(
+    tmp_path: Path, monkeypatch
+) -> None:
     backend = PosixStorageBackend(tmp_path)
-    records = [backend.publish("current", bytes([index]) * 16, _spec(index)) for index in range(5)]
+    records = [
+        backend.publish("current", bytes([index]) * 16, _spec(index))
+        for index in range(5)
+    ]
     assert backend.read_bound_record(records[0]).payload == bytes([0]) * 16
     for path in (tmp_path / "payloads").iterdir():
         os.utime(path, ns=(1, 1))
@@ -76,7 +98,9 @@ def test_metadata_only_read_and_bounded_payload_reclamation(tmp_path: Path, monk
     )
     assert record == records[-1]
     monkeypatch.setattr(Path, "read_bytes", original)
-    reclaimed = backend.reclaim_unreferenced_payloads(retain_recent=1, minimum_age_seconds=0)
+    reclaimed = backend.reclaim_unreferenced_payloads(
+        retain_recent=1, minimum_age_seconds=0
+    )
     assert reclaimed["reclaimed_payload_files"] == 3
     assert reclaimed["physical_payloads"] == 2
     assert reclaimed["referenced_payloads"] == 1
@@ -177,7 +201,7 @@ def test_nine_node_topology_gate_rejects_duplicate_host_and_gpu() -> None:
                 "gpu": {"gpu_uuid": f"GPU-{index}" if index else "GPU-duplicate"},
                 "config_sha256": "a" * 64,
                 "asset_marker_sha256": "b" * 64,
-            }
+            },
         }
         for index in range(8)
     ]
@@ -193,15 +217,27 @@ def test_nine_node_topology_gate_rejects_duplicate_host_and_gpu() -> None:
             "config_sha256": "a" * 64,
             "asset_marker_sha256": "b" * 64,
             "cuda_visible_devices": "",
-        }
+        },
     }
-    assert _topology_gate(roles, syncer, workload="nine_node", expected_learners=8)["status"] == "pass"
+    assert (
+        _topology_gate(roles, syncer, workload="nine_node", expected_learners=8)[
+            "status"
+        ]
+        == "pass"
+    )
     roles[1]["identity"]["hostname"] = "node-duplicate"
     roles[1]["identity"]["gpu"]["gpu_uuid"] = "GPU-duplicate"
-    assert _topology_gate(roles, syncer, workload="nine_node", expected_learners=8)["status"] == "fail"
+    assert (
+        _topology_gate(roles, syncer, workload="nine_node", expected_learners=8)[
+            "status"
+        ]
+        == "fail"
+    )
 
 
-def test_protocol_sample_capture_binds_current_metadata_and_edges(tmp_path: Path) -> None:
+def test_protocol_sample_capture_binds_current_metadata_and_edges(
+    tmp_path: Path,
+) -> None:
     shared = tmp_path / "shared"
     for backend_name in ("global", "proposals"):
         backend = PosixStorageBackend(shared / "protocol" / backend_name)
@@ -227,11 +263,15 @@ def test_protocol_sample_capture_binds_current_metadata_and_edges(tmp_path: Path
 
 def test_formal_package_rejects_unresolved_asset_placeholders() -> None:
     with pytest.raises(Stage1PackageError, match="resolved placeholder"):
-        _reject_placeholders({"resolved_runtime_fields": {"asset_bundle_root": "asset_stage"}})
+        _reject_placeholders(
+            {"resolved_runtime_fields": {"asset_bundle_root": "asset_stage"}}
+        )
 
 
 def test_numpy_syncer_probe_imports_no_torch() -> None:
-    probe = Path(__file__).resolve().parents[1] / "probes" / "s1_13_numpy_syncer_probe.py"
+    probe = (
+        Path(__file__).resolve().parents[1] / "probes" / "s1_13_numpy_syncer_probe.py"
+    )
     completed = subprocess.run(
         [sys.executable, str(probe)],
         check=False,
@@ -275,7 +315,9 @@ def test_nine_node_submission_roots_are_exclusive_and_identity_bound(
         )
 
 
-def _runtime_fixture(tmp_path: Path) -> tuple[list[dict[str, object]], dict[str, object]]:
+def _runtime_fixture(
+    tmp_path: Path,
+) -> tuple[list[dict[str, object]], dict[str, object]]:
     log_root = tmp_path / "logs"
     log_root.mkdir()
     with (log_root / "learner-00.jsonl").open("w", encoding="utf-8") as stream:

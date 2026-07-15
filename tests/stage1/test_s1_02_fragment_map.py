@@ -5,7 +5,7 @@ from itertools import combinations
 
 import pytest
 
-from fsbdd.fragment_map import (
+from fsbdd.diloco.model.fragment_map import (
     BalanceSummary,
     Fragment,
     FragmentMapError,
@@ -13,8 +13,13 @@ from fsbdd.fragment_map import (
     partition_layer_bytes,
     validate_fragment_map,
 )
-from fsbdd.identity import canonical_digest
-from fsbdd.model_registry import Coverage, LogicalLayer, LogicalLayerRegistry, ParameterRecord
+from fsbdd.diloco.common.identity import canonical_digest
+from fsbdd.diloco.model.model_registry import (
+    Coverage,
+    LogicalLayer,
+    LogicalLayerRegistry,
+    ParameterRecord,
+)
 
 
 def registry_from_bytes(weights: tuple[int, ...]) -> LogicalLayerRegistry:
@@ -69,13 +74,23 @@ def registry_from_bytes(weights: tuple[int, ...]) -> LogicalLayerRegistry:
     )
 
 
-def brute_objective(weights: tuple[int, ...], fragment_count: int) -> tuple[int, int, tuple[int, ...]]:
+def brute_objective(
+    weights: tuple[int, ...], fragment_count: int
+) -> tuple[int, int, tuple[int, ...]]:
     total = sum(weights)
     candidates = []
     for cuts in combinations(range(1, len(weights)), fragment_count - 1):
         boundaries = (0, *cuts, len(weights))
-        sizes = tuple(sum(weights[start:end]) for start, end in zip(boundaries, boundaries[1:]))
-        candidates.append((max(sizes), sum(abs(fragment_count * size - total) for size in sizes), cuts))
+        sizes = tuple(
+            sum(weights[start:end]) for start, end in zip(boundaries, boundaries[1:])
+        )
+        candidates.append(
+            (
+                max(sizes),
+                sum(abs(fragment_count * size - total) for size in sizes),
+                cuts,
+            )
+        )
     return min(candidates)
 
 
@@ -84,7 +99,11 @@ def test_minimax_beats_naive_greedy_counterexample() -> None:
     fragment_map = build_fragment_map(registry, 3)
     assert fragment_map.objective.cut_indices == (1, 2)
     assert fragment_map.objective.maximum_sync_bytes == 5
-    assert tuple(fragment.sync_bytes for fragment in fragment_map.fragments) == (1, 5, 5)
+    assert tuple(fragment.sync_bytes for fragment in fragment_map.fragments) == (
+        1,
+        5,
+        5,
+    )
 
 
 def test_secondary_objective_and_front_cut_match_brute_force() -> None:
@@ -115,7 +134,9 @@ def test_nonproduction_oracle_mode_only_allows_one_fragment() -> None:
 
 def test_oversized_layer_stays_whole_and_singleton() -> None:
     fragment_map = build_fragment_map(registry_from_bytes((2, 2, 50, 2, 2)), 3)
-    oversized = next(fragment for fragment in fragment_map.fragments if 2 in fragment.layer_indices)
+    oversized = next(
+        fragment for fragment in fragment_map.fragments if 2 in fragment.layer_indices
+    )
     assert oversized.layer_indices == (2,)
     assert oversized.sync_bytes == 50
 
@@ -136,7 +157,9 @@ def test_parameter_partition_and_interval_validation_fail_closed() -> None:
         fragment_map.fragments[1],
         parameter_identities=fragment_map.fragments[0].parameter_identities,
     )
-    tampered = dataclasses.replace(fragment_map, fragments=(fragment_map.fragments[0], duplicate))
+    tampered = dataclasses.replace(
+        fragment_map, fragments=(fragment_map.fragments[0], duplicate)
+    )
     tampered = dataclasses.replace(tampered, digest=canonical_digest(tampered._body()))
     with pytest.raises(FragmentMapError, match="parameter identities"):
         validate_fragment_map(tampered, registry)
@@ -151,8 +174,12 @@ def test_registry_digest_and_coverage_are_revalidated() -> None:
 def test_map_layer_summary_cannot_diverge_from_registry() -> None:
     registry = registry_from_bytes((3, 4, 5, 6))
     fragment_map = build_fragment_map(registry, 2)
-    changed_layer = dataclasses.replace(fragment_map.layers[0], module_path="different.path")
-    tampered = dataclasses.replace(fragment_map, layers=(changed_layer, *fragment_map.layers[1:]))
+    changed_layer = dataclasses.replace(
+        fragment_map.layers[0], module_path="different.path"
+    )
+    tampered = dataclasses.replace(
+        fragment_map, layers=(changed_layer, *fragment_map.layers[1:])
+    )
     tampered = dataclasses.replace(tampered, digest=canonical_digest(tampered._body()))
     with pytest.raises(FragmentMapError, match="layer summaries"):
         validate_fragment_map(tampered, registry)
@@ -170,7 +197,8 @@ def test_nonoptimal_actual_cuts_cannot_carry_optimal_decoy_objective() -> None:
             end_layer_exclusive=3,
             layer_indices=(1, 2),
             layer_names=(layers[1].name, layers[2].name),
-            parameter_identities=layers[1].parameter_identities + layers[2].parameter_identities,
+            parameter_identities=layers[1].parameter_identities
+            + layers[2].parameter_identities,
             parameter_count=6,
             sync_bytes=6,
         ),
@@ -220,14 +248,16 @@ def test_registry_parameter_bytes_must_match_sync_dtype() -> None:
     changed = dataclasses.replace(registry.parameters[0], sync_bytes=99)
     parameters = (changed, *registry.parameters[1:])
     layer = dataclasses.replace(registry.layers[0], sync_bytes=99)
-    tampered = dataclasses.replace(registry, parameters=parameters, layers=(layer, *registry.layers[1:]))
+    tampered = dataclasses.replace(
+        registry, parameters=parameters, layers=(layer, *registry.layers[1:])
+    )
     tampered = dataclasses.replace(tampered, digest=canonical_digest(tampered._body()))
     with pytest.raises(FragmentMapError, match="parameter synchronization bytes"):
         build_fragment_map(tampered, 2)
 
 
 def test_report_contains_exact_ownership_and_balance_summary(tmp_path) -> None:
-    from fsbdd.fragment_map import write_fragment_map_report
+    from fsbdd.diloco.model.fragment_map import write_fragment_map_report
 
     fragment_map = build_fragment_map(registry_from_bytes((3, 4, 5, 6)), 2)
     destination = tmp_path / "fragment-map.json"

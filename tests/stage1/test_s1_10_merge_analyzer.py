@@ -8,8 +8,8 @@ from pathlib import Path
 
 import pytest
 
-from fsbdd.identity import canonical_digest
-from fsbdd.syncer_merge_stress import (
+from fsbdd.diloco.common.identity import canonical_digest
+from fsbdd.auxiliary.stress.syncer_merge_stress import (
     MergeStressError,
     analyze_roles,
     build_workload,
@@ -60,8 +60,7 @@ def analyzer_case(tmp_path_factory):
                 "fragment_bytes": fragment_bytes,
                 "maximum_tensor_fragment_multiples": 3.0,
                 "process_rss_at_entry_bytes": 100_000_000,
-                "maximum_observed_process_rss_bytes": 100_000_000
-                + 4 * fragment_bytes,
+                "maximum_observed_process_rss_bytes": 100_000_000 + 4 * fragment_bytes,
                 "peak_process_rss_bytes": 4 * fragment_bytes,
             },
             "byte_accounting": {
@@ -123,7 +122,9 @@ def analyzer_case(tmp_path_factory):
     return writer, syncer, config, config_identity
 
 
-def test_analyzer_independently_recomputes_all_formal_transitions(analyzer_case) -> None:
+def test_analyzer_independently_recomputes_all_formal_transitions(
+    analyzer_case,
+) -> None:
     writer, syncer, config, config_identity = analyzer_case
     summary = analyze_roles(
         copy.deepcopy(writer),
@@ -150,9 +151,9 @@ def test_memory_child_primes_identical_max_contributor_fragment_profile(
     result = run_memory_child(tmp_path, workload_path, 1)
 
     assert result["warmup_iterations"] == config["memory_gates"]["warmup_iterations"]
-    assert result["warmup_contributor_count"] == config["formal_workload"][
-        "learner_count"
-    ]
+    assert (
+        result["warmup_contributor_count"] == config["formal_workload"]["learner_count"]
+    )
     assert result["warmup_fragment_bytes"] == 4096 * 4
     assert len(result["warmup_peak_rss_bytes"]) == result["warmup_iterations"]
     assert result["source_metrics"]["opens"] == 1

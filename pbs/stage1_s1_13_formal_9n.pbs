@@ -41,7 +41,7 @@ if [[ "$(sha256sum "$RESOLVED_CONFIG" | awk '{print $1}')" != "$CONFIG_SHA256" ]
   echo "formal config, asset, or gate-contract identity mismatch" >&2
   exit 65
 fi
-"$PYTHON" -m fsbdd.stage1_submit validate-nine \
+"$PYTHON" -m fsbdd.auxiliary.stage1.submit validate-nine \
   --shared-root "$SHARED_ROOT" --result-root "$RESULT_ROOT" \
   --evidence-root "$EVIDENCE_ROOT" --run-id "$RUN_ID" \
   --submission-utc "$SUBMISSION_UTC" --code-commit "$EXPECTED_COMMIT" \
@@ -67,7 +67,7 @@ export PBS_QTIME_UTC="$(date -u -d "$ROLE_QTIME_RAW JST" '+%Y-%m-%dT%H:%M:%SZ')"
 
 if [[ "$ROLE_INDEX" -lt 8 ]]; then
   export CUDA_VISIBLE_DEVICES=0
-  "$PYTHON" -m fsbdd.stage1_close learner \
+  "$PYTHON" -m fsbdd.auxiliary.stage1.close learner \
     --shared-root "$SHARED_ROOT" --result-root "$RESULT_ROOT" --run-id "$RUN_ID" \
     --config-path "$RESOLVED_CONFIG" --config-sha256 "$CONFIG_SHA256" \
     --asset-marker-sha256 "$ASSET_MARKER_SHA256" --hub-cache "$HF_HOME/hub" \
@@ -86,7 +86,7 @@ export CUDA_VISIBLE_DEVICES=""
   plans/FS_DILOCO_CODEX_EXECUTION_PLAN/loops/stage1/S1-13.md \
   reports/stage1/S1-13-requirement-matrix.csv \
   > "$RESULT_ROOT/requirements.json" 2> "$RESULT_ROOT/stderr/requirements.log"
-"$PYTHON" -m fsbdd.stage1_close syncer \
+"$PYTHON" -m fsbdd.auxiliary.stage1.close syncer \
   --shared-root "$SHARED_ROOT" --result-root "$RESULT_ROOT" --run-id "$RUN_ID" \
   --config-path "$RESOLVED_CONFIG" --config-sha256 "$CONFIG_SHA256" \
   --asset-marker-sha256 "$ASSET_MARKER_SHA256" --timeout-seconds 1200 \
@@ -97,7 +97,7 @@ export CUDA_VISIBLE_DEVICES=""
 
 QTIME_RAW="$(awk -F' = ' '/^[[:space:]]*qtime =/{print $2}' "$RESULT_ROOT/env/role-${ROLE_INDEX}-qstat.txt")"
 QTIME_UTC="$(date -u -d "$QTIME_RAW JST" '+%Y-%m-%dT%H:%M:%SZ')"
-"$PYTHON" -m fsbdd.stage1_package \
+"$PYTHON" -m fsbdd.auxiliary.stage1.package \
   --project-root "$PROJECT_ROOT" --evidence-root "$EVIDENCE_ROOT" \
   --result-root "$RESULT_ROOT" --shared-root "$SHARED_ROOT" --asset-root "$ASSET_ROOT" \
   --config "$RESOLVED_CONFIG" --requirements "$RESULT_ROOT/requirements.json" \

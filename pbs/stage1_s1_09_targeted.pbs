@@ -53,10 +53,10 @@ printf '%q ' "$PYTHON" -m pytest -q tests/stage1 > "$RUN_ROOT/commands.log"
 printf '\n' >> "$RUN_ROOT/commands.log"
 "$PYTHON" -m pytest -q tests/stage1 \
   > "$RUN_ROOT/stdout/pytest.log" 2> "$RUN_ROOT/stderr/pytest.log"
-printf '%q ' "$PYTHON" -m py_compile src/fsbdd/syncer_readiness.py \
-  src/fsbdd/syncer_readiness_stress.py >> "$RUN_ROOT/commands.log"
+printf '%q ' "$PYTHON" -m py_compile src/fsbdd/diloco/syncer/readiness.py \
+  src/fsbdd/auxiliary/stress/syncer_readiness_stress.py >> "$RUN_ROOT/commands.log"
 printf '\n' >> "$RUN_ROOT/commands.log"
-"$PYTHON" -m py_compile src/fsbdd/syncer_readiness.py \
-  src/fsbdd/syncer_readiness_stress.py \
+"$PYTHON" -m py_compile src/fsbdd/diloco/syncer/readiness.py \
+  src/fsbdd/auxiliary/stress/syncer_readiness_stress.py \
   > "$RUN_ROOT/stdout/py-compile.log" 2> "$RUN_ROOT/stderr/py-compile.log"
 sha256sum $(find "$RUN_ROOT" -type f | sort) > "$RUN_ROOT/checksums.sha256"

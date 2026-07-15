@@ -6,14 +6,14 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from fsbdd.global_commit import AtomicGlobalCommitStore
-from fsbdd.global_state import (
+from fsbdd.diloco.protocol.global_commit import AtomicGlobalCommitStore
+from fsbdd.diloco.protocol.global_state import (
     BootstrapFragment,
     FragmentStateDescriptor,
     GlobalStateIdentities,
     GlobalStateStore,
 )
-from fsbdd.profile_a import (
+from fsbdd.diloco.syncer.profile_a import (
     ComparisonBasis,
     FrozenStopPolicy,
     ProfileAConfig,
@@ -22,10 +22,10 @@ from fsbdd.profile_a import (
     ProfileAProgressTracker,
     profile_a_policy_identity,
 )
-from fsbdd.proposal import Proposal, ProposalStore
-from fsbdd.storage import PosixStorageBackend
-from fsbdd.syncer_merge import OuterSGDPolicy
-from fsbdd_stage0.oracle import (
+from fsbdd.diloco.protocol.proposal import Proposal, ProposalStore
+from fsbdd.diloco.protocol.storage import PosixStorageBackend
+from fsbdd.diloco.syncer.merge import OuterSGDPolicy
+from fsbdd.auxiliary.stage0.oracle import (
     OuterSGDState,
     inverse_staleness_weights,
     outer_sgd_step,
@@ -116,9 +116,7 @@ def make_system(
         maximum_local_steps=1_000_000,
         maximum_processed_tokens=1_000_000_000,
     )
-    progress = ProfileAProgressTracker(
-        LEARNERS, (0, 0), comparison=COMPARISON
-    )
+    progress = ProfileAProgressTracker(LEARNERS, (0, 0), comparison=COMPARISON)
     executor = ProfileAFragmentExecutor(
         atomic_store=atomic,
         proposal_store=proposals,
@@ -143,7 +141,11 @@ def publish_round(
         gradient = [
             float(
                 np.float32(
-                    (((authority.version + 1) * (learner_index + 1) * (position + 3)) % 23 - 11)
+                    (
+                        ((authority.version + 1) * (learner_index + 1) * (position + 3))
+                        % 23
+                        - 11
+                    )
                     * 0.0005
                 )
             )
@@ -271,7 +273,12 @@ def test_integrated_single_update_matches_stage0_oracle(tmp_path: Path) -> None:
     )
     assert _relative_l2(_values(update.successor.parameters), expected) <= 1e-6
     assert update.successor.outer_optimizer_state
-    assert _relative_l2(_values(update.successor.outer_optimizer_state), state.momentum_buffer) <= 1e-6
+    assert (
+        _relative_l2(
+            _values(update.successor.outer_optimizer_state), state.momentum_buffer
+        )
+        <= 1e-6
+    )
     assert update.source_metrics.opens == 4
     assert update.source_metrics.maximum_active_payloads == 1
     assert update.result.byte_accounting.full_model_operations == 0

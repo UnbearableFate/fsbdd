@@ -7,7 +7,7 @@ import pytest
 torch = pytest.importorskip("torch")
 nn = torch.nn
 
-from fsbdd.model_registry import (
+from fsbdd.diloco.model.model_registry import (  # noqa: E402
     ExplicitMapping,
     MiscAssignment,
     RegistryError,
@@ -62,16 +62,31 @@ class ReorderedLlama(nn.Module):
 
 
 def unique_trainable(model: nn.Module) -> int:
-    return len({id(parameter) for parameter in model.parameters() if parameter.requires_grad})
+    return len(
+        {id(parameter) for parameter in model.parameters() if parameter.requires_grad}
+    )
 
 
-@pytest.mark.parametrize(("model", "family"), [(TinyNeoX(), "gpt_neox"), (TinyLlama(), "llama")])
-def test_two_families_have_ordered_complete_coverage(model: nn.Module, family: str) -> None:
+@pytest.mark.parametrize(
+    ("model", "family"), [(TinyNeoX(), "gpt_neox"), (TinyLlama(), "llama")]
+)
+def test_two_families_have_ordered_complete_coverage(
+    model: nn.Module, family: str
+) -> None:
     registry = build_logical_layer_registry(model, sync_dtype_bytes=4)
     assert registry.family == family
-    assert [layer.kind for layer in registry.layers] == ["embedding", "block", "block", "lm_head"]
+    assert [layer.kind for layer in registry.layers] == [
+        "embedding",
+        "block",
+        "block",
+        "lm_head",
+    ]
     assert len(registry.parameters) == unique_trainable(model)
-    assert registry.coverage.unique_trainable == registry.coverage.owned == len(registry.parameters)
+    assert (
+        registry.coverage.unique_trainable
+        == registry.coverage.owned
+        == len(registry.parameters)
+    )
     assert registry.coverage.duplicate_owners == 0
     assert registry.digest == registry.to_dict()["digest"]
 
@@ -79,7 +94,9 @@ def test_two_families_have_ordered_complete_coverage(model: nn.Module, family: s
 def test_tied_owner_is_embedding_and_duplicate_fixture_rejects() -> None:
     model = TinyNeoX(tied=True)
     registry = build_logical_layer_registry(model)
-    tied = [parameter for parameter in registry.parameters if len(parameter.aliases) > 1]
+    tied = [
+        parameter for parameter in registry.parameters if len(parameter.aliases) > 1
+    ]
     assert len(tied) == 1
     assert tied[0].owner_layer == "embedding"
     assert set(tied[0].aliases) == {"gpt_neox.embed_in.weight", "embed_out.weight"}
@@ -89,7 +106,11 @@ def test_tied_owner_is_embedding_and_duplicate_fixture_rejects() -> None:
 
 def test_misc_parameter_uses_smaller_adjacent_side_and_front_tie() -> None:
     registry = build_logical_layer_registry(TinyLlama(), sync_dtype_bytes=4)
-    norm = next(parameter for parameter in registry.parameters if "model.norm.weight" in parameter.aliases)
+    norm = next(
+        parameter
+        for parameter in registry.parameters
+        if "model.norm.weight" in parameter.aliases
+    )
     # Last block is smaller than the untied head in this fixture.
     assert norm.owner_layer == "block-1"
 
@@ -118,7 +139,10 @@ def test_unlisted_auxiliary_parameter_is_rejected() -> None:
 
 
 def test_registration_order_does_not_change_registry_digest() -> None:
-    assert build_logical_layer_registry(TinyLlama()).digest == build_logical_layer_registry(ReorderedLlama()).digest
+    assert (
+        build_logical_layer_registry(TinyLlama()).digest
+        == build_logical_layer_registry(ReorderedLlama()).digest
+    )
 
 
 def test_large_embedding_and_zero_parameter_head_are_supported_explicitly() -> None:

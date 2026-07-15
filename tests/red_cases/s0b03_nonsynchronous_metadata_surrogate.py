@@ -4,7 +4,10 @@ from __future__ import annotations
 
 import unittest
 
-from fsbdd_stage0.storage_capacity import StorageHarnessError, _metadata_summary
+from fsbdd.auxiliary.stage0.storage_capacity import (
+    StorageHarnessError,
+    _metadata_summary,
+)
 from tests.storage.test_stage0_storage_capacity import _config, _synthetic_roles
 
 

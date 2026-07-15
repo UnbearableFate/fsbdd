@@ -17,7 +17,9 @@ class TestIncompleteSweepSurrogate(unittest.TestCase):
     def setUpClass(cls) -> None:
         cls.config = json.loads(CONFIG.read_text(encoding="utf-8"))
 
-    def test_sim_03__omitting_one_visibility_axis_fails_matrix_cardinality(self) -> None:
+    def test_sim_03__omitting_one_visibility_axis_fails_matrix_cardinality(
+        self,
+    ) -> None:
         axes = self.config["axes"]
         deliberately_incomplete_lengths = [
             len(axes["learners"]),

@@ -6,7 +6,7 @@ import random
 import unittest
 from pathlib import Path
 
-from fsbdd_stage0.oracle import (
+from fsbdd.auxiliary.stage0.oracle import (
     OracleInputError,
     inverse_staleness_weights,
     pseudo_gradient,
@@ -14,9 +14,7 @@ from fsbdd_stage0.oracle import (
 )
 
 
-FIXTURE = (
-    Path(__file__).resolve().parents[1] / "fixtures" / "oracle_golden_cases.json"
-)
+FIXTURE = Path(__file__).resolve().parents[1] / "fixtures" / "oracle_golden_cases.json"
 
 
 class TestAAlg00PseudoGradientWeighting(unittest.TestCase):
@@ -72,7 +70,9 @@ class TestAAlg00PseudoGradientWeighting(unittest.TestCase):
             staleness = [rng.randint(0, 8) for _ in range(width)]
             lambda_s = rng.uniform(0.0, 4.0)
             weights = inverse_staleness_weights(tokens, staleness, lambda_s)
-            self.assertTrue(all(math.isfinite(weight) and weight >= 0 for weight in weights))
+            self.assertTrue(
+                all(math.isfinite(weight) and weight >= 0 for weight in weights)
+            )
             self.assertAlmostEqual(sum(weights), 1.0, delta=2e-6)
 
     def test_oracle_02__fresh_is_undiscounted_and_staleness_is_monotone(self) -> None:
@@ -88,9 +88,7 @@ class TestAAlg00PseudoGradientWeighting(unittest.TestCase):
             self.assertTrue(
                 all(
                     left >= right
-                    for left, right in zip(
-                        implementation_mass, implementation_mass[1:]
-                    )
+                    for left, right in zip(implementation_mass, implementation_mass[1:])
                 )
             )
         self.assert_vector_close(
@@ -121,10 +119,16 @@ class TestAAlg00PseudoGradientWeighting(unittest.TestCase):
         mixed = inverse_staleness_weights([1.0, 1_000_000.0], [0, 1], 1.0)
         self.assertTrue(0.0 < mixed[0] < mixed[1] < 1.0)
 
-    def test_oracle_01__invalid_identity_future_and_too_stale_are_rejected(self) -> None:
+    def test_oracle_01__invalid_identity_future_and_too_stale_are_rejected(
+        self,
+    ) -> None:
         for case in self.fixture["invalid_base_cases"]:
             with self.subTest(case=case["id"]):
-                arguments = {key: value for key, value in case.items() if key not in {"id", "error"}}
+                arguments = {
+                    key: value
+                    for key, value in case.items()
+                    if key not in {"id", "error"}
+                }
                 with self.assertRaisesRegex(OracleInputError, case["error"]):
                     validated_pseudo_gradient(**arguments)
 

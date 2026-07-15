@@ -8,9 +8,15 @@ from pathlib import Path
 
 import pytest
 
-from fsbdd.global_state_stress import _fragments, derive_stress_identities
-from fsbdd.identity import canonical_digest
-from fsbdd.syncer_readiness_stress import ReadinessStressError, analyze_results
+from fsbdd.auxiliary.stress.global_state_stress import (
+    _fragments,
+    derive_stress_identities,
+)
+from fsbdd.diloco.common.identity import canonical_digest
+from fsbdd.auxiliary.stress.syncer_readiness_stress import (
+    ReadinessStressError,
+    analyze_results,
+)
 
 
 CONFIG_IDENTITY = "8ff3fe364fca10bb48fe80ebf0bcede63163731e47cc26fc87512b298e3c225d"
@@ -19,9 +25,7 @@ RUN_ID = "s1-09-formal-fixture"
 
 def _config() -> dict:
     value = json.loads(
-        Path("configs/stage1/s1_09_syncer_readiness.json").read_text(
-            encoding="utf-8"
-        )
+        Path("configs/stage1/s1_09_syncer_readiness.json").read_text(encoding="utf-8")
     )
     value["config_identity"] = CONFIG_IDENTITY
     return value
@@ -30,9 +34,7 @@ def _config() -> dict:
 def _state_identities(config: dict) -> dict:
     values = {}
     for name, suffix in (("profile_a", "profile-a"), ("decoupled_grace", "grace")):
-        initial = _fragments(
-            config[name]["fragment_count"], config["payload_bytes"]
-        )
+        initial = _fragments(config[name]["fragment_count"], config["payload_bytes"])
         model, fragment_map = derive_stress_identities(CONFIG_IDENTITY, initial)
         values[name] = {
             "run_identity": f"{RUN_ID}-{suffix}",
@@ -222,23 +224,53 @@ def test_analyzer_accepts_complete_frozen_fixture() -> None:
     "mutation",
     [
         lambda writer, syncer: syncer.__setitem__("logical_syncer_count", 2),
-        lambda writer, syncer: syncer["profile_a"].__setitem__("baseline_fixed_reads", 31),
-        lambda writer, syncer: syncer["profile_a"].__setitem__("baseline_missing_slots", 1),
-        lambda writer, syncer: syncer["profile_a"].__setitem__("claim_order", [0, 0, 1, 2]),
-        lambda writer, syncer: syncer["profile_a"]["repeated_selected"].__setitem__(0, "again"),
-        lambda writer, syncer: syncer["profile_a"]["selections"][0]["learner_ids"].__setitem__(1, "learner-00"),
-        lambda writer, syncer: syncer["grace"].__setitem__("after_selection_identity", "changed"),
-        lambda writer, syncer: syncer["grace"]["after_weights"].__setitem__(0, {"changed": True}),
-        lambda writer, syncer: syncer["profile_a"]["selections"][0].__setitem__("weights", syncer["profile_a"]["selections"][0]["weights"][:1]),
-        lambda writer, syncer: syncer["profile_a"]["selections"][0]["weights"][0].__setitem__("proposal_id", "wrong"),
-        lambda writer, syncer: syncer["profile_a"]["selections"][0]["proposal_facts"][0].__setitem__("processed_tokens", 99),
-        lambda writer, syncer: syncer["profile_a"]["selections"][0]["weights"][0].__setitem__("raw_weight", 99.0),
-        lambda writer, syncer: syncer["profile_a"]["selections"][0]["weights"][0].__setitem__("normalized_weight", 1.0),
-        lambda writer, syncer: syncer["profile_a"]["selections"][0]["proposal_content_identities"].__setitem__(0, "f" * 64),
-        lambda writer, syncer: syncer["profile_a"]["selections"][0].__setitem__("selection_identity", "0" * 64),
+        lambda writer, syncer: syncer["profile_a"].__setitem__(
+            "baseline_fixed_reads", 31
+        ),
+        lambda writer, syncer: syncer["profile_a"].__setitem__(
+            "baseline_missing_slots", 1
+        ),
+        lambda writer, syncer: syncer["profile_a"].__setitem__(
+            "claim_order", [0, 0, 1, 2]
+        ),
+        lambda writer, syncer: syncer["profile_a"]["repeated_selected"].__setitem__(
+            0, "again"
+        ),
+        lambda writer, syncer: syncer["profile_a"]["selections"][0][
+            "learner_ids"
+        ].__setitem__(1, "learner-00"),
+        lambda writer, syncer: syncer["grace"].__setitem__(
+            "after_selection_identity", "changed"
+        ),
+        lambda writer, syncer: syncer["grace"]["after_weights"].__setitem__(
+            0, {"changed": True}
+        ),
+        lambda writer, syncer: syncer["profile_a"]["selections"][0].__setitem__(
+            "weights", syncer["profile_a"]["selections"][0]["weights"][:1]
+        ),
+        lambda writer, syncer: syncer["profile_a"]["selections"][0]["weights"][
+            0
+        ].__setitem__("proposal_id", "wrong"),
+        lambda writer, syncer: syncer["profile_a"]["selections"][0]["proposal_facts"][
+            0
+        ].__setitem__("processed_tokens", 99),
+        lambda writer, syncer: syncer["profile_a"]["selections"][0]["weights"][
+            0
+        ].__setitem__("raw_weight", 99.0),
+        lambda writer, syncer: syncer["profile_a"]["selections"][0]["weights"][
+            0
+        ].__setitem__("normalized_weight", 1.0),
+        lambda writer, syncer: syncer["profile_a"]["selections"][0][
+            "proposal_content_identities"
+        ].__setitem__(0, "f" * 64),
+        lambda writer, syncer: syncer["profile_a"]["selections"][0].__setitem__(
+            "selection_identity", "0" * 64
+        ),
         lambda writer, syncer: writer.__setitem__("gpu_memory_after_bytes", 1),
         lambda writer, syncer: writer.__setitem__("profile_a_published", 31),
-        lambda writer, syncer: writer["state_identities"]["profile_a"].__setitem__("run_identity", "wrong"),
+        lambda writer, syncer: writer["state_identities"]["profile_a"].__setitem__(
+            "run_identity", "wrong"
+        ),
     ],
 )
 def test_analyzer_fails_closed_on_mutated_authoritative_fields(mutation) -> None:
