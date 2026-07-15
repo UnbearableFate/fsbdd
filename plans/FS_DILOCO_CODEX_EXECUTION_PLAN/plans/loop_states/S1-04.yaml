@@ -40,8 +40,15 @@ red:
   command: PYTHONPATH=src .venv/bin/python tests/red_cases/s1_04_naive_bootstrap_surrogate.py
   exit_code: 1
   evidence_path: runtime_runs/S1-04/red-773a1b2
-green: {command: null, evidence_path: null}
-harden: {commands: [], evidence_paths: []}
+green:
+  command: PYTHONPATH=src .venv/bin/python -m pytest -q tests/stage1
+  evidence_path: runtime_runs/S1-04/preflight-b9cfe88/stdout/pytest.log
+harden:
+  commands:
+  - PYTHONPATH=src .venv/bin/python -m pytest -q tests/stage1
+  - PYTHONPATH=src mpirun --oversubscribe --map-by slot -np 2 .venv/bin/python -m fsbdd.global_state_stress role --fragment-count 4 --payload-bytes 65536 --history-objects 10000 --interrupt-after 2 --s-max 0
+  evidence_paths:
+  - runtime_runs/S1-04/preflight-b9cfe88
 nine_node_gate: {required: false, run_id: null, topology_gate: null, loss_gate: null, runtime_gate: null}
 checker: {context_id: null, maker_chat_inherited: false, phase_a_verdict: null, verdict: null, report_path: null}
 persist:
@@ -52,11 +59,12 @@ persist:
   handoff:
     proven_facts:
     - S1-02 supplies a frozen complete fragment map and S1-03 supplies payload-first visibility-last fixed-slot publication.
-    checked_commit: 629aa6ffc92de2d3b7740571ca97898b0558827f
-    selected_evidence: [evidence/indexes/S1-02.md, evidence/indexes/S1-03.md]
-    next_command: implement the compound per-fragment version-0 global-state bootstrap and targeted tests
+    - The compute preflight passes all 79 Stage 1 tests and the full interruption/resume/idempotence/conflict/10000-object stress protocol with exactly four snapshot reads before and after history injection.
+    checked_commit: b9cfe88689a6c537a3ccb12ca5ef6bb4fa020597
+    selected_evidence: [runtime_runs/S1-04/preflight-b9cfe88]
+    next_command: freeze a clean candidate worktree and request Checker Phase A before the single formal two-node run
   cost:
-    attempts_by_level: {L0: 0, L1: 0, L2: 0}
+    attempts_by_level: {L0: 3, L1: 1, L2: 0}
     queue_seconds: null
     active_seconds: null
     checker_cycles: 0
