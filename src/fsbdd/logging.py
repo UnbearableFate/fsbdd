@@ -27,6 +27,7 @@ class StructuredLogger:
         self._emits = 0
         self._lock = threading.Lock()
         path.parent.mkdir(parents=True, exist_ok=True)
+        self._stream = path.open("a", encoding="utf-8")
 
     def emit(self, event: str, **fields: Any) -> dict[str, Any]:
         reserved = {"schema_version", "timestamp_utc", "monotonic_ns", "pid", "run_id", "role", "event"}
@@ -46,18 +47,22 @@ class StructuredLogger:
         }
         record.update(fields)
         with self._lock:
-            with self.path.open("a", encoding="utf-8") as stream:
-                stream.write(json.dumps(record, sort_keys=True, separators=(",", ":")) + "\n")
-                stream.flush()
-                self._emits += 1
-                if self._emits % self.fsync_every == 0:
-                    os.fsync(stream.fileno())
+            self._stream.write(json.dumps(record, sort_keys=True, separators=(",", ":")) + "\n")
+            self._stream.flush()
+            self._emits += 1
+            if self._emits % self.fsync_every == 0:
+                os.fsync(self._stream.fileno())
         return record
 
     def sync(self) -> None:
         with self._lock:
-            if not self.path.exists():
+            self._stream.flush()
+            os.fsync(self._stream.fileno())
+
+    def close(self) -> None:
+        with self._lock:
+            if self._stream.closed:
                 return
-            with self.path.open("a", encoding="utf-8") as stream:
-                stream.flush()
-                os.fsync(stream.fileno())
+            self._stream.flush()
+            os.fsync(self._stream.fileno())
+            self._stream.close()
