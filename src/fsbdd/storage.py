@@ -516,7 +516,6 @@ class PosixStorageBackend:
             raise PublicationError(
                 f"failed to write unique payload: {error}"
             ) from error
-        payload_sha256 = hashlib.sha256(payload).hexdigest()
         try:
             verified = payload_path.read_bytes()
         except OSError as error:
@@ -525,11 +524,16 @@ class PosixStorageBackend:
             ) from error
         if (
             len(verified) != len(payload)
-            or hashlib.sha256(verified).hexdigest() != payload_sha256
+            or verified != payload
         ):
             raise PublicationError(
                 "completed payload failed size/checksum verification"
             )
+        # Bind visibility to the bytes read back from the completed immutable
+        # file.  Exact byte equality above independently verifies the write
+        # against the caller's source without a redundant second SHA pass.
+        payload_sha256 = hashlib.sha256(verified).hexdigest()
+        del verified
         if crash_at == "after_payload_write":
             raise PublicationInterrupted(crash_at)
 
