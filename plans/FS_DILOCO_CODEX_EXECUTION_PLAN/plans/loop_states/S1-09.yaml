@@ -1,0 +1,78 @@
+schema_version: 2
+loop_id: S1-09
+title: Syncer readiness quorum grace and fair scheduling
+stage: stage1
+status: green_local
+source_hashes:
+  research_plan: 2c0db3148110da10ea62f445c189d2d53b405527d8da264b9af9817f5ca9d835
+  stage0_4_spec: 1ea71fb6e34fef0d7b5558d8e7999dfdedeb82957f4331afcf6f80279d1f5a7d
+  loop_card: e801887d20a138830a2dc7f7a2bc2e01c934984d3bcad9184f4a100cb006d3fa
+git:
+  integration_branch: master
+  branch: codex/S1-09-syncer-readiness
+  base_commit: cb11204711910b2a3fb88faaa4d391c6c3a67923
+  result_commit: null
+  dirty_at_start: true
+  user_owned_dirty_paths: [AGENTS.md]
+dependencies: [S1-05, S1-04]
+requirements: [SYNC-01, SYNC-02, SYNC-03, SYNC-04, SYNC-05, SYNC-09, STALE-09, INV-02]
+acceptance_ids: [A-PROP-02, A-PROP-03]
+orient:
+  unique_failing_gap: There is no single syncer state machine that converts fixed-slot eligible distinct proposals into per-fragment grace-frozen selections and services simultaneously ready fragments without starvation.
+  non_goals: [merge, global commit, adaptive grace, multiple syncers, positive staleness]
+  planned_files: [src/fsbdd/syncer_readiness.py, src/fsbdd/syncer_readiness_stress.py, configs/stage1/s1_09_syncer_readiness.json, tests/stage1/test_s1_09_syncer_readiness.py, tests/stage1/test_s1_09_readiness_analyzer.py, tests/stage1/test_s1_09_readiness_stress_static.py, tests/red_cases/s1_09_naive_readiness_surrogate.py, pbs/stage1_s1_09_targeted.pbs, pbs/stage1_s1_09_syncer_readiness.pbs, reports/stage1/S1-09-requirement-matrix.csv, reports/stage1/S1-09-evidence-contract.json]
+  model_data_profile: Filesystem-only synthetic complete fragment proposals with eight frozen learners and four fragments; no model dataset Torch import or GPU is required by the readiness roles.
+  miyabi_skill_commit: c3ddfa47cadfd9132edf939d359b90b28ab5f8ed
+  initial_hostname: miyabi-g1
+  workflow: login-node pure Python and static work followed by compute-node full tests Checker Phase A and one formal two-node filesystem-only writer and syncer batch
+  context_inputs: [plans/PROGRESS.yaml, loops/stage1/S1-09.md, evidence/indexes/S1-05.md, evidence/indexes/S1-04.md]
+  raw_evidence_on_demand: [runtime_runs/S1-09]
+  resource_level: L2
+  available_resources: Miyabi debug-g one or two compute nodes with shared POSIX evidence root and nv-hpcx launcher module
+  recent_failure: null
+  attempt_budget: {red: 1, targeted: 3, l1_compute: 2, formal_l2_batch: 1}
+  failure_ladder: preserve the first L2 failure then reproduce both roles on one compute node before any resubmission
+  nine_node_gate_required: false
+  goal_tokens_start: 2732270
+  soft_token_budget: 110000
+preflight:
+  requirement_matrix: reports/stage1/S1-09-requirement-matrix.csv
+  requirements_complete: true
+  measurement_contract: reports/stage1/S1-09-evidence-contract.json
+  package_contract: reports/stage1/S1-09-evidence-contract.json
+  package_validator_command: fsbdd evidence validate runtime_runs/S1-09/formal-l2
+  package_validator_result: pending
+  checker_phase_a: required
+  monotonic_time_source: injected nondecreasing integer monotonic nanoseconds with time.monotonic_ns default
+  equal_time_total_order: ascending fragment evaluation then cyclic distance from the round-robin cursor then fragment index
+  fairness_observation: each successful claim while continuously frozen with maximum service window F claims
+red:
+  command: PYTHONPATH=src .venv/bin/python tests/red_cases/s1_09_naive_readiness_surrogate.py
+  exit_code: 1
+  evidence_path: runtime_runs/S1-09/red-cb11204
+green:
+  command: PYTHONPATH=src .venv/bin/python -m pytest -q tests/stage1/test_s1_09_syncer_readiness.py tests/stage1/test_s1_09_readiness_stress_static.py tests/stage1/test_s1_09_readiness_analyzer.py
+  evidence_path: runtime_runs/S1-09/green-local-cb11204
+harden:
+  commands:
+  - distinct quorum Profile A fixed grace late arrival quorum loss recovery and 1000 empty-poll fixtures
+  - cyclic fairness over every cursor position and 64 concurrent single-lease claims
+  - mixed per-fragment versions consumed-frontier repeat poll transient not-ready and restart reconstruction fixtures
+  - 10000 unrelated objects with exact M times F fixed reads and forbidden directory APIs
+  - eleven fail-closed formal analyzer mutations plus config PBS JSON ruff py_compile and shell checks
+  evidence_paths: [runtime_runs/S1-09/harden-local-cb11204]
+nine_node_gate: {required: false, run_id: null, topology_gate: null, loss_gate: null, runtime_gate: null}
+checker:
+  context_id: null
+  maker_chat_inherited: false
+  phase_a_verdict: pending
+  verdict: pending
+  report_path: reports/checkers/S1-09.md
+  cycles: []
+persist:
+  evidence_index: evidence/indexes/S1-09.md
+  raw_evidence_root: runtime_runs/S1-09
+  acceptance_traceability_updated: false
+  next_gap: null
+  handoff: null
+blocker: null

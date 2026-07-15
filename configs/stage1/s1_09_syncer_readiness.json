@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "s_max": 0,
+  "maximum_local_steps": 1000,
+  "maximum_processed_tokens": 10000000,
+  "payload_bytes": 4096,
+  "profile_a": {
+    "logical_syncer_id": "stage1-syncer-00",
+    "learner_count": 8,
+    "fragment_count": 4,
+    "q": 8,
+    "q_fresh": 8,
+    "max_contributors": 8,
+    "grace_period_ns": 0
+  },
+  "decoupled_grace": {
+    "logical_syncer_id": "stage1-syncer-grace-00",
+    "learner_count": 8,
+    "fragment_count": 1,
+    "q": 4,
+    "q_fresh": 4,
+    "max_contributors": 8,
+    "grace_period_ns": 500000000,
+    "initial_learners": 4,
+    "pre_freeze_late_learners": 1,
+    "post_freeze_late_learners": 1
+  },
+  "poll_interval_seconds": 0.005,
+  "coordination_timeout_seconds": 180,
+  "history_objects": 10000
+}

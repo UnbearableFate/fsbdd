@@ -1,0 +1,94 @@
+{
+  "schema_version": 1,
+  "resource_level": "L2",
+  "selected_evidence_root": "/work/xg24i002/x10041/fsbdd/runtime_runs/S1-09/formal-l2",
+  "target_shared_root": "/work/xg24i002/x10041/fsbdd/runtime_runs",
+  "code_identity_contract": {
+    "submission_value": "EXPECTED_COMMIT is the full 40-character candidate SHA supplied to qsub",
+    "required_equality": "EXPECTED_COMMIT == clean worktree HEAD == manifest identities.code.commit",
+    "dirty_allowed": false
+  },
+  "topology": {
+    "pbs_queue": "debug-g",
+    "pbs_group": "xg24i002",
+    "nodes": 2,
+    "ranks": 2,
+    "ranks_per_node": 1,
+    "gpus_used": 0,
+    "roles": [
+      "proposal_writer",
+      "syncer_scheduler"
+    ],
+    "application_coordination": "filesystem_only",
+    "mpi_usage": "launcher_only",
+    "logical_syncers": 1
+  },
+  "frozen_workload": {
+    "config_source": "configs/stage1/s1_09_syncer_readiness.json",
+    "s_max": 0,
+    "profile_a": {
+      "learner_count": 8,
+      "fragment_count": 4,
+      "q": 8,
+      "q_fresh": 8,
+      "grace_period_ns": 0,
+      "max_contributors": 8,
+      "expected_claim_order": [0, 1, 2, 3]
+    },
+    "decoupled_grace": {
+      "learner_count": 8,
+      "fragment_count": 1,
+      "q": 4,
+      "q_fresh": 4,
+      "grace_period_ns": 500000000,
+      "initial_learners": 4,
+      "pre_freeze_late_learners": 1,
+      "post_freeze_late_learners": 1,
+      "expected_selected_learners": 5
+    }
+  },
+  "time_and_tie_contract": {
+    "time_source": "injected nondecreasing integer monotonic nanoseconds with time.monotonic_ns as the production default",
+    "grace_start": "the first observation satisfying both distinct eligible and fresh thresholds",
+    "grace_end": "the first observation at or after start plus the frozen grace period while both thresholds still hold",
+    "quorum_loss": "an observed loss before freeze cancels grace and recovery starts a new full grace interval",
+    "equal_time_total_order": "phase transitions are evaluated by ascending fragment index and claims use cyclic distance from the round-robin cursor then fragment index"
+  },
+  "selection_stability": {
+    "freeze_point": "the grace-ending observation or the threshold observation when grace is zero",
+    "frozen_fields": "authority content identity version ordered proposal content identities and exact CandidateWeight tuple",
+    "late_arrival_rule": "proposals observed after freeze are ignored until the active lease is resolved and new authority is installed",
+    "directory_order_rule": "candidate normalization and proposal policy ordering make input permutation irrelevant",
+    "duplicate_rule": "identical duplicate proposal identities are one observation and different proposals from one learner contribute at most one"
+  },
+  "fairness": {
+    "scheduler": "deterministic cyclic round robin over frozen fragments",
+    "observation_point": "each successful claim_next return while no earlier lease remains active",
+    "starvation_window": "a fragment continuously frozen from an observation through service must be claimed within at most F successful claims",
+    "adversary": "fragment zero is released and immediately rearmed between claims while all other fragments stay frozen",
+    "assertion": "maximum continuously-ready service window is at most F for every initial cursor"
+  },
+  "restart_and_boundedness": {
+    "authority": "current immutable FragmentGlobalState plus exactly M per-learner ConsumptionFrontier entries",
+    "restart": "constructing a new machine from authority conservatively restarts an unfinished grace and never scans proposal history",
+    "poll_cost": "exactly M times F fixed-slot reads per complete poll independent of unrelated filesystem objects",
+    "resident_state": "constant counters plus one authority phase and at most one frozen selection of at most M proposals per fragment and one global active lease",
+    "consumption_component": "advanced fixed frontiers reject repeated current-slot proposals; atomic frontier publication remains S1-11"
+  },
+  "formal_assertions": {
+    "cross_node": "writer and syncer execute on distinct PBS hosts and communicate application state only through shared POSIX files",
+    "profile_a": "all four fragments freeze exactly eight distinct fresh learners with zero grace and claim in order 0 1 2 3",
+    "once_only": "after frontier installation every repeated Profile A poll has zero frozen and selected proposals",
+    "grace": "the fifth learner observed before freeze is included and the sixth published after freeze does not change selection or weights",
+    "gpu": "both roles report zero GPU memory before and after their workload",
+    "stderr": "all packaged and scheduler stderr files are empty"
+  },
+  "formal_package": "S1-00 builder finalizer and validator with clean code config source skill scheduler role path and checksum identities plus fail-if-exists root",
+  "attempt_budget": {
+    "red": 1,
+    "targeted": 3,
+    "l1_compute": 2,
+    "formal_l2_batch": 1
+  },
+  "failure_ladder": "preserve the first formal L2 package and reproduce both roles on one compute node with the same candidate and profile before any resubmission"
+}
