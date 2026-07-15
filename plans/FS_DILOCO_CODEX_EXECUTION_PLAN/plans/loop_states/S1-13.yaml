@@ -78,7 +78,19 @@ orient:
     secondary_finding: this Miyabi Open MPI invocation emitted an empty report-bindings stream, so effective per-rank affinity must be captured inside each MPI process
     expected_solution: run one same-Checker-authorized final asset_stage attempt that first emits exact old expected/actual real-model identities, then rebuilds both immutable bootstraps under an exact clean producer commit while hard-link reusing all four validated datasets; no L2 or larger run is authorized
     correction_commit: 1cb2ef7e2f552329134a6985a339781652f18dd6
-  attempt_budget: {asset_stage: 2, red: 1, targeted: 4, reproduction_preflight: 2, l1_real: 2, l2_real: 3, formal_l3_9n: 2, formal_l4_long: 2}
+  latest_asset_failure:
+    experiment_id: s1-13-asset-rebuild-20260715T205306Z-6a5adf9
+    pbs_job_id: 2392959.opbs
+    code_commit: 6a5adf91028759ff9608de219c59f27cdc5d409d
+    result: three focused tests and the exact old real-model mismatch diagnosis passed, but the validator's intentional exit 1 activated the inherited ERR trap before asset materialization began; scheduler exit status 1
+    raw_evidence_root: runtime_runs/S1-13/asset-stage-rebuild-20260715T205306Z-6a5adf9
+    intended_output_root: runtime_runs/S1-13/assets-rebuild-20260715T205306Z-6a5adf9
+    reviewed_ledger: reports/stage1/S1-13-experiment-failures.json
+    cause: set +e does not make a failing simple command immune to an ERR trap; the expected mismatch validator must run as an if condition before its status is inspected
+    diagnostic_result: old/current registry digests 27b639fb/57fc39e7 and fragment-map digests 58dc07dc/9a7da067 differ while model parameter identity matches exactly
+    expected_solution: use an ERR-trap-immune if/else status capture, preserve fatal handling for any status other than the exact validated mismatch, add a static regression, pass login static gates, amend the exhausted asset budget, and return to the same Checker before any compute job
+    correction_commit: 04f05e6713205005d252926f7464993d71adb6cb
+  attempt_budget: {asset_stage: 3, red: 1, targeted: 4, reproduction_preflight: 2, l1_real: 2, l2_real: 3, formal_l3_9n: 2, formal_l4_long: 2}
   attempt_budget_amendments:
     - recorded_at_utc: 2026-07-15T20:42:48Z
       budget_class: asset_stage
@@ -94,7 +106,15 @@ orient:
       run_id: s1-13-asset-rebuild-20260715T205306Z-6a5adf9
       output_root: runtime_runs/S1-13/assets-rebuild-20260715T205306Z-6a5adf9
       log_root: runtime_runs/S1-13/asset-stage-rebuild-20260715T205306Z-6a5adf9
-      final_attempt_result: running on mg1031; no other compute run permitted
+      final_attempt_result: failed before materialization; expected validator exit 1 activated ERR trap; exact mismatch report retained; scheduler exit 1
+    - amended_at_utc: 2026-07-15T20:56:55Z
+      prior_asset_stage_budget: 2
+      amended_asset_stage_budget: 3
+      consumed_before_amendment: 2
+      consumed_attempts: [2389469.opbs, 2392959.opbs]
+      reason: Job 2392959 completed the intended real-model incompatibility diagnosis but the PBS harness treated its expected exit 1 as fatal because set +e does not suppress the inherited ERR trap. The diagnostic proves exact registry/map drift and that model parameters match, but no output root was created and no asset materialization or post-validation ran. One replacement job is required to execute the already-reviewed rebuild body after the minimal conditional-status correction.
+      scope: Add exactly one third-and-final one-node asset_stage attempt. It must reuse the completed exact mismatch diagnosis contract, run the validator inside an ERR-trap-immune if condition, hard-link reuse all four datasets, record the exact producer commit, post-validate both workloads, and create unique absent roots. No reproduction-preflight, L2, 9N, long-smoke, or formal budget changes.
+      authorization_gate: The same S1-13 Checker must review job 2392959's immutable evidence, reviewed failure entry, minimal control-flow correction, static gates, and this amendment and explicitly authorize an exact clean commit before submission.
     - amended_at_utc: 2026-07-15T19:18:02Z
       prior_targeted_budget: 3
       amended_targeted_budget: 4
@@ -166,7 +186,7 @@ nine_node_gate: {required: true, run_id: null, topology_gate: null, loss_gate: n
 checker:
   context_id: s1_13_checker
   maker_chat_inherited: false
-  phase_a_verdict: same-Checker Phase B passed failure attribution for job 2392852 and Phase A authorized exactly one second-and-final asset_stage job at 6a5adf91028759ff9608de219c59f27cdc5d409d using only pbs/stage1_s1_13_assets.pbs; no other compute run is authorized
+  phase_a_verdict: the prior asset-stage authorization was consumed by failed job 2392959; its exact incompatibility diagnosis succeeded but the harness aborted on the expected exit 1. A one-attempt asset budget amendment and corrected exact commit now require same-Checker review; no compute run is authorized
   verdict: null
   report_path: reports/checkers/S1-13.md
   cycles:
@@ -203,12 +223,12 @@ checker:
       result: preflight job 2392830 passed; authorized L2 job 2392852 failed during learner initialization on immutable asset registry/fragment-map incompatibility, with no learner readiness, proposal, update, or training
     - candidate: 6a5adf91028759ff9608de219c59f27cdc5d409d
       verdict: Phase B PASS for job 2392852 failure attribution; Phase A ADMISSIBLE for exactly one second-and-final asset_stage job using only pbs/stage1_s1_13_assets.pbs; no reproduction-preflight, L2, 9N, long-smoke, or formal run authorized
-      result: asset-stage job 2392959 is running on mg1031 from the exact-clean authorized commit; no other compute run is active or authorized
+      result: job 2392959 passed three focused tests and emitted the exact old/current registry and fragment-map mismatch, then failed before materialization because its expected status 1 activated the inherited ERR trap; scheduler exit 1
 persist:
   evidence_index: evidence/indexes/S1-13.md
   raw_evidence_root: runtime_runs/S1-13
   acceptance_traceability_updated: false
   next_gap: Stage 2 asynchronous GPU to CPU to filesystem publication pipeline
   handoff: >-
-    Asset-stage job 2392959 is running on mg1031 from exact-clean authorized commit 6a5adf91028759ff9608de219c59f27cdc5d409d. It is fully offline with frozen old config/marker identities and unique roots, and must retain the exact mismatch diagnosis before rebuilding and post-validating both workloads. Monitor to terminal state. A failure consumes the final asset attempt and requires immediate automatic plus reviewed-ledger persistence; a pass must return to the same Checker. No preflight, L2, 9N, long-smoke, or formal run is authorized.
-blocker: Asset-stage job 2392959 is the only active authorized compute run. Await its terminal evidence; no reproduction-preflight, L2, 9N, long-smoke, or formal long submission is authorized.
+    Asset-stage job 2392959 failed before materialization after successfully producing exact mismatch evidence. Its automatic and reviewed failure records, scheduler evidence, checksums, and absence of an output root are preserved. Correction 04f05e6 replaces set +e with an ERR-trap-immune conditional capture and adds a static regression; all login static gates pass. Asset budget is reasonedly amended 2 to 3 for exactly one replacement rebuild, pending same-Checker exact-commit authorization. No asset, preflight, L2, 9N, long-smoke, or formal run is authorized.
+blocker: Same-Checker review is required for the reasoned third-and-final asset_stage amendment and corrected exact commit. No compute run is currently authorized.

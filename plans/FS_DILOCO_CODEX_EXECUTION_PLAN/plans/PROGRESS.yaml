@@ -365,7 +365,7 @@ loops:
   result_commit: null
   evidence_index: evidence/indexes/S1-13.md
   checker_verdict: null
-  blocker: Exact-clean offline asset-stage job 2392959 is running on mg1031 at authorized commit 6a5adf91028759ff9608de219c59f27cdc5d409d. It is the only active compute run. Await terminal diagnosis/rebuild evidence; no reproduction-preflight, L2, 9N, long-smoke, or formal run is authorized.
+  blocker: Asset-stage job 2392959 retained the exact old/current registry and fragment-map mismatch but failed before materialization because its intentional status 1 activated the inherited ERR trap. Automatic and reviewed failure evidence is preserved; correction 04f05e6 and login static gates pass. A reasoned asset_stage budget amendment from 2 to 3 awaits same-Checker exact-commit review. No compute run is authorized.
 - id: S2-01
   stage: stage2
   title: 异步 GPU→CPU→FS Publication Pipeline
