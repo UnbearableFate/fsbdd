@@ -1,0 +1,65 @@
+schema_version: 2
+loop_id: S1-05
+title: Proposal schema latest-wins discovery and generic eligibility
+stage: stage1
+status: in_progress
+source_hashes:
+  research_plan: 2c0db3148110da10ea62f445c189d2d53b405527d8da264b9af9817f5ca9d835
+  stage0_4_spec: 1ea71fb6e34fef0d7b5558d8e7999dfdedeb82957f4331afcf6f80279d1f5a7d
+git:
+  integration_branch: master
+  branch: codex/S1-05-proposal-eligibility
+  base_commit: 1cba03a02d799edd0c21f37778ed512f55a65ed9
+  result_commit: null
+  dirty_at_start: true
+dependencies: [S1-03, S1-04, S0C-02]
+requirements: [DISC-01, DISC-02, LEARN-07, PROP-01, PROP-03, PROP-04, PROP-05, PROP-06, PROP-07, STALE-01, STALE-05]
+acceptance_ids: [A-PROP-01, A-PROP-02, A-PROP-03]
+orient:
+  unique_failing_gap: No production proposal protocol exposes one monotonic fixed latest slot per learner and fragment or applies the shared generic stale-aware eligibility and bounded once-only frontier semantics.
+  planned_files: [src/fsbdd/proposal.py, src/fsbdd/proposal_stress.py, src/fsbdd/cli.py, tests/stage1/test_s1_05_proposal.py, tests/red_cases/s1_05_naive_proposal_surrogate.py, pbs/stage1_s1_05_proposal.pbs, reports/stage1/S1-05-requirement-matrix.csv, reports/stage1/S1-05-evidence-contract.json]
+  model_data_profile: Deterministic byte proposals over the frozen four-fragment synthetic S1-04 identity set; shared S0C-02 decision vectors are the selection oracle; no real snapshot generation merge training or downloaded data.
+  miyabi_skill_commit: c3ddfa47cadfd9132edf939d359b90b28ab5f8ed
+  initial_hostname: miyabi-g1
+  workflow: login-static plus one-node focused/property checks followed by Checker Phase A and one two-node shared-FS batch run
+  context_inputs: [plans/PROGRESS.yaml, loops/stage1/S1-05.md, plans/loop_states/S0C-02.yaml, plans/loop_states/S1-04.yaml, evidence/indexes/S0C-02.md, evidence/indexes/S1-04.md]
+  raw_evidence_on_demand: [evidence/raw/S0C-02, runtime_runs/S1-04, runtime_runs/S1-05]
+  resource_level: L2
+  attempt_budget: {red: 1, targeted: 2, l1: 3, l2_batch: 1}
+  goal_tokens_start: 441967
+  soft_token_budget: 60000
+preflight:
+  requirement_matrix: reports/stage1/S1-05-requirement-matrix.csv
+  requirements_complete: true
+  measurement_contract: reports/stage1/S1-05-evidence-contract.json
+  package_contract: reports/stage1/S1-05-evidence-contract.json
+  package_validator_command: fsbdd evidence validate runtime_runs/S1-05/formal-l2
+  package_validator_result: pending
+  checker_phase_a: required
+red: {command: null, exit_code: null, evidence_path: null}
+green: {command: null, evidence_path: null}
+harden: {commands: [], evidence_paths: []}
+nine_node_gate: {required: false, run_id: null, topology_gate: null, loss_gate: null, runtime_gate: null}
+checker: {context_id: null, maker_chat_inherited: false, phase_a_verdict: null, verdict: null, report_path: null}
+persist:
+  evidence_index: null
+  raw_evidence_root: runtime_runs/S1-05
+  acceptance_traceability_updated: false
+  next_gap: null
+  handoff:
+    proven_facts:
+    - S1-03 supplies payload-first visibility-last fixed-slot publication and S1-04 supplies frozen per-fragment identities and bounded base content identities.
+    - S0C-02 supplies the shared one-per-learner consumption and stale-aware selection decision vectors.
+    checked_commit: 1cba03a02d799edd0c21f37778ed512f55a65ed9
+    selected_evidence: [evidence/indexes/S0C-02.md, evidence/indexes/S1-04.md]
+    next_command: commit the frozen S1-05 matrix and evidence contract then execute the semantic RED
+  cost:
+    attempts_by_level: {L0: 0, L1: 0, L2: 0}
+    queue_seconds: null
+    active_seconds: null
+    checker_cycles: 0
+    goal_tokens_end: null
+    agent_tokens_used: null
+    phase_token_deltas: {}
+    rework_causes: []
+blocker: null

@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "resource_level": "L2",
+  "selected_evidence_root": "/work/xg24i002/x10041/fsbdd/runtime_runs/S1-05/formal-l2",
+  "target_shared_root": "/work/xg24i002/x10041/fsbdd/runtime_runs",
+  "topology": {
+    "pbs_queue": "debug-g",
+    "pbs_group": "xg24i002",
+    "nodes": 2,
+    "ranks": 2,
+    "ranks_per_node": 1,
+    "roles": ["proposal_writer", "proposal_discoverer"],
+    "application_coordination": "filesystem_only",
+    "mpi_usage": "launcher_only"
+  },
+  "frozen_workload": {
+    "learner_identities": ["learner-00", "learner-01", "learner-02", "learner-03", "learner-04", "learner-05", "learner-06", "learner-07"],
+    "learner_count": 8,
+    "fragment_count": 4,
+    "latest_slots": 32,
+    "s_max_runtime": 0,
+    "lambda_s": 1.0,
+    "history_objects": 10000,
+    "payload_bytes_per_proposal": 32768,
+    "partial_publication_crash_point": "after_payload_write",
+    "reordered_sequence_pair": [2, 3],
+    "shared_decision_vectors": "tests/fixtures/stage0_decision_vectors.json",
+    "shared_decision_vectors_sha256": "0dd9fe699bce3eef6b3da97b67d12a755ac227a0d36132e23e6feda128cbd5a8",
+    "maximum_local_steps": 100,
+    "maximum_processed_tokens": 1000000
+  },
+  "state_identities": {
+    "run_identity": "s1-05-${PBS_JOBID}; byte-identical to manifest run_identity.identity and every role/summary record",
+    "config_identity": "dd1dc08de331759cc49de1959bc1f2d9ba305ff985b07c2efb9084746fda3c50",
+    "synthetic_model_identity": "d91a92be805f856514a9f13ac049e5c91ba8489bc415e2bf12c4bbadc3082100",
+    "synthetic_fragment_map_identity": "d1fb096403b6c0043570e3784cbaffce8c625bc48a98a5fdb37e06ef1d03b2ab"
+  },
+  "authoritative_observation": {
+    "discovery_interval": "one complete ProposalStore.discover_latest call over the frozen eight-learner four-fragment slot set",
+    "discovery_io_counter": "CountingStorageBackend read invocations at the proposal API boundary",
+    "history_independence": "baseline_discovery_read_calls == post_10000_object_discovery_read_calls == learner_count * fragment_count",
+    "partial_publication": "remote load_latest before a complete visibility record must raise and return no proposal",
+    "latest_monotonic": "a sequence-2 publication delayed before visibility must reject after sequence 3 is visible and final latest must remain sequence 3",
+    "idempotence": "identical same-sequence publication creates zero new immutable payloads and preserves the content identity",
+    "same_sequence_conflict": "different content under the same learner fragment and sequence rejects before changing latest authority",
+    "one_per_learner": "selected proposal count equals distinct selected learner count for every shared decision vector and permutation",
+    "fixed_frontier": "one pair of last consumed sequence and base version per frozen learner and fragment independent of update history",
+    "generic_eligibility": "identity integrity frontier progress base retention and 0 <= current-base <= S_max use one deterministic rejection path with no S_max-zero branch",
+    "weighting": "normalized float32 tokens/(1+lambda_s*staleness) matches the shared Stage 0 oracle"
+  },
+  "normal_discovery_forbidden_operations": ["listdir", "scandir", "glob", "rglob", "iterdir", "walk", "mtime ordering", "history replay"],
+  "formal_package": "S1-00 builder/finalizer/validator with clean code/config/source/skill/scheduler/role/path identity and fail-if-exists root",
+  "failure_ladder": "preserve the first L2 package; reproduce on one compute node with the same commit and deterministic 32-slot workload before any resubmission"
+}
