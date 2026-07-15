@@ -2,12 +2,14 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import os
 import shutil
 import socket
 import threading
 import time
 from collections.abc import Iterator, Mapping
+from fractions import Fraction
 from pathlib import Path
 from typing import Any
 
@@ -258,6 +260,7 @@ def _writer(
         str(training["learner_id"]),
         tuple(base.version for base in adopted_bases),
     )
+    terminal_traces: list[dict[str, Any]] = []
     coordinator = FragmentSnapshotCoordinator(
         identities=identities,
         progress=progress,
@@ -267,6 +270,7 @@ def _writer(
         schedule=schedule,
         store=proposal_store,
         before_publish=before_publish,
+        trace_sink=lambda trace: terminal_traces.append(dict(trace)),
     )
     runtime = LearnerRuntime(
         model=model,
@@ -339,7 +343,7 @@ def _writer(
             "returned_monotonic_ns": training_returned_ns,
             "optimizer_steps": run.optimizer_steps_completed,
             "processed_input_tokens": run.processed_input_tokens,
-            "finite_loss": bool(run.token_weighted_loss == run.token_weighted_loss),
+            "finite_loss": math.isfinite(run.token_weighted_loss),
             "token_weighted_loss": run.token_weighted_loss,
             "distributed_initialized": run.distributed_initialized,
             "safe_boundary_steps": [
@@ -358,6 +362,13 @@ def _writer(
             "state_at_training_return": before_release["publication"],
         },
         "publication": final["publication"],
+        "publication_terminal_traces": sorted(
+            terminal_traces,
+            key=lambda trace: (
+                int(trace["fragment_index"]),
+                int(trace["sequence"]),
+            ),
+        ),
         "final_progress": progress.to_dict(),
         "final_latest": [
             {
@@ -528,95 +539,253 @@ def summarize(
     reader = json.loads(
         (result_root / "proposal_reader.json").read_text(encoding="utf-8")
     )
+    if (
+        writer.get("status") != "pass"
+        or writer.get("role") != "snapshot_writer"
+        or writer.get("rank") != 0
+        or reader.get("status") != "pass"
+        or reader.get("role") != "proposal_reader"
+        or reader.get("rank") != 1
+    ):
+        raise SnapshotStressError("formal role status rank or identity is invalid")
     if writer["hostname"] == reader["hostname"]:
         raise SnapshotStressError("formal roles did not use distinct hosts")
     if writer["state_identities"] != reader["state_identities"]:
         raise SnapshotStressError("formal role state identities differ")
-    if writer["state_identities"]["run_identity"] != run_id:
-        raise SnapshotStressError("formal run identity differs")
+    if (
+        writer["state_identities"]["run_identity"] != run_id
+        or writer["state_identities"]["config_identity"] != config_identity
+    ):
+        raise SnapshotStressError("formal run or config identity differs")
     schedule = writer["schedule"]
     publication = writer["publication"]
+    traces = writer["publication_terminal_traces"]
     latest_writer = writer["final_latest"]
     latest_reader = reader["final_latest"]
     fragment_count = int(profile["training"]["fragment_count"])
     h = int(profile["publication"]["unified_h"])
+    fragment_bytes = tuple(int(value) for value in schedule["fragment_bytes"])
+    expected_schedule = FragmentPublicationSchedule.unified(
+        fragment_bytes,
+        h,
+        learner_phase_offset=int(profile["publication"]["learner_phase_offset"]),
+    ).to_dict()
+    if schedule != expected_schedule or len(set(schedule["offsets"])) != fragment_count:
+        raise SnapshotStressError("formal byte-aware offset derivation failed")
+    exact_rate = sum(
+        (Fraction(value, h) for value in fragment_bytes),
+        start=Fraction(0, 1),
+    )
+    budget = schedule["frequency_budget"]
     if (
-        len(set(schedule["offsets"])) != fragment_count
-        or len(schedule["offsets"]) != fragment_count
-        or schedule["intervals"] != [h] * fragment_count
+        budget["exact_numerator"] != exact_rate.numerator
+        or budget["exact_denominator"] != exact_rate.denominator
+        or not math.isclose(
+            float(budget["bytes_per_local_step"]),
+            float(exact_rate),
+            rel_tol=0,
+            abs_tol=1e-9,
+        )
+        or budget["maximum_due_bytes"] != max(fragment_bytes)
     ):
-        raise SnapshotStressError("formal offsets are not spread over unified H")
+        raise SnapshotStressError("formal PROG-06 byte-rate arithmetic failed")
+    expected_steps = int(profile["training"]["optimizer_steps"])
+    tokens_per_step = int(profile["training"]["batch_size"]) * int(
+        profile["training"]["sequence_length"]
+    )
+    training = writer["training"]
+    if (
+        training["optimizer_steps"] != expected_steps
+        or training["safe_boundary_steps"] != list(range(1, expected_steps + 1))
+        or training["processed_input_tokens"] != expected_steps * tokens_per_step
+        or not training["finite_loss"]
+        or not math.isfinite(float(training["token_weighted_loss"]))
+        or training["distributed_initialized"]
+    ):
+        raise SnapshotStressError("formal safe-boundary training trace failed")
     if publication["snapshot_replacement_count"] < 1:
         raise SnapshotStressError("formal slow writer did not exercise replacement")
     if (
         any(value > 1 for value in publication["maximum_pending_per_fragment"])
         or any(value > 1 for value in publication["maximum_in_flight_per_fragment"])
         or max(publication["maximum_in_flight_per_fragment"]) != 1
+        or publication["resident_trace_records"]
+        > publication["resident_trace_record_bound"]
+        or publication["resident_trace_record_bound"] != 3 * fragment_count
     ):
         raise SnapshotStressError("formal backpressure bounds failed")
+    if (
+        publication["pending_upload_count"] != 0
+        or publication["in_flight_publication_count"] != 0
+        or publication["terminal_emits_in_progress"] != 0
+        or publication["errors"]
+        or publication["captured_snapshot_count"] != len(traces)
+        or sum(publication["terminal_outcome_counts"].values()) != len(traces)
+    ):
+        raise SnapshotStressError("formal terminal publication accounting failed")
     if latest_writer != latest_reader:
         raise SnapshotStressError("remote reader final latest differs from writer")
-    if reader["partial_or_corrupt_proposals_observed"] != 0:
+    if (
+        reader["partial_or_corrupt_proposals_observed"] != 0
+        or not reader["monotonic_latest"]
+        or not reader["application_reads_only_shared_filesystem"]
+    ):
         raise SnapshotStressError("remote reader observed partial proposal data")
     bases = {value["fragment_index"]: value for value in writer["bootstrap"]}
-    fragment_bytes = schedule["fragment_bytes"]
-    for value in latest_writer:
-        index = value["fragment_index"]
+    if set(bases) != set(range(fragment_count)):
+        raise SnapshotStressError("bootstrap base catalog is incomplete")
+    allowed_outcomes = {"published", "replaced_before_publish"}
+    trace_keys: set[tuple[int, int]] = set()
+    for trace in traces:
+        index = int(trace["fragment_index"])
+        sequence = int(trace["sequence"])
+        key = (index, sequence)
         if (
-            value["base_version"] != bases[index]["version"]
-            or value["base_content_identity"] != bases[index]["content_identity"]
-            or value["payload_bytes"] != fragment_bytes[index]
-            or value["payload_bytes"] >= writer["model"]["full_model_bytes"]
+            index not in bases
+            or key in trace_keys
+            or trace["outcome"] not in allowed_outcomes
+            or trace["base_version"] != bases[index]["version"]
+            or trace["base_content_identity"] != bases[index]["content_identity"]
+            or trace["payload_bytes"] != fragment_bytes[index]
+            or trace["payload_bytes"] >= writer["model"]["full_model_bytes"]
+            or trace["local_steps"] != trace["snapshot_local_step"]
+            or trace["processed_tokens"]
+            != trace["snapshot_local_step"] * tokens_per_step
+            or (trace["snapshot_local_step"] - schedule["offsets"][index]) % h
+            != 0
+            or len(trace["parameters_sha256"]) != 64
+            or len(trace["proposal_content_identity"]) != 64
+            or trace["staging_started_monotonic_ns"]
+            < trace["safe_boundary_monotonic_ns"]
+            or trace["staging_completed_monotonic_ns"]
+            < trace["staging_started_monotonic_ns"]
+            or trace["gpu_to_cpu_seconds"] < 0
         ):
-            raise SnapshotStressError("formal proposal identity/byte chain failed")
+            raise SnapshotStressError("formal capture trace identity/byte chain failed")
+        trace_keys.add(key)
+        if trace["outcome"] == "published":
+            if (
+                trace["publication_started_monotonic_ns"] is None
+                or trace["publication_completed_monotonic_ns"]
+                < trace["publication_started_monotonic_ns"]
+                or trace["cpu_to_fs_seconds"] is None
+                or trace["cpu_to_fs_seconds"] < 0
+            ):
+                raise SnapshotStressError("formal published transfer timing failed")
+        elif (
+            trace["publication_started_monotonic_ns"] is not None
+            or trace["cpu_to_fs_seconds"] is not None
+        ):
+            raise SnapshotStressError("replaced snapshot was incorrectly started")
+    if trace_keys != {
+        (index, sequence)
+        for index in range(fragment_count)
+        for sequence in range(1, expected_steps // h + 1)
+    }:
+        raise SnapshotStressError("formal due snapshot sequence coverage is incomplete")
+    published = [trace for trace in traces if trace["outcome"] == "published"]
+    if (
+        publication["published_snapshot_count"] != len(published)
+        or publication["published_payload_bytes"]
+        != sum(int(trace["payload_bytes"]) for trace in published)
+        or not math.isclose(
+            float(publication["cpu_to_fs_seconds"]),
+            sum(float(trace["cpu_to_fs_seconds"]) for trace in published),
+            rel_tol=0,
+            abs_tol=1e-12,
+        )
+        or not math.isclose(
+            float(publication["gpu_to_cpu_seconds"]),
+            sum(float(trace["gpu_to_cpu_seconds"]) for trace in traces),
+            rel_tol=0,
+            abs_tol=1e-12,
+        )
+    ):
+        raise SnapshotStressError("formal publication totals do not reconcile")
     slow = writer["slow_publication"]
+    slow_index = int(slow["fragment_index"])
+    slow_published = sorted(
+        (
+            trace
+            for trace in published
+            if int(trace["fragment_index"]) == slow_index
+        ),
+        key=lambda trace: int(trace["sequence"]),
+    )
+    if not slow_published:
+        raise SnapshotStressError("slow fragment produced no publication")
+    first_slow = slow_published[0]
     if (
         not slow["entered_before_training_return"]
         or not slow["training_returned_before_release"]
         or writer["writer_waited_for_reader_or_syncer"]
+        or first_slow["publication_started_monotonic_ns"]
+        >= training["returned_monotonic_ns"]
+        or training["returned_monotonic_ns"] > slow["release_monotonic_ns"]
+        or slow["release_monotonic_ns"]
+        > first_slow["publication_completed_monotonic_ns"]
+        or slow["state_at_training_return"]["per_fragment_in_flight"][slow_index]
+        != 1
     ):
         raise SnapshotStressError("formal learner waited for publication or reader")
-    published = [
-        trace for trace in publication["traces"] if trace["outcome"] == "published"
-    ]
-    if not published or any(
-        trace["cpu_to_fs_seconds"] is None or trace["gpu_to_cpu_seconds"] < 0
-        for trace in published
-    ):
-        raise SnapshotStressError("formal transfer timing trace is incomplete")
     latest_by_fragment = {
         value["fragment_index"]: value for value in latest_reader
     }
-    final_traces = [
-        trace
+    if set(latest_by_fragment) != set(range(fragment_count)):
+        raise SnapshotStressError("remote final latest set is incomplete")
+    trace_chains: list[dict[str, Any]] = []
+    for index in range(fragment_count):
+        final = latest_by_fragment[index]
+        candidates = [
+            trace
+            for trace in published
+            if trace["fragment_index"] == index
+            and trace["sequence"] == final["sequence"]
+        ]
+        if len(candidates) != 1:
+            raise SnapshotStressError("remote latest lacks one capture trace")
+        trace = candidates[0]
+        expected_fields = {
+            "sequence": trace["sequence"],
+            "base_version": trace["base_version"],
+            "base_content_identity": trace["base_content_identity"],
+            "local_steps": trace["local_steps"],
+            "processed_tokens": trace["processed_tokens"],
+            "snapshot_local_step": trace["snapshot_local_step"],
+            "payload_bytes": trace["payload_bytes"],
+            "parameters_sha256": trace["parameters_sha256"],
+            "content_identity": trace["proposal_content_identity"],
+        }
+        if any(final[field] != value for field, value in expected_fields.items()):
+            raise SnapshotStressError("capture writer reader final chain differs")
+        if final["sequence"] != max(
+            item["sequence"]
+            for item in published
+            if item["fragment_index"] == index
+        ):
+            raise SnapshotStressError("remote final is not the newest published sequence")
+        trace_chains.append(
+            {
+                "fragment_index": index,
+                "fragment_identity": trace["fragment_identity"],
+                **expected_fields,
+                "bootstrap_base_matches": True,
+                "remote_reader_matches": True,
+            }
+        )
+    all_published_steps_due = all(
+        (trace["snapshot_local_step"] - schedule["offsets"][trace["fragment_index"]])
+        % h
+        == 0
         for trace in published
-        if trace["sequence"]
-        == latest_by_fragment[trace["fragment_index"]]["sequence"]
-    ]
-    if not final_traces:
-        raise SnapshotStressError("no published trace reaches a remote final latest slot")
-    traced = final_traces[0]
-    trace_chain = {
-        "fragment_index": traced["fragment_index"],
-        "fragment_identity": traced["fragment_identity"],
-        "sequence": traced["sequence"],
-        "safe_boundary_local_step": traced["snapshot_local_step"],
-        "fragment_local_steps": traced["local_steps"],
-        "processed_input_tokens": traced["processed_tokens"],
-        "base_version": traced["base_version"],
-        "base_content_identity": traced["base_content_identity"],
-        "bootstrap_base_matches": (
-            traced["base_content_identity"]
-            == bases[traced["fragment_index"]]["content_identity"]
-        ),
-        "payload_bytes": traced["payload_bytes"],
-        "parameters_sha256": traced["parameters_sha256"],
-        "proposal_content_identity": traced["proposal_content_identity"],
-        "is_final_remote_latest": (
-            traced["sequence"]
-            == latest_by_fragment[traced["fragment_index"]]["sequence"]
-        ),
-    }
+    )
+    all_payloads_target_only = all(
+        trace["payload_bytes"] == fragment_bytes[trace["fragment_index"]]
+        and trace["payload_bytes"] < writer["model"]["full_model_bytes"]
+        for trace in traces
+    )
+    if not all_published_steps_due or not all_payloads_target_only:
+        raise SnapshotStressError("formal due-step or target-only predicate failed")
     summary = {
         "schema_version": 1,
         "status": "pass",
@@ -628,12 +797,7 @@ def summarize(
         "safe_boundary": {
             "optimizer_steps": writer["training"]["optimizer_steps"],
             "steps": writer["training"]["safe_boundary_steps"],
-            "all_published_steps_due": all(
-                (trace["snapshot_local_step"] - schedule["offsets"][trace["fragment_index"]])
-                % h
-                == 0
-                for trace in published
-            ),
+            "all_published_steps_due": all_published_steps_due,
         },
         "backpressure": {
             "pending_bound": 1,
@@ -653,10 +817,11 @@ def summarize(
         "byte_accounting": {
             "fragment_bytes": fragment_bytes,
             "full_model_bytes": writer["model"]["full_model_bytes"],
-            "all_payloads_target_only": True,
+            "all_payloads_target_only": all_payloads_target_only,
             "frequency_budget": schedule["frequency_budget"],
         },
         "publication": publication,
+        "publication_terminal_traces": traces,
         "remote_reader": {
             "hostname": reader["hostname"],
             "polls": reader["polls"],
@@ -664,7 +829,7 @@ def summarize(
             "monotonic_latest": reader["monotonic_latest"],
             "partial_or_corrupt_proposals_observed": 0,
         },
-        "trace_chain": trace_chain,
+        "trace_chains": trace_chains,
         "latest": latest_reader,
     }
     _write_json_new(output, summary)
@@ -687,6 +852,35 @@ def write_manifest(args: argparse.Namespace) -> None:
     reader = json.loads(
         (Path(args.result_root) / "proposal_reader.json").read_text(encoding="utf-8")
     )
+    if (
+        writer.get("status") != "pass"
+        or writer.get("role") != "snapshot_writer"
+        or writer.get("rank") != 0
+        or reader.get("status") != "pass"
+        or reader.get("role") != "proposal_reader"
+        or reader.get("rank") != 1
+        or writer.get("hostname") == reader.get("hostname")
+    ):
+        raise SnapshotStressError("manifest role status rank or host is invalid")
+    expected_run_id = f"s1-07-{args.job_id}"
+    if args.run_id != expected_run_id:
+        raise SnapshotStressError("manifest run identity is not bound to PBS job id")
+    expected_state_prefix = {
+        "run_identity": args.run_id,
+        "config_identity": args.config_sha256,
+    }
+    if (
+        writer.get("state_identities") != reader.get("state_identities")
+        or any(
+            writer["state_identities"].get(field) != value
+            for field, value in expected_state_prefix.items()
+        )
+        or writer.get("torch", {}).get("distributed_initialized") is not False
+        or writer.get("writer_waited_for_reader_or_syncer") is not False
+    ):
+        raise SnapshotStressError("manifest role state/config/run identity is invalid")
+    if args.queue != "debug-g" or args.group != "xg24i002":
+        raise SnapshotStressError("manifest scheduler queue or group differs from contract")
     role_map = {
         "snapshot_writer": [writer["hostname"]],
         "proposal_reader": [reader["hostname"]],

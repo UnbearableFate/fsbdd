@@ -77,6 +77,15 @@ findmnt -T "$MAIN_ROOT/runtime_runs" > "$EVIDENCE_ROOT/env/findmnt.txt"
 QTIME_RAW="$(awk -F' = ' '/^[[:space:]]*qtime =/{print $2}' "$EVIDENCE_ROOT/env/qstat.txt")"
 QTIME_UTC="$(date -u -d "$QTIME_RAW JST" '+%Y-%m-%dT%H:%M:%SZ')"
 QUEUE="$(awk -F' = ' '/^[[:space:]]*queue =/{print $2}' "$EVIDENCE_ROOT/env/qstat.txt")"
+QSTAT_JOB_ID="$(awk -F': ' '/^Job Id:/{print $2}' "$EVIDENCE_ROOT/env/qstat.txt")"
+QSTAT_GROUP="$(awk -F' = ' '/^[[:space:]]*group_list =/{print $2}' "$EVIDENCE_ROOT/env/qstat.txt")"
+QSTAT_SELECT="$(awk -F' = ' '/^[[:space:]]*Resource_List.select =/{print $2}' "$EVIDENCE_ROOT/env/qstat.txt")"
+QSTAT_STATE="$(awk -F' = ' '/^[[:space:]]*job_state =/{print $2}' "$EVIDENCE_ROOT/env/qstat.txt")"
+if [[ "$QSTAT_JOB_ID" != "$PBS_JOBID" || "$QUEUE" != "debug-g" || \
+      "$QSTAT_GROUP" != "xg24i002" || "$QSTAT_SELECT" != "2" || "$QSTAT_STATE" != "R" ]]; then
+  echo "scheduler identity differs from the frozen L2 contract" >&2
+  exit 65
+fi
 
 cp "$CONFIG_SOURCE" "$EVIDENCE_ROOT/configs/snapshot-profile.json"
 cp reports/stage1/S1-07-evidence-contract.json "$EVIDENCE_ROOT/configs/evidence-contract.json"
@@ -92,7 +101,11 @@ printf '\n' >> "$EVIDENCE_ROOT/commands.log"
 "$PYTHON" -m pytest -q tests/stage1 \
   > "$EVIDENCE_ROOT/stdout/pytest.log" 2> "$EVIDENCE_ROOT/stderr/pytest.log"
 
-mkdir -p "$TEST_ROOT"
+if [[ -e "$TEST_ROOT" ]]; then
+  echo "refusing to reuse snapshot stress root: $TEST_ROOT" >&2
+  exit 73
+fi
+mkdir "$TEST_ROOT"
 printf '%q ' mpirun -np 2 --map-by ppr:1:node --hostfile "$PBS_NODEFILE" \
   /usr/bin/env "PYTHONPATH=$PYTHONPATH" "PBS_JOBID=$PBS_JOBID" "PBS_NODEFILE=$PBS_NODEFILE" \
   "OMP_NUM_THREADS=$OMP_NUM_THREADS" \

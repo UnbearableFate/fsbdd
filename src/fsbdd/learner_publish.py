@@ -298,11 +298,14 @@ class FragmentSnapshot:
 @dataclasses.dataclass(slots=True)
 class _PublishSlot:
     pending: FragmentSnapshot | None = None
+    pending_trace: dict[str, Any] | None = None
     in_flight: FragmentSnapshot | None = None
+    in_flight_trace: dict[str, Any] | None = None
     failed: bool = False
 
 
 BeforePublish = Callable[[Proposal], None]
+TerminalTraceSink = Callable[[Mapping[str, Any]], None]
 
 
 class BoundedProposalPublisher:
@@ -314,6 +317,7 @@ class BoundedProposalPublisher:
         *,
         learner_id: str,
         before_publish: BeforePublish | None = None,
+        trace_sink: TerminalTraceSink | None = None,
         logger: StructuredLogger | None = None,
         clock_ns: Callable[[], int] = time.monotonic_ns,
     ) -> None:
@@ -323,18 +327,32 @@ class BoundedProposalPublisher:
             raise SnapshotPublishError("publisher learner is outside the frozen store")
         if before_publish is not None and not callable(before_publish):
             raise SnapshotPublishError("before_publish must be callable")
+        if trace_sink is not None and not callable(trace_sink):
+            raise SnapshotPublishError("trace_sink must be callable")
         self.store = store
         self.learner_id = learner_id
         self.before_publish = before_publish
+        self.trace_sink = trace_sink
         self.logger = logger
         self.clock_ns = clock_ns
         self._condition = threading.Condition()
+        self._sink_lock = threading.Lock()
         self._slots = [_PublishSlot() for _ in store.descriptors]
-        self._traces: dict[tuple[int, int], dict[str, Any]] = {}
         self._errors: list[BaseException] = []
+        self._terminal_emits_in_progress = 0
         self._closing = False
+        self._highest_submitted_sequence = [-1] * len(self._slots)
         self._skip_count = 0
         self._replacement_count = 0
+        self._captured_count = 0
+        self._published_count = 0
+        self._published_payload_bytes = 0
+        self._gpu_to_cpu_seconds = 0.0
+        self._cpu_to_fs_seconds = 0.0
+        self._outcome_counts: dict[str, int] = {}
+        self._latest_terminal: list[dict[str, Any] | None] = [
+            None for _ in self._slots
+        ]
         self._maximum_pending = [0] * len(self._slots)
         self._maximum_in_flight = [0] * len(self._slots)
         self._threads = tuple(
@@ -348,11 +366,6 @@ class BoundedProposalPublisher:
         )
         for thread in self._threads:
             thread.start()
-
-    @staticmethod
-    def _key(snapshot: FragmentSnapshot) -> tuple[int, int]:
-        proposal = snapshot.proposal
-        return proposal.descriptor.index, proposal.sequence
 
     def _new_trace(self, snapshot: FragmentSnapshot, outcome: str) -> dict[str, Any]:
         proposal = snapshot.proposal
@@ -379,6 +392,30 @@ class BoundedProposalPublisher:
             "outcome": outcome,
         }
 
+    def _record_terminal_locked(self, trace: dict[str, Any]) -> dict[str, Any]:
+        terminal = dict(trace)
+        index = int(terminal["fragment_index"])
+        outcome = str(terminal["outcome"])
+        self._latest_terminal[index] = terminal
+        self._outcome_counts[outcome] = self._outcome_counts.get(outcome, 0) + 1
+        if outcome == "published":
+            self._published_count += 1
+            self._published_payload_bytes += int(terminal["payload_bytes"])
+            self._cpu_to_fs_seconds += float(terminal["cpu_to_fs_seconds"])
+        return terminal
+
+    def _emit_terminal(self, trace: Mapping[str, Any]) -> None:
+        try:
+            with self._sink_lock:
+                if self.trace_sink is not None:
+                    self.trace_sink(dict(trace))
+                if self.logger is not None:
+                    self.logger.emit("proposal_publication_terminal", **dict(trace))
+        except BaseException as error:
+            with self._condition:
+                if not self._errors:
+                    self._errors.append(error)
+
     def submit(self, snapshot: FragmentSnapshot) -> str:
         if not isinstance(snapshot, FragmentSnapshot):
             raise SnapshotPublishError("publisher accepts FragmentSnapshot values")
@@ -391,38 +428,39 @@ class BoundedProposalPublisher:
             or proposal.descriptor != self.store.descriptors[index]
         ):
             raise SnapshotPublishError("snapshot does not match publisher identities")
-        key = self._key(snapshot)
+        terminal: dict[str, Any] | None = None
         with self._condition:
             self._raise_if_failed_locked()
             if self._closing:
                 raise SnapshotPublishError("publisher is closing")
-            if key in self._traces:
-                raise SnapshotPublishError("snapshot sequence was already submitted")
             slot = self._slots[index]
-            highest_active = max(
-                (
-                    item.proposal.sequence
-                    for item in (slot.in_flight, slot.pending)
-                    if item is not None
-                ),
-                default=-1,
-            )
-            if proposal.sequence <= highest_active:
+            self._captured_count += 1
+            self._gpu_to_cpu_seconds += snapshot.gpu_to_cpu_seconds
+            if proposal.sequence <= self._highest_submitted_sequence[index]:
                 self._skip_count += 1
-                self._traces[key] = self._new_trace(snapshot, "skipped_nonmonotonic")
-                return "skipped_nonmonotonic"
-            if slot.pending is not None:
-                replaced_key = self._key(slot.pending)
-                self._traces[replaced_key]["outcome"] = "replaced_before_publish"
-                self._traces[replaced_key]["publication_completed_monotonic_ns"] = (
-                    self.clock_ns()
+                terminal = self._record_terminal_locked(
+                    self._new_trace(snapshot, "skipped_nonmonotonic")
                 )
-                self._replacement_count += 1
-            slot.pending = snapshot
-            self._traces[key] = self._new_trace(snapshot, "pending")
-            self._maximum_pending[index] = max(self._maximum_pending[index], 1)
-            self._condition.notify_all()
-            return "pending"
+                result = "skipped_nonmonotonic"
+            else:
+                self._highest_submitted_sequence[index] = proposal.sequence
+                if slot.pending is not None:
+                    if slot.pending_trace is None:  # pragma: no cover - state defense
+                        raise AssertionError("pending snapshot lacks trace")
+                    slot.pending_trace["outcome"] = "replaced_before_publish"
+                    slot.pending_trace["publication_completed_monotonic_ns"] = (
+                        self.clock_ns()
+                    )
+                    terminal = self._record_terminal_locked(slot.pending_trace)
+                    self._replacement_count += 1
+                slot.pending = snapshot
+                slot.pending_trace = self._new_trace(snapshot, "pending")
+                self._maximum_pending[index] = max(self._maximum_pending[index], 1)
+                self._condition.notify_all()
+                result = "pending"
+        if terminal is not None:
+            self._emit_terminal(terminal)
+        return result
 
     def _worker(self, fragment_index: int) -> None:
         while True:
@@ -434,14 +472,16 @@ class BoundedProposalPublisher:
                 if slot.failed or (self._closing and slot.pending is None):
                     return
                 snapshot = slot.pending
-                if snapshot is None:  # pragma: no cover - wait predicate defense
+                trace = slot.pending_trace
+                if snapshot is None or trace is None:  # pragma: no cover - state defense
                     continue
                 slot.pending = None
+                slot.pending_trace = None
                 slot.in_flight = snapshot
+                slot.in_flight_trace = trace
                 self._maximum_in_flight[fragment_index] = max(
                     self._maximum_in_flight[fragment_index], 1
                 )
-                trace = self._traces[self._key(snapshot)]
                 trace["outcome"] = "publishing"
                 started = self.clock_ns()
                 trace["publication_started_monotonic_ns"] = started
@@ -451,19 +491,37 @@ class BoundedProposalPublisher:
                 self.store.publish(snapshot.proposal)
             except BaseException as error:  # worker must surface every failure
                 completed = self.clock_ns()
+                abandoned: dict[str, Any] | None = None
                 with self._condition:
                     trace["publication_completed_monotonic_ns"] = completed
                     trace["cpu_to_fs_seconds"] = max(0.0, (completed - started) / 1e9)
                     trace["outcome"] = "failed"
                     slot.in_flight = None
+                    slot.in_flight_trace = None
                     slot.failed = True
                     if slot.pending is not None:
-                        pending_trace = self._traces[self._key(slot.pending)]
+                        pending_trace = slot.pending_trace
+                        if pending_trace is None:  # pragma: no cover - state defense
+                            raise AssertionError("pending snapshot lacks trace")
                         pending_trace["outcome"] = "abandoned_after_failure"
                         pending_trace["publication_completed_monotonic_ns"] = completed
                         slot.pending = None
-                    self._errors.append(error)
-                    self._condition.notify_all()
+                        slot.pending_trace = None
+                        abandoned = self._record_terminal_locked(pending_trace)
+                    if not self._errors:
+                        self._errors.append(error)
+                    failed = self._record_terminal_locked(trace)
+                    terminal_values = [failed]
+                    if abandoned is not None:
+                        terminal_values.append(abandoned)
+                    self._terminal_emits_in_progress += len(terminal_values)
+                for terminal in terminal_values:
+                    try:
+                        self._emit_terminal(terminal)
+                    finally:
+                        with self._condition:
+                            self._terminal_emits_in_progress -= 1
+                            self._condition.notify_all()
                 return
             completed = self.clock_ns()
             with self._condition:
@@ -471,9 +529,15 @@ class BoundedProposalPublisher:
                 trace["cpu_to_fs_seconds"] = max(0.0, (completed - started) / 1e9)
                 trace["outcome"] = "published"
                 slot.in_flight = None
-                self._condition.notify_all()
-            if self.logger is not None:
-                self.logger.emit("proposal_published", **dict(trace))
+                slot.in_flight_trace = None
+                published = self._record_terminal_locked(trace)
+                self._terminal_emits_in_progress += 1
+            try:
+                self._emit_terminal(published)
+            finally:
+                with self._condition:
+                    self._terminal_emits_in_progress -= 1
+                    self._condition.notify_all()
 
     def _raise_if_failed_locked(self) -> None:
         if self._errors:
@@ -498,8 +562,9 @@ class BoundedProposalPublisher:
             while any(
                 slot.pending is not None or slot.in_flight is not None
                 for slot in self._slots
-            ):
-                self._raise_if_failed_locked()
+            ) or self._terminal_emits_in_progress:
+                if self._terminal_emits_in_progress == 0:
+                    self._raise_if_failed_locked()
                 remaining = deadline - time.monotonic()
                 if remaining <= 0:
                     raise SnapshotPublishError("timed out draining proposal publications")
@@ -527,11 +592,18 @@ class BoundedProposalPublisher:
         with self._condition:
             pending = [int(slot.pending is not None) for slot in self._slots]
             in_flight = [int(slot.in_flight is not None) for slot in self._slots]
-            traces = [
-                dict(self._traces[key])
-                for key in sorted(self._traces)
+            active_pending = [
+                None if slot.pending_trace is None else dict(slot.pending_trace)
+                for slot in self._slots
             ]
-            published = [trace for trace in traces if trace["outcome"] == "published"]
+            active_in_flight = [
+                None if slot.in_flight_trace is None else dict(slot.in_flight_trace)
+                for slot in self._slots
+            ]
+            latest_terminal = [
+                None if trace is None else dict(trace)
+                for trace in self._latest_terminal
+            ]
             return {
                 "learner_id": self.learner_id,
                 "per_fragment_pending": pending,
@@ -542,21 +614,22 @@ class BoundedProposalPublisher:
                 "maximum_in_flight_per_fragment": list(self._maximum_in_flight),
                 "snapshot_skip_count": self._skip_count,
                 "snapshot_replacement_count": self._replacement_count,
-                "captured_snapshot_count": len(traces),
-                "published_snapshot_count": len(published),
-                "published_payload_bytes": sum(
-                    int(trace["payload_bytes"]) for trace in published
-                ),
-                "gpu_to_cpu_seconds": sum(
-                    float(trace["gpu_to_cpu_seconds"]) for trace in traces
-                ),
-                "cpu_to_fs_seconds": sum(
-                    float(trace["cpu_to_fs_seconds"])
-                    for trace in published
-                    if trace["cpu_to_fs_seconds"] is not None
-                ),
+                "captured_snapshot_count": self._captured_count,
+                "published_snapshot_count": self._published_count,
+                "published_payload_bytes": self._published_payload_bytes,
+                "gpu_to_cpu_seconds": self._gpu_to_cpu_seconds,
+                "cpu_to_fs_seconds": self._cpu_to_fs_seconds,
+                "terminal_outcome_counts": dict(sorted(self._outcome_counts.items())),
                 "errors": [f"{type(error).__name__}: {error}" for error in self._errors],
-                "traces": traces,
+                "active_pending": active_pending,
+                "active_in_flight": active_in_flight,
+                "latest_terminal_per_fragment": latest_terminal,
+                "resident_trace_records": sum(
+                    trace is not None
+                    for trace in (*active_pending, *active_in_flight, *latest_terminal)
+                ),
+                "resident_trace_record_bound": 3 * len(self._slots),
+                "terminal_emits_in_progress": self._terminal_emits_in_progress,
             }
 
 
@@ -575,6 +648,7 @@ class FragmentSnapshotCoordinator:
         store: ProposalStore,
         publisher: BoundedProposalPublisher | None = None,
         before_publish: BeforePublish | None = None,
+        trace_sink: TerminalTraceSink | None = None,
         logger: StructuredLogger | None = None,
         clock_ns: Callable[[], int] = time.monotonic_ns,
     ) -> None:
@@ -624,9 +698,9 @@ class FragmentSnapshotCoordinator:
             for base, fragment in zip(bases, progress.fragments, strict=True)
         ):
             raise SnapshotPublishError("adopted base versions differ from learner progress")
-        if publisher is not None and before_publish is not None:
+        if publisher is not None and (before_publish is not None or trace_sink is not None):
             raise SnapshotPublishError(
-                "before_publish cannot be supplied with an existing publisher"
+                "publisher hooks cannot be supplied with an existing publisher"
             )
         self.identities = identities
         self.progress = progress
@@ -642,6 +716,7 @@ class FragmentSnapshotCoordinator:
             store,
             learner_id=progress.learner_id,
             before_publish=before_publish,
+            trace_sink=trace_sink,
             logger=logger,
             clock_ns=clock_ns,
         )

@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import dataclasses
 import hashlib
+import json
 import threading
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -31,8 +33,13 @@ from fsbdd.learner_publish import (  # noqa: E402
     SnapshotPublishError,
     build_fragment_descriptors,
     build_fragment_parameter_groups,
+    serialize_fragment_parameters,
 )
 from fsbdd.model_registry import build_logical_layer_registry  # noqa: E402
+from fsbdd.learner_publish_stress import (  # noqa: E402
+    SnapshotStressError,
+    write_manifest,
+)
 from fsbdd.proposal import Proposal, ProposalStore  # noqa: E402
 from fsbdd.storage import PosixStorageBackend  # noqa: E402
 
@@ -135,7 +142,7 @@ def _proposal(
         sequence=sequence,
         base_version=0,
         base_content_identity=_base(0, descriptor.index).content_identity,
-        local_steps=max(1, sequence),
+        local_steps=min(100, max(1, sequence)),
         processed_tokens=max(1, sequence) * 10,
         snapshot_local_step=max(1, sequence),
         parameters=parameters,
@@ -214,6 +221,7 @@ def test_bounded_publisher_replaces_pending_but_never_inflight(
     store = _store(tmp_path, (descriptor,))
     entered = threading.Event()
     release = threading.Event()
+    traces: list[dict] = []
 
     def slow_first(proposal: Proposal) -> None:
         if proposal.sequence == 1:
@@ -224,6 +232,7 @@ def test_bounded_publisher_replaces_pending_but_never_inflight(
         store,
         learner_id="learner-00",
         before_publish=slow_first,
+        trace_sink=traces.append,
     )
     first = _snapshot(_proposal(descriptor, 1, parameters=b"a" * 16))
     second = _snapshot(_proposal(descriptor, 2, parameters=b"b" * 16))
@@ -245,16 +254,54 @@ def test_bounded_publisher_replaces_pending_but_never_inflight(
     final = publisher.summary()
     assert final["maximum_in_flight_per_fragment"] == [1]
     assert final["maximum_pending_per_fragment"] == [1]
-    assert [trace["outcome"] for trace in final["traces"]] == [
+    assert [trace["outcome"] for trace in sorted(traces, key=lambda row: row["sequence"])] == [
         "skipped_nonmonotonic",
         "published",
         "replaced_before_publish",
         "published",
     ]
+    assert final["resident_trace_records"] <= final["resident_trace_record_bound"] == 3
     publisher.close()
 
 
-def test_inflight_base_is_immutable_and_restart_sequence_is_reserved(
+def test_many_publications_keep_constant_resident_state(tmp_path: Path) -> None:
+    descriptor = _descriptor(0, 4)
+    entered = threading.Event()
+    release = threading.Event()
+
+    def gate_first(proposal: Proposal) -> None:
+        if proposal.sequence == 1:
+            entered.set()
+            assert release.wait(5)
+
+    publisher = BoundedProposalPublisher(
+        _store(tmp_path, (descriptor,)),
+        learner_id="learner-00",
+        before_publish=gate_first,
+    )
+    publisher.submit(_snapshot(_proposal(descriptor, 1, parameters=b"a" * 16)))
+    assert entered.wait(5)
+    for sequence in range(2, 1002):
+        byte = bytes([sequence % 251])
+        publisher.submit(
+            _snapshot(_proposal(descriptor, sequence, parameters=byte * 16))
+        )
+    during = publisher.summary()
+    assert during["captured_snapshot_count"] == 1001
+    assert during["snapshot_replacement_count"] == 999
+    assert during["resident_trace_records"] <= 3
+    assert "traces" not in during
+    assert len(json.dumps(during, sort_keys=True)) < 10_000
+    release.set()
+    publisher.drain()
+    after = publisher.summary()
+    assert after["published_snapshot_count"] == 2
+    assert after["resident_trace_records"] <= 3
+    assert len(json.dumps(after, sort_keys=True)) < 10_000
+    publisher.close()
+
+
+def test_inflight_old_base_and_pending_new_base_coexist_immutably(
     tmp_path: Path,
 ) -> None:
     parameter = torch.nn.Parameter(torch.arange(4, dtype=torch.float32))
@@ -263,6 +310,7 @@ def test_inflight_base_is_immutable_and_restart_sequence_is_reserved(
     progress = LearnerProgress.initialize("learner-00", (3,))
     entered = threading.Event()
     release = threading.Event()
+    traces: list[dict] = []
 
     def gate(_proposal_value: Proposal) -> None:
         entered.set()
@@ -277,30 +325,63 @@ def test_inflight_base_is_immutable_and_restart_sequence_is_reserved(
         schedule=FragmentPublicationSchedule.unified((parameter.numel() * 4,), 1),
         store=store,
         before_publish=gate,
+        trace_sink=traces.append,
     )
     _advance(progress)
     coordinator.on_safe_boundary(_event(progress))
     assert entered.wait(5)
-    reserved = LearnerProgress.from_dict(progress.to_dict())
-    assert reserved.fragments[0].proposal_sequence == 1
     coordinator.update_adopted_base(
         0,
         version=4,
         content_identity=_base(4).content_identity,
     )
+    with torch.no_grad():
+        parameter.add_(10)
+    _advance(progress)
+    coordinator.on_safe_boundary(_event(progress))
+    coexist = coordinator.summary()["publication"]
+    assert coexist["active_in_flight"][0]["base_version"] == 3
+    assert coexist["active_pending"][0]["base_version"] == 4
+    assert coexist["active_in_flight"][0]["sequence"] == 1
+    assert coexist["active_pending"][0]["sequence"] == 2
     release.set()
     coordinator.drain()
-    old = store.load_latest("learner-00", 0)
-    assert (old.base_version, old.base_content_identity) == (
-        3,
-        _base(3).content_identity,
+    latest = store.load_latest("learner-00", 0)
+    assert (latest.sequence, latest.base_version, latest.base_content_identity) == (
+        2,
+        4,
+        _base(4).content_identity,
     )
+    by_sequence = {trace["sequence"]: trace for trace in traces}
+    assert by_sequence[1]["base_version"] == 3
+    assert by_sequence[1]["base_content_identity"] == _base(3).content_identity
+    assert by_sequence[2]["base_version"] == 4
+    assert by_sequence[2]["base_content_identity"] == _base(4).content_identity
     coordinator.close()
 
-    # Restoring the reservation starts at sequence two even if sequence one
-    # had failed before visibility; gaps are safe, reuse is not.
+
+def test_restart_uses_the_next_reserved_sequence(tmp_path: Path) -> None:
+    parameter = torch.nn.Parameter(torch.arange(4, dtype=torch.float32))
+    descriptor = _descriptor(0, parameter.numel())
+    store = _store(tmp_path, (descriptor,))
+    progress = LearnerProgress.initialize("learner-00", (3,))
+    first = FragmentSnapshotCoordinator(
+        identities=IDENTITIES,
+        progress=progress,
+        descriptors=(descriptor,),
+        fragment_parameters=((parameter,),),
+        adopted_bases=(_base(3),),
+        schedule=FragmentPublicationSchedule.unified((parameter.numel() * 4,), 1),
+        store=store,
+    )
+    _advance(progress)
+    first.on_safe_boundary(_event(progress))
+    reserved = LearnerProgress.from_dict(progress.to_dict())
+    assert reserved.fragments[0].proposal_sequence == 1
+    first.drain()
+    first.close()
+
     restored_parameter = torch.nn.Parameter(torch.arange(4, dtype=torch.float32))
-    restored = reserved
     restarted = FragmentSnapshotCoordinator(
         identities=IDENTITIES,
         progress=restored,
@@ -316,6 +397,85 @@ def test_inflight_base_is_immutable_and_restart_sequence_is_reserved(
     assert restored.fragments[0].proposal_sequence == 2
     assert store.load_latest("learner-00", 0).sequence == 2
     restarted.close()
+
+
+def test_snapshot_payload_stays_bytewise_immutable_during_later_mutation(
+    tmp_path: Path,
+) -> None:
+    parameter = torch.nn.Parameter(torch.arange(8, dtype=torch.float32))
+    descriptor = _descriptor(0, parameter.numel())
+    store = _store(tmp_path, (descriptor,))
+    progress = LearnerProgress.initialize("learner-00", (0,))
+    entered = threading.Event()
+    release = threading.Event()
+
+    def gate(_proposal_value: Proposal) -> None:
+        entered.set()
+        assert release.wait(5)
+
+    coordinator = FragmentSnapshotCoordinator(
+        identities=IDENTITIES,
+        progress=progress,
+        descriptors=(descriptor,),
+        fragment_parameters=((parameter,),),
+        adopted_bases=(_base(0),),
+        schedule=FragmentPublicationSchedule.unified((parameter.numel() * 4,), 1),
+        store=store,
+        before_publish=gate,
+    )
+    _advance(progress)
+    expected = serialize_fragment_parameters((parameter,), parameter.numel() * 4)
+    coordinator.on_safe_boundary(_event(progress))
+    assert entered.wait(5)
+    with torch.no_grad():
+        parameter.mul_(0).add_(99)
+    current = serialize_fragment_parameters((parameter,), parameter.numel() * 4)
+    assert current != expected
+    release.set()
+    coordinator.drain()
+    published = store.load_latest("learner-00", 0)
+    assert published.parameters == expected
+    assert published.parameters_sha256 == hashlib.sha256(expected).hexdigest()
+    coordinator.close()
+
+
+def test_background_failure_clears_slots_abandons_pending_and_surfaces(
+    tmp_path: Path,
+) -> None:
+    descriptor = _descriptor(0, 4)
+    entered = threading.Event()
+    release = threading.Event()
+    traces: list[dict] = []
+
+    def fail_first(_proposal_value: Proposal) -> None:
+        entered.set()
+        assert release.wait(5)
+        raise OSError("injected publication failure")
+
+    publisher = BoundedProposalPublisher(
+        _store(tmp_path, (descriptor,)),
+        learner_id="learner-00",
+        before_publish=fail_first,
+        trace_sink=traces.append,
+    )
+    publisher.submit(_snapshot(_proposal(descriptor, 1, parameters=b"a" * 16)))
+    assert entered.wait(5)
+    publisher.submit(_snapshot(_proposal(descriptor, 2, parameters=b"b" * 16)))
+    release.set()
+    with pytest.raises(SnapshotPublishError, match="injected publication failure"):
+        publisher.drain()
+    failed = publisher.summary()
+    assert failed["per_fragment_in_flight"] == [0]
+    assert failed["per_fragment_pending"] == [0]
+    assert failed["maximum_in_flight_per_fragment"] == [1]
+    assert failed["maximum_pending_per_fragment"] == [1]
+    assert failed["resident_trace_records"] <= 3
+    assert sorted(trace["outcome"] for trace in traces) == [
+        "abandoned_after_failure",
+        "failed",
+    ]
+    with pytest.raises(SnapshotPublishError, match="injected publication failure"):
+        publisher.close()
 
 
 def _tiny_model() -> torch.nn.Module:
@@ -416,3 +576,66 @@ def test_real_learner_boundary_stages_only_due_target_fragments(
     assert summary["publication"]["published_snapshot_count"] >= 2
     assert summary["publication"]["errors"] == []
     coordinator.close()
+
+
+def test_manifest_rejects_role_rank_and_state_identity_forgery(tmp_path: Path) -> None:
+    result_root = tmp_path / "roles"
+    result_root.mkdir()
+    state = IDENTITIES.to_dict()
+    state["run_identity"] = "s1-07-123.opbs"
+    writer = {
+        "status": "pass",
+        "role": "snapshot_writer",
+        "rank": 0,
+        "hostname": "node-a",
+        "state_identities": state,
+        "torch": {"distributed_initialized": False},
+        "writer_waited_for_reader_or_syncer": False,
+    }
+    reader = {
+        "status": "pass",
+        "role": "proposal_reader",
+        "rank": 1,
+        "hostname": "node-b",
+        "state_identities": state,
+    }
+    (result_root / "snapshot_writer.json").write_text(json.dumps(writer))
+    (result_root / "proposal_reader.json").write_text(json.dumps(reader))
+    nodefile = tmp_path / "nodefile"
+    nodefile.write_text("node-a\nnode-b\n")
+    modules = tmp_path / "modules"
+    modules.write_text("nv-hpcx/25.9\n")
+    args = SimpleNamespace(
+        nodefile=str(nodefile),
+        modules_file=str(modules),
+        result_root=str(result_root),
+        repository="https://example.invalid/repository.git",
+        branch="codex/S1-07-snapshot-publish",
+        commit="1" * 40,
+        run_id="s1-07-123.opbs",
+        config_sha256="a" * 64,
+        research_sha256="b" * 64,
+        spec_sha256="c" * 64,
+        skill_repository="https://example.invalid/skill.git",
+        skill_commit="2" * 40,
+        initial_hostname="miyabi-g1",
+        project_root="/work/project",
+        evidence_root="/work/evidence",
+        job_id="123.opbs",
+        qtime_utc="2026-07-15T00:00:00Z",
+        queue="debug-g",
+        group="xg24i002",
+        output=str(tmp_path / "manifest.json"),
+    )
+    write_manifest(args)
+    assert json.loads((tmp_path / "manifest.json").read_text())["status"] == "building"
+
+    reader["rank"] = 0
+    (result_root / "proposal_reader.json").write_text(json.dumps(reader))
+    with pytest.raises(SnapshotStressError, match="status rank or host"):
+        write_manifest(args)
+    reader["rank"] = 1
+    reader["state_identities"] = {**state, "config_identity": "f" * 64}
+    (result_root / "proposal_reader.json").write_text(json.dumps(reader))
+    with pytest.raises(SnapshotStressError, match="state/config/run"):
+        write_manifest(args)
