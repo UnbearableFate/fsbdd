@@ -10,7 +10,7 @@ git:
   integration_branch: master
   branch: codex/S1-05-proposal-eligibility
   base_commit: 1cba03a02d799edd0c21f37778ed512f55a65ed9
-  result_commit: null
+  result_commit: b7af8fa535cd9b136baa5109c1f2d81fb15271b8
   dirty_at_start: true
 dependencies: [S1-03, S1-04, S0C-02]
 requirements: [DISC-01, DISC-02, LEARN-07, PROP-01, PROP-03, PROP-04, PROP-05, PROP-06, PROP-07, STALE-01, STALE-05]
@@ -98,8 +98,8 @@ persist:
     queue_seconds: 2
     active_seconds: 30
     checker_cycles: 3
-    goal_tokens_end: 1235089
-    agent_tokens_used: 793122
+    goal_tokens_end: 1294928
+    agent_tokens_used: 852961
     phase_token_deltas: {}
     rework_causes:
     - The first surrogate invocation stopped at a TemporaryDirectory mkdir precondition before semantic assertions; the surrogate commit was amended and the single semantic RED attempt then produced all seven expected failures.
