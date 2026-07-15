@@ -233,11 +233,26 @@ harden:
   commands: [bash -n every active S1-13 PBS script and failure helper, jq empty failure and evidence contracts, git diff --check]
   evidence_paths: [runtime_runs/S1-13/targeted-f0bb4fb-20260715T180720Z, runtime_runs/S1-13/targeted-681e013-20260715T182501Z, runtime_runs/S1-13/targeted-focus-a026505-20260715T191211Z, runtime_runs/S1-13/targeted-bac11ae-20260715T192015Z, runtime_runs/S1-13/reproduction-preflight-d9c3f01-20260715T201400Z, runtime_runs/S1-13/reproduction-preflight-6a4e465-20260715T201715Z, runtime_runs/S1-13/reproduction-2n-s1-13-corrected-2n-20260715T202343Z-6a4e465, evidence/indexes/S1-13.md]
   latest_result: pass at 2026-07-15T21:13:52Z; active PBS Bash, JSON, YAML, and diff checks clean
-nine_node_gate: {required: true, run_id: null, topology_gate: null, loss_gate: null, runtime_gate: null}
+nine_node_gate:
+  required: true
+  run_id: s1-13-formal-9n-20260715T220641Z-e850f51
+  pbs_job_id: 2393100[].opbs
+  code_commit: e850f5116a69ed517a4a5772799b4d2554721cc0
+  shared_root: runtime_runs/S1-13/shared-9n-20260715T220641Z-e850f51
+  result_root: runtime_runs/S1-13/results-9n-20260715T220641Z-e850f51
+  evidence_root: runtime_runs/S1-13/formal-9n
+  scheduler_root: runtime_runs/S1-13/formal-9n-s1-13-formal-9n-20260715T220641Z-e850f51-scheduler
+  scheduler_result: all nine subjobs exit 0 on distinct hosts mg0002 through mg0010 with no abnormal nodes
+  topology_gate: pass; 9 distinct hosts, 8 distinct learner GPU UUIDs, CPU-only syncer, 9 independent array subjob IDs, one shared filesystem identity
+  loss_gate: pass; finite contiguous per-learner losses, aggregate final/initial rolling median ratio 0.9392284813790339, negative robust slope, initial/final evaluation loss 3.9339581240863524/3.1861374294978146
+  runtime_gate: pass; 286.526301569 active seconds of 1200, 41 updates through global cycle 10, heartbeat and pending-stall checks pass
+  protocol_gate: pass; final version vector [10, 10, 11, 10], 9226240 aggregate input tokens, contiguous fragment versions, bounded/classified inventories, fresh-only Q=8 selections
+  package_validator: admissible; exact 179-file coverage
+  checker_phase_b: pending
 checker:
   context_id: s1_13_checker
   maker_chat_inherited: false
-  phase_a_verdict: Phase B PASS for the pre-queue rejection attribution and replacement Phase A ADMISSIBLE for exactly one first formal_l3_9n submission at e850f5116a69ed517a4a5772799b4d2554721cc0 using only pbs/stage1_s1_13_formal_9n.pbs SHA 2d4827380e68f9aaaa17c487f94f4f31aad0bebf354bf2055cd8e79030f8cbf2; create fresh roots and never reuse the rejected roots; no retry, long-smoke, formal-long, or other compute authorized
+  phase_a_verdict: the replacement first formal_l3_9n authorization at e850f5116a69ed517a4a5772799b4d2554721cc0 was consumed by passing array job 2393100[].opbs; exact package and scheduler supplement await same-Checker Phase B; no long-smoke, formal-long, retry, or other compute is authorized
   verdict: null
   report_path: reports/checkers/S1-13.md
   cycles:
@@ -286,12 +301,12 @@ checker:
       result: prepare-nine created fresh exclusive roots and marker, but qsub rejected the array before queue admission because the effective arguments supplied -r n; no job ID or formal attempt was created, and the rejected roots are preserved
     - candidate: e850f5116a69ed517a4a5772799b4d2554721cc0
       verdict: Phase B PASS for immutable rejection attribution and replacement Phase A ADMISSIBLE for exactly one first formal_l3_9n submission using only pbs/stage1_s1_13_formal_9n.pbs SHA 2d4827380e68f9aaaa17c487f94f4f31aad0bebf354bf2055cd8e79030f8cbf2; no retry, long-smoke, formal-long, or other compute authorized
-      result: explicit '#PBS -r y' overrides the effective site -r n default; static regression added; full login compileall, Ruff, Pyright, Bash, JSON/YAML, rejected-package checksum, and diff gates pass; fresh formal roots/submission pending
+      result: explicit '#PBS -r y' overrides the effective site -r n default; formal array job 2393100 passed all nine subjobs on distinct hosts with scheduler exit 0/no abnormal nodes; all four frozen gates pass and the exact 179-file package is admissible; same-Checker Phase B pending
 persist:
   evidence_index: evidence/indexes/S1-13.md
   raw_evidence_root: runtime_runs/S1-13
   acceptance_traceability_updated: false
   next_gap: Stage 2 asynchronous GPU to CPU to filesystem publication pipeline
   handoff: >-
-    The authorized 99a1d09 submission created exclusive shared/result roots and marker, but qsub rejected the 0-8 array before queue admission because Miyabi effective defaults supplied -r n. The immutable rejection package passed same-Checker Phase B, no formal attempt was consumed, and the rejected roots must never be reused. Replacement Phase A authorizes exact candidate e850f5116a69ed517a4a5772799b4d2554721cc0 for exactly one first formal_l3_9n submission using only pbs/stage1_s1_13_formal_9n.pbs SHA 2d4827380e68f9aaaa17c487f94f4f31aad0bebf354bf2055cd8e79030f8cbf2 with explicit '#PBS -r y', one 0-8 array, and fresh prepare-nine roots. No retry, long-smoke, formal-long, or other compute is authorized.
-blocker: Exactly one first formal_l3_9n submission is authorized at corrected candidate e850f5116a69ed517a4a5772799b4d2554721cc0 and not yet submitted. The prior rejected roots are immutable and non-reusable; no retry or other compute run is authorized.
+    Formal array job 2393100[].opbs consumed the authorized first formal_l3_9n attempt at exact candidate e850f5116a69ed517a4a5772799b4d2554721cc0. All nine subjobs exited 0 on distinct hosts with no abnormal nodes; 357 Stage 1 tests passed; topology, loss, runtime, and protocol gates pass; and the 179-file formal package validates admissible with checksum inventory fa9d8d7819435c3f946176af9281947b8bc96be3109b89aa0259cfc1b7eb36fc. Return the immutable formal package and scheduler supplement to the same Checker for Phase B and a separate decision about the smallest admissible long-run preflight. Do not submit any long-smoke, formal-long, retry, or other compute before that verdict.
+blocker: Passing formal 9N job 2393100[].opbs awaits same-Checker Phase B. No long-smoke, formal-long, retry, or other compute is authorized.

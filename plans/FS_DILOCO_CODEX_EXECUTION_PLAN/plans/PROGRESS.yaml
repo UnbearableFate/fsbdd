@@ -365,7 +365,7 @@ loops:
   result_commit: null
   evidence_index: evidence/indexes/S1-13.md
   checker_verdict: null
-  blocker: The authorized 99a1d09 submission was rejected by qsub before queue admission because effective site defaults supplied -r n; no job or formal attempt was created, and the rejected roots are preserved. Same-Checker Phase B passed the rejection attribution and replacement Phase A authorizes exactly one first formal_l3_9n submission at e850f5116a69ed517a4a5772799b4d2554721cc0 using only pbs/stage1_s1_13_formal_9n.pbs SHA 2d4827380e68f9aaaa17c487f94f4f31aad0bebf354bf2055cd8e79030f8cbf2 with explicit '#PBS -r y', one 0-8 array, and fresh prepare-nine roots. No retry, long-smoke, formal-long, or other compute is authorized.
+  blocker: Formal array job 2393100[].opbs passed the authorized first formal_l3_9n attempt at exact candidate e850f5116a69ed517a4a5772799b4d2554721cc0. All nine subjobs exited 0 on distinct hosts with no abnormal nodes; 357 Stage 1 tests and all topology/loss/runtime/protocol gates passed; the 179-file formal package is checksum-exact and admissible. Same-Checker Phase B is required before any decision about long-smoke or formal-long; no further compute is authorized.
 - id: S2-01
   stage: stage2
   title: 异步 GPU→CPU→FS Publication Pipeline
