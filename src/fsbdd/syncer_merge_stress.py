@@ -673,19 +673,25 @@ def run_memory_child(root: Path, workload_path: Path, contributor_count: int) ->
         contributions=facts,
     )
     _warm_memory_runtime()
-    baseline_rss, baseline_hwm = linux_process_memory_bytes()
+    before_rss, before_hwm = linux_process_memory_bytes()
     result = execute_streaming_fragment_update(
-        request, source, OuterSGDPolicy(1.0, 0.0, False)
+        request,
+        source,
+        OuterSGDPolicy(1.0, 0.0, False),
+        measure_process_rss=True,
     )
     after_rss, after_hwm = linux_process_memory_bytes()
     metrics = source.metrics()
+    measured_peak = result.memory_accounting.peak_process_rss_bytes
+    if measured_peak is None:
+        raise MergeStressError("memory child did not measure target-update RSS")
     return {
         "contributor_count": contributor_count,
-        "baseline_rss_bytes": baseline_rss,
-        "baseline_hwm_bytes": baseline_hwm,
+        "before_rss_bytes": before_rss,
+        "before_hwm_bytes": before_hwm,
         "after_rss_bytes": after_rss,
         "after_hwm_bytes": after_hwm,
-        "peak_over_baseline_rss_bytes": max(0, after_hwm - baseline_rss),
+        "target_update_peak_rss_bytes": measured_peak,
         "source_metrics": dataclasses.asdict(metrics),
         "memory_accounting": result.memory_accounting.to_dict(),
         "byte_accounting": result.byte_accounting.to_dict(),
@@ -712,8 +718,8 @@ def execute_memory_workload(root: Path, workload_path: Path, config: Mapping[str
             text=True,
         )
         runs[str(count)] = json.loads(output)
-    difference = runs["8"]["peak_over_baseline_rss_bytes"] - runs["1"][
-        "peak_over_baseline_rss_bytes"
+    difference = runs["8"]["target_update_peak_rss_bytes"] - runs["1"][
+        "target_update_peak_rss_bytes"
     ]
     return {
         "runs": runs,
@@ -827,7 +833,10 @@ def _require_exact_keys(value: Mapping[str, Any], expected: set[str], name: str)
 
 
 def analyze_roles(
-    writer: Mapping[str, Any], syncer: Mapping[str, Any], config: Mapping[str, Any]
+    writer: Mapping[str, Any],
+    syncer: Mapping[str, Any],
+    config: Mapping[str, Any],
+    expected_config_identity: str,
 ) -> dict[str, Any]:
     _require_exact_keys(
         writer,
@@ -894,6 +903,8 @@ def analyze_roles(
     for field in ("run_id", "config_identity", "workload_sha256", "workload_identity"):
         if writer[field] != syncer[field]:
             raise MergeStressError(f"formal roles disagree on {field}")
+    if writer["config_identity"] != expected_config_identity:
+        raise MergeStressError("formal role config identity differs from frozen config")
     if writer["hostname"] == syncer["hostname"]:
         raise MergeStressError("formal roles must run on distinct hosts")
     if writer["torch_imported_before"] or writer["torch_imported_after"]:
@@ -1199,6 +1210,7 @@ def analyze_roles(
         raise MergeStressError("memory profile requires M=1 and M=8 child runs")
     for contributor_count in (1, 8):
         run = memory["runs"][str(contributor_count)]
+        process_memory = run["memory_accounting"]
         if (
             run["contributor_count"] != contributor_count
             or run["source_metrics"]["maximum_active_payloads"]
@@ -1208,6 +1220,15 @@ def analyze_roles(
             or run["memory_accounting"]["maximum_active_local_payloads"] != 1
             or run["memory_accounting"]["maximum_tensor_fragment_multiples"]
             > memory_gates["maximum_tensor_fragment_multiples"]
+            or process_memory["process_rss_at_entry_bytes"] is None
+            or process_memory["maximum_observed_process_rss_bytes"] is None
+            or process_memory["peak_process_rss_bytes"] is None
+            or process_memory["peak_process_rss_bytes"] < 0
+            or process_memory["maximum_observed_process_rss_bytes"]
+            - process_memory["process_rss_at_entry_bytes"]
+            != process_memory["peak_process_rss_bytes"]
+            or run["target_update_peak_rss_bytes"]
+            != process_memory["peak_process_rss_bytes"]
             or run["byte_accounting"]["local_payload_reads"] != contributor_count
             or run["byte_accounting"]["local_payload_bytes"]
             != contributor_count * workload["memory"]["fragment_bytes"]
@@ -1215,8 +1236,8 @@ def analyze_roles(
         ):
             raise MergeStressError(f"M={contributor_count} streaming memory evidence failed")
     recomputed_difference = (
-        memory["runs"]["8"]["peak_over_baseline_rss_bytes"]
-        - memory["runs"]["1"]["peak_over_baseline_rss_bytes"]
+        memory["runs"]["8"]["target_update_peak_rss_bytes"]
+        - memory["runs"]["1"]["target_update_peak_rss_bytes"]
     )
     if (
         recomputed_difference != memory["m8_minus_m1_peak_rss_bytes"]
@@ -1280,7 +1301,7 @@ def summarize(
     config = _load_config(config_path, config_identity)
     writer = json.loads((result_root / "proposal_writer.json").read_text(encoding="utf-8"))
     syncer = json.loads((result_root / "outer_syncer.json").read_text(encoding="utf-8"))
-    summary = analyze_roles(writer, syncer, config)
+    summary = analyze_roles(writer, syncer, config, config_identity)
     _write_json_new(output, summary)
     return summary
 

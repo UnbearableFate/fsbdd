@@ -45,7 +45,7 @@ preflight:
   checker_phase_a: required
   relative_l2_formula: norm(production minus oracle) divided by max(norm(oracle) 1e-12)
   accumulation_order: frozen selection order with float32 multiply then float32 accumulation
-  peak_memory_observation: context-managed live payload leases instrumented tensor byte ledger and warmed child-process Linux VmHWM minus pre-merge VmRSS
+  peak_memory_observation: context-managed live payload leases instrumented tensor byte ledger and current Linux VmRSS sampled at each production allocation checkpoint within dedicated warmed child target-update intervals
 red:
   command: PYTHONPATH=src .venv/bin/python tests/red_cases/s1_10_naive_merge_surrogate.py
   exit_code: null
@@ -62,12 +62,17 @@ harden:
   evidence_paths: []
 nine_node_gate: {required: false, run_id: null, topology_gate: null, loss_gate: null, runtime_gate: null}
 checker:
-  context_id: null
+  context_id: /root/s1_10_checker
   maker_chat_inherited: false
-  phase_a_verdict: pending
+  phase_a_verdict: BLOCKED_PRECHECK on 59bdef3 for unbound frozen config identity incomplete descriptor shape validation and a lifetime-high-water RSS comparison outside the target update interval
   verdict: pending
   report_path: reports/checkers/S1-10.md
-  cycles: []
+  cycles:
+  - cycle: 1
+    phase: A
+    checked_candidate: 59bdef32757e731ca3397385b1c475ba907a1e03
+    verdict: BLOCKED_PRECHECK
+    correction: bind both roles to the expected frozen config digest enforce flat descriptor element count against fp32 payload bytes and replace lifetime VmHWM subtraction with current VmRSS sampled at production allocation checkpoints inside dedicated warmed target-update intervals
 persist:
   evidence_index: evidence/indexes/S1-10.md
   raw_evidence_root: runtime_runs/S1-10

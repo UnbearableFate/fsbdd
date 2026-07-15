@@ -43,7 +43,7 @@
     "source_lifetime": "each selected local payload is opened through a context-managed lease and released before the next contribution",
     "active_payload_gate": "maximum simultaneous local payload leases is exactly one for a nonempty update",
     "tensor_ledger_gate": "instrumented live tensor bytes never exceed eight times one fragment payload and do not scale with M times fragment size",
-    "rss_observation": "dedicated warmed child processes report Linux VmHWM minus the pre-merge VmRSS baseline for identical M=1 and M=8 fragment shapes",
+    "rss_observation": "dedicated warmed child processes reset the observation at production-kernel entry and sample current Linux VmRSS at each target-update allocation checkpoint through successor creation for identical M=1 and M=8 fragment shapes; lifetime VmHWM is recorded only as non-gating context",
     "rss_gate": "M=8 peak RSS minus M=1 peak RSS is at most 12 MiB",
     "cache_all_counterexample": "the RED surrogate holds all eight source leases and must report eight live payloads"
   },

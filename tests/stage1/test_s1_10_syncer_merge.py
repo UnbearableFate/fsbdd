@@ -493,6 +493,12 @@ def test_checksum_dtype_duplicate_and_outer_state_guards_fail_closed() -> None:
         )
     with pytest.raises(MergeError, match="float32 fragment"):
         make_request(current, (fact,), descriptor=dataclasses.replace(DESCRIPTOR, dtype="safetensors"))
+    with pytest.raises(MergeError, match="descriptor shape differs"):
+        make_request(
+            current,
+            (fact,),
+            descriptor=dataclasses.replace(DESCRIPTOR, shape=(3,)),
+        )
     with pytest.raises(MergeError, match="update_count"):
         make_request(current, (fact,), outer_state=FragmentOuterState(1))
     with pytest.raises(MergeError, match="momentum-free"):

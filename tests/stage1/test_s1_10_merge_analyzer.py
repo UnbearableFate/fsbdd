@@ -35,11 +35,11 @@ def analyzer_case(tmp_path_factory):
     def memory_run(count: int):
         return {
             "contributor_count": count,
-            "baseline_rss_bytes": 100_000_000,
-            "baseline_hwm_bytes": 100_000_000,
+            "before_rss_bytes": 100_000_000,
+            "before_hwm_bytes": 100_000_000,
             "after_rss_bytes": 100_000_000 + 4 * fragment_bytes,
             "after_hwm_bytes": 100_000_000 + 4 * fragment_bytes,
-            "peak_over_baseline_rss_bytes": 4 * fragment_bytes,
+            "target_update_peak_rss_bytes": 4 * fragment_bytes,
             "source_metrics": {
                 "opens": count,
                 "bytes_read": count * fragment_bytes,
@@ -52,6 +52,10 @@ def analyzer_case(tmp_path_factory):
                 "maximum_live_tensor_bytes": 3 * fragment_bytes,
                 "fragment_bytes": fragment_bytes,
                 "maximum_tensor_fragment_multiples": 3.0,
+                "process_rss_at_entry_bytes": 100_000_000,
+                "maximum_observed_process_rss_bytes": 100_000_000
+                + 4 * fragment_bytes,
+                "peak_process_rss_bytes": 4 * fragment_bytes,
             },
             "byte_accounting": {
                 "fragment_index": 0,
@@ -109,12 +113,17 @@ def analyzer_case(tmp_path_factory):
         "torch_imported_before": False,
         "torch_imported_after": True,
     }
-    return writer, syncer, config
+    return writer, syncer, config, config_identity
 
 
 def test_analyzer_independently_recomputes_all_formal_transitions(analyzer_case) -> None:
-    writer, syncer, config = analyzer_case
-    summary = analyze_roles(copy.deepcopy(writer), copy.deepcopy(syncer), copy.deepcopy(config))
+    writer, syncer, config, config_identity = analyzer_case
+    summary = analyze_roles(
+        copy.deepcopy(writer),
+        copy.deepcopy(syncer),
+        copy.deepcopy(config),
+        config_identity,
+    )
     assert summary["status"] == "pass"
     assert summary["numeric"]["updates"] == 50
     assert summary["numeric"]["distinct_update_identities"] == 50
@@ -154,7 +163,7 @@ def _mutate_cache_all(writer, syncer, config):
 
 def _mutate_rss(writer, syncer, config):
     gate = config["memory_gates"]["maximum_m8_minus_m1_peak_rss_bytes"]
-    syncer["memory"]["runs"]["8"]["peak_over_baseline_rss_bytes"] = gate + 1
+    syncer["memory"]["runs"]["8"]["target_update_peak_rss_bytes"] = gate + 1
     syncer["memory"]["m8_minus_m1_peak_rss_bytes"] = gate + 1
 
 
@@ -166,6 +175,12 @@ def _mutate_wrong_base_output(writer, syncer, config):
 
 def _mutate_writer_torch(writer, syncer, config):
     writer["torch_imported_after"] = True
+
+
+def _mutate_both_config_identities(writer, syncer, config):
+    forged = hashlib.sha256(b"forged-config").hexdigest()
+    writer["config_identity"] = forged
+    syncer["config_identity"] = forged
 
 
 @pytest.mark.parametrize(
@@ -180,10 +195,11 @@ def _mutate_writer_torch(writer, syncer, config):
         _mutate_rss,
         _mutate_wrong_base_output,
         _mutate_writer_torch,
+        _mutate_both_config_identities,
     ],
 )
 def test_analyzer_rejects_semantic_mutations(analyzer_case, mutation) -> None:
-    writer, syncer, config = copy.deepcopy(analyzer_case)
+    writer, syncer, config, config_identity = copy.deepcopy(analyzer_case)
     mutation(writer, syncer, config)
     with pytest.raises((MergeStressError, KeyError)):
-        analyze_roles(writer, syncer, config)
+        analyze_roles(writer, syncer, config, config_identity)

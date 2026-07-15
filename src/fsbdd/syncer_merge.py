@@ -195,6 +195,14 @@ class FragmentMergeRequest:
         _require_nonnegative(self.current_version, "current_version")
         _require_hex(self.current_content_identity, "current_content_identity")
         current = _require_fp32_payload(self.current_parameters, "current_parameters")
+        if (
+            len(self.descriptor.shape) != 1
+            or self.descriptor.shape[0] <= 0
+            or self.descriptor.shape[0] * _F32_BYTES != len(current)
+        ):
+            raise MergeError(
+                "flat fragment descriptor shape differs from current fp32 payload"
+            )
         if not isinstance(self.outer_state, FragmentOuterState):
             raise MergeError("outer_state must be FragmentOuterState")
         if self.outer_state.update_count != self.current_version:
@@ -406,12 +414,15 @@ class MemoryAccounting:
     maximum_active_base_payloads: int
     maximum_live_tensor_bytes: int
     fragment_bytes: int
+    process_rss_at_entry_bytes: int | None = None
+    maximum_observed_process_rss_bytes: int | None = None
+    peak_process_rss_bytes: int | None = None
 
     @property
     def maximum_tensor_fragment_multiples(self) -> float:
         return self.maximum_live_tensor_bytes / self.fragment_bytes
 
-    def to_dict(self) -> dict[str, int | float]:
+    def to_dict(self) -> dict[str, int | float | None]:
         return {
             **dataclasses.asdict(self),
             "maximum_tensor_fragment_multiples": self.maximum_tensor_fragment_multiples,
@@ -524,6 +535,7 @@ def execute_streaming_fragment_update(
     *,
     base_source: StreamingBaseSource | None = None,
     merge_policy: MergePolicy | None = None,
+    measure_process_rss: bool = False,
 ) -> FragmentUpdateResult:
     """Stream one selected fragment update through CPU float32 tensors.
 
@@ -546,10 +558,23 @@ def execute_streaming_fragment_update(
 
     fragment_bytes = len(request.current_parameters)
     ledger = _TensorLedger()
+    rss_at_entry: int | None = None
+    maximum_rss: int | None = None
+
+    def observe_rss() -> None:
+        nonlocal maximum_rss
+        if measure_process_rss:
+            current_rss, _ = linux_process_memory_bytes()
+            maximum_rss = current_rss if maximum_rss is None else max(maximum_rss, current_rss)
+
+    if measure_process_rss:
+        rss_at_entry, _ = linux_process_memory_bytes()
+        maximum_rss = rss_at_entry
     current = _tensor_from_payload(request.current_parameters, "current_parameters")
     ledger.add(fragment_bytes)
     accumulator = torch.zeros_like(current)
     ledger.add(fragment_bytes)
+    observe_rss()
     local_bytes_read = 0
     base_bytes_read = 0
     base_reads = 0
@@ -563,6 +588,7 @@ def execute_streaming_fragment_update(
             active_local += 1
             maximum_active_local = max(maximum_active_local, active_local)
             try:
+                observe_rss()
                 local_payload = _require_fp32_payload(local_payload, "local payload")
                 if len(local_payload) != fragment_bytes:
                     raise MergeError("local contribution shape differs from current fragment")
@@ -571,6 +597,7 @@ def execute_streaming_fragment_update(
                 local_bytes_read += len(local_payload)
                 local = _tensor_from_payload(local_payload, "local payload")
                 ledger.add(fragment_bytes)
+                observe_rss()
                 try:
                     if contribution.base_version == request.current_version:
                         if contribution.base_content_identity != request.current_content_identity:
@@ -600,6 +627,7 @@ def execute_streaming_fragment_update(
                                     resolved.parameters, "resolved base parameters"
                                 )
                                 ledger.add(fragment_bytes)
+                                observe_rss()
                                 try:
                                     policy.accumulate(
                                         accumulator,
@@ -645,6 +673,7 @@ def execute_streaming_fragment_update(
             direction = buffer
     successor = current.add(direction, alpha=-learning_rate)
     ledger.add(fragment_bytes)
+    observe_rss()
     successor_payload = _payload_from_tensor(successor, "successor parameters")
     next_buffer_payload = (
         None if buffer is None else _payload_from_tensor(buffer, "momentum_buffer")
@@ -676,6 +705,13 @@ def execute_streaming_fragment_update(
             maximum_active_base_payloads=maximum_active_base,
             maximum_live_tensor_bytes=ledger.maximum,
             fragment_bytes=fragment_bytes,
+            process_rss_at_entry_bytes=rss_at_entry,
+            maximum_observed_process_rss_bytes=maximum_rss,
+            peak_process_rss_bytes=(
+                None
+                if rss_at_entry is None or maximum_rss is None
+                else maximum_rss - rss_at_entry
+            ),
         ),
     )
     return result
