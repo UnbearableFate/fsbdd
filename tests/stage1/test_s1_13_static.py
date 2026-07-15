@@ -31,6 +31,7 @@ def test_formal_topologies_freeze_independent_9n_and_coallocated_4_plus_1() -> N
     nine = (ROOT / "pbs/stage1_s1_13_formal_9n.pbs").read_text(encoding="utf-8")
     long = (ROOT / "pbs/stage1_s1_13_formal_long.pbs").read_text(encoding="utf-8")
     assert "#PBS -J 0-8" in nine
+    assert "#PBS -r y" in nine
     assert "#PBS -l select=1" in nine
     assert "PBS_ARRAY_INDEX" in nine
     assert "mpirun" not in nine

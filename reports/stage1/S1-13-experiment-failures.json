@@ -479,6 +479,67 @@
         "pbs_stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
         "output_root_created_sha256": "2ed27c1421e6928dbe13dbfdb5c59e1045b30341fe7ebe05700006bc5ac572c0"
       }
+    },
+    {
+      "experiment_id": "s1-13-formal-9n-20260715T215204Z-99a1d09",
+      "analysis_status": "reviewed_scheduler_correction_static_pass_pending_same_checker",
+      "workload": "nine independent PBS array roles for the formal eight-learner plus one CPU-only syncer gate",
+      "pbs_job_id": null,
+      "code_commit": "99a1d0935eabf97df8dc3733bb1c89986a98bc77",
+      "queued_at_utc": null,
+      "failed_at_utc": "2026-07-15T21:52:04Z",
+      "raw_evidence_root": "runtime_runs/S1-13/rejected-submissions/formal-9n-20260715T215204Z-99a1d09",
+      "attempt_consumed": false,
+      "failure": {
+        "summary": "PBS rejected the 0-8 formal array before creating or queueing a job because the effective qsub arguments marked it non-rerunnable.",
+        "exit_code": 1,
+        "stderr": [
+          "qsub: cannot submit non-rerunable Array Job",
+          "qsub: cannot submit non-rerunable Array Job",
+          "qsub: directive error: -r n -k oed"
+        ],
+        "observed_progress": {
+          "exclusive_shared_root_created": true,
+          "exclusive_result_root_created": true,
+          "formal_evidence_root_created": false,
+          "submission_markers_identical": true,
+          "pbs_job_id_created": false,
+          "pbs_array_roles_started": 0,
+          "learner_or_syncer_runtime_started": false
+        }
+      },
+      "cause": {
+        "status": "diagnosed_site_default_qsub_arguments_conflicted_with_array_requirement",
+        "summary": "The formal script froze #PBS -J 0-8 but relied on PBS's documented rerunnable default. Miyabi's server-side default_qsub_arguments supplied -r n -k oed. PBS arrays must be rerunnable, and no explicit script directive overrode -r n, so qsub rejected the request before queue admission.",
+        "direct_evidence": [
+          "qsub emitted the effective conflicting arguments -r n -k oed and returned nonzero without a job identifier.",
+          "The authorized formal script SHA c6dd14a77dd5c99c73104fa5c70f2559264f576fe44abe2a98bb4e85f578130c contains #PBS -J 0-8 and no #PBS -r directive.",
+          "The locally installed PBS 2024.1 qsub manual states that arrays are always rerunnable, -r y marks a job rerunnable, and script directives override server default_qsub_arguments.",
+          "Both exclusive roots contain the same complete submission marker SHA 93137ce8124a42cb99dda2e6c195a4f2fa5de14de41ed72e092c2303dbc8bd89, while the canonical formal evidence root remains absent."
+        ],
+        "scope": "This is a pre-queue scheduler-contract failure. No PBS job or formal compute attempt was created, and no learner, syncer, proposal, update, or model execution occurred. The rejected exclusive roots are consumed and remain immutable."
+      },
+      "expected_solution": {
+        "status": "implemented_static_pass_same_checker_reauthorization_required",
+        "changes": [
+          "Add explicit #PBS -r y to the formal 9N array script so the script overrides Miyabi's non-rerunnable site default.",
+          "Add a static contract assertion that the formal array script declares both #PBS -J 0-8 and #PBS -r y.",
+          "Review the complete formal submission and packaging path for related scheduler-contract defects.",
+          "Preserve the rejected roots and create fresh absent shared and result roots for any authorized replacement submission."
+        ],
+        "validation_before_next_experiment": [
+          "Pass all permitted login-node compile, Ruff, Pyright, Bash, JSON/YAML, and diff gates without running project tests or loading models there.",
+          "Return the immutable rejection package, reviewed diagnosis, minimal scheduler correction, fresh script hash, and exact clean commit to the same Checker.",
+          "Obtain replacement authorization before any further qsub invocation; no long-smoke or formal-long run is authorized."
+        ]
+      },
+      "evidence_integrity": {
+        "checksum_inventory_sha256": "1f799a8e5df50585da9018de0214e4bf46d80c171d2173f5e7635e587e9dc8ef",
+        "corrected_formal_pbs_script_sha256": "2d4827380e68f9aaaa17c487f94f4f31aad0bebf354bf2055cd8e79030f8cbf2",
+        "qsub_stderr_sha256": "a5b1b24f2141d8c983f6f8526a9c472b7075e01d2d0149756ea907e798ea9035",
+        "submission_marker_sha256": "93137ce8124a42cb99dda2e6c195a4f2fa5de14de41ed72e092c2303dbc8bd89",
+        "original_formal_pbs_script_sha256": "c6dd14a77dd5c99c73104fa5c70f2559264f576fe44abe2a98bb4e85f578130c"
+      }
     }
   ]
 }
