@@ -28,7 +28,7 @@ FS-10,passed,S1-04,S3-02,Exactly F fixed-slot reads before and after 10000 unrel
 GLOBAL-01,passed,S1-04,,Ordered independently loaded fragment state set and version-vector digest
 GLOBAL-02,planned,S1-11,S3-02;S3-03,
 GLOBAL-03,passed,S1-04,S1-11,Successor API derives version and outer-update count as previous plus one and rejects record/base mismatch
-GLOBAL-04,planned,S1-08,,
+GLOBAL-04,passed,S1-08,,Fragment zero directly adopts version three from version zero without applying the two intermediate global states
 GLOBAL-05,planned,S1-12,,
 GLOBAL-06,passed,S1-04,,Partial bootstrap rejected then resumed idempotently to complete all-zero version vector
 INV-01,planned,S1-13,S3-04,
@@ -39,7 +39,7 @@ INV-05,planned,S0C-02,S1-11,
 INV-06,planned,S4-02,,
 INV-07,planned,S0C-01,S4-02,
 INV-08,planned,S1-13,,
-INV-09,planned,S1-08,,
+INV-09,passed,S1-08,,The learner completes eighteen consecutive finite optimizer steps with mixed global version vector 3 0 1 0 and no alignment condition
 INV-10,planned,S2-04,,
 LEARN-01,passed,S1-06,S3-01,Complete local model optimizer fragment progress owned RNG state and independent deterministic packed-shard cursor evidence
 LEARN-02,passed,S1-06,,Batch-iterator-only inner training has no storage syncer quorum peer or collective barrier and completes with an actually delayed source
@@ -48,10 +48,10 @@ LEARN-04,passed,S1-07,,Snapshots require strict post-step progress equality and 
 LEARN-05,passed,S1-07,S2-01,Only bounded target-fragment staging is synchronous and a deliberately gated filesystem publication remains in flight after learner training returns; Stage 2 adds overlap performance acceptance
 LEARN-06,passed,S1-07,S2-03,One in-flight plus one latest-wins pending snapshot per fragment fixed 3F telemetry state replacement skip failure abandonment and error propagation evidence
 LEARN-07,passed,S1-05,S1-07,Strict proposal validation plus real learner capture-to-remote-reader chains bind complete target-only fp32 fragment bytes to bootstrap base progress sequence and checksum
-LEARN-08,planned,S1-08,S2-02,
-LEARN-09,planned,S1-08,,
-LEARN-10,planned,S1-08,,
-LEARN-11,passed,S1-07,S1-08,An old-base gated in-flight proposal and new-base pending proposal coexist immutably and publish with their respective base identities; S1-08 integrates real adoption
+LEARN-08,passed,S1-08,S2-02,Fixed-slot background discovery retries eventually-readable payloads and complete target fragments apply only at strict safe boundaries with target-only counter reset
+LEARN-09,passed,S1-08,,All positive initialized AdamW state entry counts and canonical hashes remain exactly unchanged across both formal adoptions
+LEARN-10,passed,S1-08,,Fragments advance independently to mixed vector 3 0 1 0 and training continues for eighteen finite steps without whole-vector equality
+LEARN-11,passed,S1-07,S1-08,Gated old-base in-flight proposal bytes and metadata remain immutable across real adoption while later snapshot context advances to the new base
 MODEL-01,passed,S1-01,,Decoder-only scope enforced before built-in or explicit mapping selection
 MODEL-02,passed,S1-01,,Ordered embedding complete blocks and lm_head registry
 MODEL-03,passed,S1-01,,Deterministic adjacent-byte misc assignment
@@ -121,7 +121,7 @@ SYNC-06,planned,S1-10,,
 SYNC-07,planned,S1-10,,
 SYNC-08,planned,S1-11,,
 SYNC-09,planned,S1-09,S4-03,
-TEL-01,passed,S1-06,S1-13;S2-01;S2-02;S2-04,Per-step latency throughput and token telemetry plus S1-07 GPU-to-CPU CPU-to-FS skip replacement pending and in-flight metrics; later loops activate adoption and gate aggregation
+TEL-01,passed,S1-06,S1-13;S2-01;S2-02;S2-04,Per-step training and S1-07 publication telemetry plus S1-08 FS-to-CPU CPU-to-GPU version-lag extra-step and publication-to-adoption traces; later loops add gate aggregation
 TEL-02,planned,S1-13,S2-04,
 TEL-03,planned,S1-13,S2-04,
 TEL-04,passed,S1-06,S1-13;S2-04,Every completed tiny GPT-2 and Pythia update records finite token-weighted loss and per-fragment update norms tied to real parameter changes

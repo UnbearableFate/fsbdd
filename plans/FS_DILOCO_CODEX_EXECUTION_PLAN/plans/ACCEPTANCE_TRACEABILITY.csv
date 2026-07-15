@@ -16,8 +16,8 @@ stage,acceptance_id,primary_loop,supporting_loops,required_evidence,status,evide
 1,A-GLOBAL-01,S1-11,S1-03,params/outer/frontier共同可见,not_started,evidence/indexes/S1-03.md,COMPONENT PASS,component atomic compound-payload evidence: old/old/old/complete-new crash matrix; business closure remains S1-11
 1,A-GLOBAL-02,S1-11,S1-04,per-fragment version单调+1,not_started,evidence/indexes/S1-04.md,COMPONENT PASS,S1-04 proves version-zero bootstrap and caller-independent exact plus-one successor schema; atomic consumed-frontier closure remains S1-11
 1,A-LEARN-01,S1-12,S1-13,单learner×0.5，其余吞吐变化≤2%,not_started,,,
-1,A-LEARN-02,S1-08,,adoption只覆盖目标fragment,not_started,,,
-1,A-LEARN-03,S1-12,S1-08,mixed-version持续训练,not_started,,,
+1,A-LEARN-02,S1-08,,adoption只覆盖目标fragment,passed,evidence/indexes/S1-08.md,PASS,Two formal adoptions match verified target payload hashes while every non-target parameter hash remains byte-identical
+1,A-LEARN-03,S1-12,S1-08,mixed-version持续训练,not_started,evidence/indexes/S1-08.md,COMPONENT PASS,S1-08 supplies eighteen consecutive finite mixed-version optimizer steps without alignment; complete Profile A closure remains S1-12
 1,A-PERF-01,S1-10,S1-13,稳态无完整模型传输,not_started,,,
 1,A-ALG-01,S1-12,S1-10,L2≤1e-6且50updates无漂移放大,not_started,,,
 1,A-EVAL-01,S1-12,,frozen version-vector snapshot,not_started,,,

@@ -2,7 +2,7 @@ schema_version: 2
 loop_id: S1-08
 title: Latest-only adoption mixed-version model and inner moments
 stage: stage1
-status: green_local
+status: pass
 source_hashes:
   research_plan: 2c0db3148110da10ea62f445c189d2d53b405527d8da264b9af9817f5ca9d835
   stage0_4_spec: 1ea71fb6e34fef0d7b5558d8e7999dfdedeb82957f4331afcf6f80279d1f5a7d
@@ -35,7 +35,7 @@ preflight:
   measurement_contract: reports/stage1/S1-08-evidence-contract.json
   package_contract: reports/stage1/S1-08-evidence-contract.json
   package_validator_command: fsbdd evidence validate runtime_runs/S1-08/formal-l2
-  package_validator_result: pending
+  package_validator_result: admissible at runtime_runs/S1-08/formal-l2 (28/28 payload files; manifest 12695512c3b0b69bf40810b1fd09bb2c3c6b14ec41971403664ba6e41ec9e34f)
   checker_phase_a: required
   parameter_comparison: per-fragment ordered little-endian fp32 SHA-256 immediately around safe-boundary apply
   moment_comparison: canonical per-fragment optimizer-state SHA-256 immediately around safe-boundary apply
@@ -45,23 +45,26 @@ red:
   exit_code: 1
   evidence_path: runtime_runs/S1-08/red-36487f8
 green:
-  command: PYTHONPATH=src .venv/bin/python -m pytest -q tests/stage1/test_s1_08_learner_adopt.py
-  evidence_path: runtime_runs/S1-08/l1-targeted-2385721.opbs
+  command: PYTHONPATH=src .venv/bin/python -m pytest -q tests/stage1
+  evidence_path: runtime_runs/S1-08/formal-l2/stdout/pytest.log
 harden:
   commands:
   - target-only latest-only counter moment mixed-version tied-ownership and old-base coexistence tests
   - fail-closed wrong-map malformed-payload active-gradient manifest and analyzer fixtures
+  - background eventually-readable retry with fatal same-version content replacement and version regression semantics
+  - two-node MPI-launcher-only real GPU learner and CPU global writer with filesystem-only coordination and fail-closed analyzer
   - login-node ruff py_compile bash-n JSON YAML requirement-matrix hash and diff checks
   evidence_paths:
   - runtime_runs/S1-08/l1-targeted-2385717.opbs
   - runtime_runs/S1-08/l1-targeted-2385721.opbs
   - runtime_runs/S1-08/l1-targeted-2385838.opbs
+  - runtime_runs/S1-08/formal-l2
 nine_node_gate: {required: false, run_id: null, topology_gate: null, loss_gate: null, runtime_gate: null}
 checker:
   context_id: /root/s1_08_checker
   maker_chat_inherited: false
-  phase_a_verdict: BLOCKED_PRECHECK on e1d8afd; corrected candidate pending recheck
-  verdict: null
+  phase_a_verdict: BLOCKED_PRECHECK on e1d8afd then ADMISSIBLE on b0267c6 after eventually-readable retry correction
+  verdict: PASS
   report_path: reports/checkers/S1-08.md
   cycles:
   - cycle: 1
@@ -69,10 +72,45 @@ checker:
     checked_candidate: e1d8afd35581fb392bb12266f764b0c3b98a841c
     verdict: BLOCKED_PRECHECK
     correction: classify an absent or incomplete named payload as PublicationNotReady retry it without stopping fixed-slot polling and prove eventual background discovery and adoption after one injected transient read
+  - cycle: 2
+    phase: A-recheck
+    checked_candidate: b0267c68749659744ee40a17574698095b069476
+    verdict: ADMISSIBLE
+  - cycle: 3
+    phase: B
+    checked_candidate: b0267c68749659744ee40a17574698095b069476
+    verdict: PASS
+    report_sha256: 83bfdcda903168a84e5d2374cc952d96a77fccca444e65998aa7a16554917ee3
 persist:
   evidence_index: evidence/indexes/S1-08.md
   raw_evidence_root: runtime_runs/S1-08
-  acceptance_traceability_updated: false
-  next_gap: null
-  handoff: null
+  acceptance_traceability_updated: true
+  next_gap: S1-09 must implement filesystem-only syncer readiness quorum grace and fair fragment scheduling without head-of-line blocking.
+  handoff:
+    proven_facts:
+    - One background worker polls exactly the fixed per-fragment current slots verifies complete compound identities and retains one latest-wins pending value per fragment.
+    - PublicationNotReady is retryable without stopping the worker while wrong map same-version content replacement and version regression remain fatal.
+    - Adoption runs only after a completed optimizer scheduler and zero-gradient boundary validates the whole target value then copies only that ordered fragment.
+    - Fragment zero directly advances from version zero to three and fragment two independently advances to one producing mixed vector 3 0 1 0.
+    - Both target post-hashes equal their verified writer payloads every non-target parameter hash is unchanged and only target local step and token counters reset.
+    - All initialized AdamW state entry counts 13 12 12 15 and exact canonical state hashes are unchanged across both adoptions.
+    - A gated old-base in-flight proposal preserves its immutable bytes and metadata across adoption while the snapshot base context advances only for later captures.
+    - Formal training continues for eighteen consecutive post-adoption steps under mixed vector 3 0 1 0 with finite losses and no whole-vector equality distributed group or network data path.
+    - Formal job 2385842.opbs exits zero after 42 seconds on distinct hosts mg0020 and mg0022 with one learner GPU and zero writer GPU memory.
+    - The poller completes 98 cycles and 392 fixed-slot reads ignores 389 repeated-current observations remains bounded to one pending value per fragment and ends empty without error.
+    - The full 160-test Stage 1 suite passes the 28-file package is validator-admissible every packaged and PBS stderr is empty and the independent Checker returns PASS.
+    checked_commit: b0267c68749659744ee40a17574698095b069476
+    selected_evidence: [runtime_runs/S1-08/formal-l2, runtime_runs/S1-08/scheduler-2385842]
+    next_command: create the S1-09 branch from the S1-08 closure commit and begin its ORIENT phase
+  cost:
+    attempts_by_level: {L0: 5, L1: 3, L2: 1}
+    queue_seconds: 5
+    active_seconds: 117
+    checker_cycles: 3
+    goal_tokens_end: 2707796
+    agent_tokens_used: 242428
+    phase_token_deltas: {}
+    rework_causes:
+    - The first targeted L1 run exposed scalar optimizer-state byte hashing and the preserved failure led to a reshape correction before the passing L1 run.
+    - Checker Phase A found fatal handling of an eventually-readable payload; the correction introduced typed transient retry same-version content identity defense and a real background-worker regression before the sole L2 submission.
 blocker: null
