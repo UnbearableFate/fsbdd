@@ -29,6 +29,76 @@ class EvaluationSnapshotError(RuntimeError):
 _HEX = frozenset("0123456789abcdef")
 
 
+@dataclasses.dataclass(slots=True)
+class EvaluationAccessAudit:
+    """Record every restart-loader filesystem read and reject authority lookup paths."""
+
+    root: Path
+    operations: list[dict[str, str]] = dataclasses.field(default_factory=list)
+    manifest_reads: int = 0
+    frozen_payload_reads: int = 0
+    current_authority_reads: int = 0
+    latest_resolution_reads: int = 0
+    unauthorized_reads: int = 0
+
+    def __post_init__(self) -> None:
+        self.root = Path(self.root).resolve()
+
+    def read_bytes(self, path: Path, *, purpose: str) -> bytes:
+        candidate = Path(path).resolve()
+        try:
+            relative = candidate.relative_to(self.root)
+        except ValueError as error:
+            self.unauthorized_reads += 1
+            raise EvaluationSnapshotError(
+                "evaluation restart loader escaped its frozen root"
+            ) from error
+        lowered = tuple(part.lower() for part in relative.parts)
+        if any("current" in part for part in lowered):
+            self.current_authority_reads += 1
+            raise EvaluationSnapshotError(
+                "evaluation restart loader attempted a current-authority read"
+            )
+        if any("latest" in part or part == "visibility" for part in lowered):
+            self.latest_resolution_reads += 1
+            raise EvaluationSnapshotError(
+                "evaluation restart loader attempted latest resolution"
+            )
+        expected_manifest = purpose == "manifest" and relative == Path("manifest.json")
+        expected_state = (
+            purpose == "frozen_state"
+            and len(relative.parts) == 2
+            and relative.parts[0] == "fragments"
+            and relative.parts[1].endswith(".state")
+        )
+        if not expected_manifest and not expected_state:
+            self.unauthorized_reads += 1
+            raise EvaluationSnapshotError(
+                "evaluation restart loader attempted an undeclared filesystem read"
+            )
+        payload = candidate.read_bytes()
+        self.operations.append(
+            {"purpose": purpose, "relative_path": relative.as_posix()}
+        )
+        if expected_manifest:
+            self.manifest_reads += 1
+        else:
+            self.frozen_payload_reads += 1
+        return payload
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "schema_version": 1,
+            "instrumentation": "all_restart_loader_reads_through_path_audit",
+            "operations": [dict(item) for item in self.operations],
+            "manifest_reads": self.manifest_reads,
+            "frozen_payload_reads": self.frozen_payload_reads,
+            "current_authority_reads": self.current_authority_reads,
+            "latest_resolution_reads": self.latest_resolution_reads,
+            "unauthorized_reads": self.unauthorized_reads,
+        }
+
+
 def _text(value: object, field: str) -> str:
     if not isinstance(value, str) or not value:
         raise EvaluationSnapshotError(f"{field} must be a non-empty string")
@@ -249,6 +319,7 @@ class LoadedEvaluationSnapshot:
     authorities: tuple[AtomicFragmentAuthority, ...]
     state_payload_bytes: int
     parameter_payload_bytes: int
+    access_audit: dict[str, Any]
 
     def __post_init__(self) -> None:
         if tuple(item.version for item in self.authorities) != self.manifest.version_vector:
@@ -258,6 +329,15 @@ class LoadedEvaluationSnapshot:
             != self.manifest.content_identities
         ):
             raise EvaluationSnapshotError("loaded evaluation content identities differ")
+        if (
+            self.access_audit.get("manifest_reads") != 1
+            or self.access_audit.get("frozen_payload_reads")
+            != len(self.manifest.fragments)
+            or self.access_audit.get("current_authority_reads") != 0
+            or self.access_audit.get("latest_resolution_reads") != 0
+            or self.access_audit.get("unauthorized_reads") != 0
+        ):
+            raise EvaluationSnapshotError("evaluation loader access audit failed")
 
 
 def _fragment_record(
@@ -396,10 +476,15 @@ def _manifest_from_dict(value: object) -> FrozenEvaluationManifest:
     return manifest
 
 
-def load_evaluation_manifest(root: Path) -> FrozenEvaluationManifest:
+def load_evaluation_manifest(
+    root: Path,
+    *,
+    access_audit: EvaluationAccessAudit | None = None,
+) -> FrozenEvaluationManifest:
     path = Path(root) / "manifest.json"
+    audit = access_audit or EvaluationAccessAudit(Path(root))
     try:
-        raw = path.read_bytes()
+        raw = audit.read_bytes(path, purpose="manifest")
         value = json.loads(raw)
     except (OSError, UnicodeDecodeError, json.JSONDecodeError) as error:
         raise EvaluationSnapshotError(
@@ -410,11 +495,18 @@ def load_evaluation_manifest(root: Path) -> FrozenEvaluationManifest:
     return _manifest_from_dict(value)
 
 
-def load_evaluation_snapshot(root: Path) -> LoadedEvaluationSnapshot:
+def load_evaluation_snapshot(
+    root: Path,
+    *,
+    access_audit: EvaluationAccessAudit | None = None,
+) -> LoadedEvaluationSnapshot:
     """Freeze the manifest facts first, then load only its exact named states."""
 
     base = Path(root)
-    manifest = load_evaluation_manifest(base)
+    audit = access_audit or EvaluationAccessAudit(base)
+    if audit.root != base.resolve():
+        raise EvaluationSnapshotError("evaluation access audit root differs")
+    manifest = load_evaluation_manifest(base, access_audit=audit)
     frozen_fragments = manifest.fragments
     authorities: list[AtomicFragmentAuthority] = []
     state_bytes = 0
@@ -422,7 +514,7 @@ def load_evaluation_snapshot(root: Path) -> LoadedEvaluationSnapshot:
     for record in frozen_fragments:
         path = base / record.state_relative_path
         try:
-            payload = path.read_bytes()
+            payload = audit.read_bytes(path, purpose="frozen_state")
         except OSError as error:
             raise EvaluationSnapshotError(
                 f"cannot read frozen evaluation state: {path}"
@@ -468,4 +560,5 @@ def load_evaluation_snapshot(root: Path) -> LoadedEvaluationSnapshot:
         authorities=tuple(authorities),
         state_payload_bytes=state_bytes,
         parameter_payload_bytes=parameter_bytes,
+        access_audit=audit.to_dict(),
     )

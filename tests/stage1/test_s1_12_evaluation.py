@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 
 from fsbdd.evaluation import (
+    EvaluationAccessAudit,
     EvaluationSnapshotError,
     FrozenEvaluationPlan,
     load_evaluation_snapshot,
@@ -56,6 +57,26 @@ def test_frozen_evaluation_load_ignores_newer_current_authorities(
     assert loaded.parameter_payload_bytes == sum(map(len, captured_parameters))
     assert loaded.manifest.to_dict()["steady_state"] is False
     assert loaded.manifest.to_dict()["purpose"] == "evaluation"
+    assert loaded.access_audit == {
+        "schema_version": 1,
+        "instrumentation": "all_restart_loader_reads_through_path_audit",
+        "operations": [
+            {"purpose": "manifest", "relative_path": "manifest.json"},
+            {
+                "purpose": "frozen_state",
+                "relative_path": "fragments/fragment-000000.state",
+            },
+            {
+                "purpose": "frozen_state",
+                "relative_path": "fragments/fragment-000001.state",
+            },
+        ],
+        "manifest_reads": 1,
+        "frozen_payload_reads": 2,
+        "current_authority_reads": 0,
+        "latest_resolution_reads": 0,
+        "unauthorized_reads": 0,
+    }
 
 
 def test_restart_load_uses_only_manifest_named_payloads(tmp_path: Path) -> None:
@@ -68,6 +89,21 @@ def test_restart_load_uses_only_manifest_named_payloads(tmp_path: Path) -> None:
         "fragment-000000.state",
         "fragment-000001.state",
     ]
+
+
+def test_restart_access_audit_rejects_current_or_latest_resolution(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "evaluation"
+    (root / "visibility").mkdir(parents=True)
+    (root / "visibility" / "global-current-000000.json").write_bytes(b"{}")
+    audit = EvaluationAccessAudit(root)
+    with pytest.raises(EvaluationSnapshotError, match="current-authority"):
+        audit.read_bytes(
+            root / "visibility" / "global-current-000000.json",
+            purpose="frozen_state",
+        )
+    assert audit.current_authority_reads == 1
 
 
 def test_manifest_or_state_tampering_fails_closed(tmp_path: Path) -> None:

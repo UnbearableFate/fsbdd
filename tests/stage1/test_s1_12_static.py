@@ -30,6 +30,7 @@ def test_frozen_profile_a_config_and_four_node_topology() -> None:
     }
     assert value["numeric_oracle"]["updates_per_fragment"] == 50
     assert value["numeric_oracle"]["single_update_relative_l2_max"] == 1e-6
+    assert value["numeric_oracle"]["momentum_relative_l2_max"] == 1e-6
     assert value["real_fs"]["nodes"] == value["real_fs"]["ranks"] == 4
     assert value["real_fs"]["learner_processes"] == 4
     assert value["real_fs"]["application_coordination"] == "shared_filesystem_only"
@@ -79,6 +80,38 @@ def test_real_role_reuses_its_runtime_owned_rng_across_training_phases() -> None
     ]
     assert len(runtime_factories) == 1
     assert len(runtime_runs) == 3
+
+
+def test_speed_measurement_uses_the_integrated_fs_path_not_a_standalone_model() -> None:
+    tree = ast.parse((ROOT / "src/fsbdd/profile_a_stress.py").read_text())
+    functions = {
+        node.name: node
+        for node in tree.body
+        if isinstance(node, ast.FunctionDef)
+    }
+    trial = functions["_speed_trial"]
+    trial_calls = {
+        node.func.id
+        for node in ast.walk(trial)
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+    }
+    assert "_model" not in trial_calls
+    assert "_runtime" not in trial_calls
+    assert {
+        argument.arg for argument in trial.args.kwonlyargs
+    } >= {"runtime", "progress", "publisher", "adoption"}
+
+    path = functions["_run_integrated_speed_path"]
+    constructors = {
+        node.func.id
+        for node in ast.walk(path)
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+    }
+    assert {
+        "FragmentSnapshotCoordinator",
+        "FragmentAdoptionCoordinator",
+        "ProfileAFragmentExecutor",
+    } <= constructors
 
 
 def test_requirement_matrix_has_exact_loop_ids() -> None:

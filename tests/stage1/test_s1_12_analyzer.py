@@ -65,13 +65,26 @@ def _build_fixture(tmp_path: Path) -> tuple[Path, Path, dict, str]:
         "materialize_end_unix_ns": 40,
         "start_unix_ns": 10,
         "end_unix_ns": 50,
-        "latest_reads_during_restart_load": 0,
+        "restart_load_access_audit": loaded.access_audit,
         "purpose": "evaluation",
         "steady_state": False,
     }
     for rank in range(4):
         control_rate = 1280.0
         injected_rate = 640.0 if rank == 3 else control_rate
+        control_steps = int(control_rate * 10 / 64)
+        injected_steps = int(injected_rate * 10 / 64)
+        integrated_syncer = {
+            "complete": True,
+            "status": "pass",
+            "updates": [
+                {"fragment_index": 0, "completed_unix_ns": 1000},
+                {"fragment_index": 1, "completed_unix_ns": 12_000_000_000},
+            ],
+            "phase_update_counts": {"control": 1, "injected": 1},
+            "errors": [],
+            "application_coordination": "shared_filesystem_only",
+        }
         role = {
             "schema_version": 1,
             "status": "pass",
@@ -87,6 +100,21 @@ def _build_fixture(tmp_path: Path) -> tuple[Path, Path, dict, str]:
                     "end_unix_ns": 10_000_000_100,
                     "common_interval_seconds": 10.0,
                     "common_interval_input_tokens_per_second": control_rate,
+                    "scheduled_period_seconds": 0.5,
+                    "local_optimizer_steps_before": 0,
+                    "local_optimizer_steps_after": control_steps,
+                    "completed_steps": control_steps,
+                    "processed_input_tokens_before": 0,
+                    "processed_input_tokens_after": control_steps * 64,
+                    "processed_input_tokens": control_steps * 64,
+                    "step_completion_unix_ns": list(range(101, 101 + control_steps)),
+                    "publication_count_before": 0,
+                    "publication_count_after": 1,
+                    "publication_count_delta": 1,
+                    "adoption_count_before": 0,
+                    "adoption_count_after": 1,
+                    "path": "learner_runtime_snapshot_publisher_adoption_and_async_syncer",
+                    "measurement": "raw_progress_counter_delta_over_scheduler_defined_common_interval",
                     "finite_loss": True,
                     "distributed_initialized": False,
                 },
@@ -95,9 +123,27 @@ def _build_fixture(tmp_path: Path) -> tuple[Path, Path, dict, str]:
                     "end_unix_ns": 21_000_000_100,
                     "common_interval_seconds": 10.0,
                     "common_interval_input_tokens_per_second": injected_rate,
+                    "scheduled_period_seconds": 1.0 if rank == 3 else 0.5,
+                    "local_optimizer_steps_before": control_steps,
+                    "local_optimizer_steps_after": control_steps + injected_steps,
+                    "completed_steps": injected_steps,
+                    "processed_input_tokens_before": control_steps * 64,
+                    "processed_input_tokens_after": (control_steps + injected_steps) * 64,
+                    "processed_input_tokens": injected_steps * 64,
+                    "step_completion_unix_ns": list(
+                        range(11_000_000_101, 11_000_000_101 + injected_steps)
+                    ),
+                    "publication_count_before": 1,
+                    "publication_count_after": 2,
+                    "publication_count_delta": 1,
+                    "adoption_count_before": 1,
+                    "adoption_count_after": 2,
+                    "path": "learner_runtime_snapshot_publisher_adoption_and_async_syncer",
+                    "measurement": "raw_progress_counter_delta_over_scheduler_defined_common_interval",
                     "finite_loss": True,
                     "distributed_initialized": False,
                 },
+                "integrated_syncer": integrated_syncer,
             },
             "mixed_training": {
                 "events": [
@@ -111,8 +157,6 @@ def _build_fixture(tmp_path: Path) -> tuple[Path, Path, dict, str]:
             "adoption": {"adoption_count": 2},
             "adoption_traces": [{"fragment_index": 0}, {"fragment_index": 1}],
             "final_version_vector": [1, 1],
-            "waited_for_peer_local_step": False,
-            "waited_for_version_alignment_before_mixed_training": False,
             "application_coordination": "shared_filesystem_only",
             "mpi_usage": "launcher_only",
         }
@@ -198,6 +242,29 @@ def test_analyzer_rejects_peer_throttling_and_mutable_evaluation(tmp_path: Path)
     syncer["evaluation"]["loaded_version_vector"] = [2, 2]
     _write(result_root / "syncer.json", syncer)
     with pytest.raises(ProfileAStressError, match="evaluation"):
+        analyze(
+            result_root=result_root,
+            shared_root=shared_root,
+            config=config,
+            config_identity=identity,
+        )
+
+
+def test_analyzer_rejects_corrupted_authoritative_outer_successor(
+    tmp_path: Path,
+) -> None:
+    result_root, shared_root, config, identity = _build_fixture(tmp_path)
+    successor = (
+        shared_root
+        / "numeric"
+        / "authoritative"
+        / "fragment-000001"
+        / "cycle-000049"
+        / "successor-state.bin"
+    )
+    payload = successor.read_bytes()
+    successor.write_bytes(payload[:-1] + bytes([payload[-1] ^ 1]))
+    with pytest.raises(ProfileAStressError, match="integrity"):
         analyze(
             result_root=result_root,
             shared_root=shared_root,

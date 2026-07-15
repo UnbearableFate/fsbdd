@@ -1,9 +1,9 @@
 {
   "schema_version": 1,
   "loop_id": "S1-12",
-  "decision": "extend_only_the_low_cost_targeted_and_one_node_attempt_allowance_after_preserved_role_path_failures",
+  "decision": "extend_only_low_cost_validation_for_checker_phase_a_corrections",
   "original_budget": {"red": 1, "targeted": 3, "l1_compute": 2, "formal_l2_batch": 1},
-  "revised_budget": {"red": 1, "targeted": 6, "l1_compute": 6, "formal_l2_batch": 1},
+  "revised_budget": {"red": 1, "targeted": 8, "l1_compute": 8, "formal_l2_batch": 1},
   "preserved_attempts": [
     {
       "job_id": "2387668.opbs",
@@ -36,7 +36,7 @@
       "formal_resources_consumed": false
     }
   ],
-  "rationale": "The fifth preserved diagnostic reached the second real training phase and exposed a deterministic harness-only ownership violation. One final one-node end-to-end diagnostic of the corrected single-runtime role path is cheaper and safer than spending the single four-node formal attempt. No algorithm, threshold, topology, or formal allowance changes.",
+  "rationale": "The sixth one-node diagnostic passed, but the independent Checker blocked Phase A because the evidence path did not yet measure integrated publication/adoption/syncer timing, decode encoded authoritative numeric inputs and compound successors, or instrument all evaluation restart reads. Two further one-node validations are reserved for these material evidence corrections before the same Checker is asked to reconsider formal admissibility. No algorithm, acceptance threshold, formal topology, or formal allowance changes.",
   "invariants_unchanged": [
     "Profile A algorithm and numeric thresholds",
     "M=4 formal topology",

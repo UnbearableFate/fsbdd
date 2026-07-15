@@ -28,12 +28,17 @@ from .evaluation import (
     materialize_evaluation_snapshot,
 )
 from .fragment_map import build_fragment_map
-from .global_commit import AtomicGlobalCommitStore
+from .global_commit import (
+    AtomicGlobalCommitStore,
+    decode_commit_envelope,
+)
 from .global_state import (
     BootstrapFragment,
     FragmentStateDescriptor,
     GlobalStateIdentities,
     GlobalStateStore,
+    decode_global_state,
+    encode_global_state,
 )
 from .identity import canonical_digest, file_digest
 from .learner import (
@@ -61,7 +66,7 @@ from .profile_a import (
     ProfileAProgressTracker,
     profile_a_policy_identity,
 )
-from .proposal import Proposal, ProposalStore
+from .proposal import Proposal, ProposalStore, decode_proposal, encode_proposal
 from .storage import PosixStorageBackend
 from .syncer_merge import OuterSGDPolicy
 
@@ -78,6 +83,17 @@ def _write_json_new(path: Path, value: Any) -> None:
         raise FileExistsError(f"refusing to overwrite runtime result: {path}")
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(value, sort_keys=True, indent=2) + "\n", encoding="utf-8")
+
+
+def _write_bytes_new(path: Path, payload: bytes) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        with path.open("xb") as stream:
+            stream.write(payload)
+            stream.flush()
+            os.fsync(stream.fileno())
+    except OSError as error:
+        raise ProfileAStressError(f"cannot write immutable raw evidence: {path}") from error
 
 
 def _replace_json(path: Path, value: Any) -> None:
@@ -159,6 +175,7 @@ def _load_config(path: Path, expected_identity: str) -> dict[str, Any]:
         or outer.get("merge") != "direct_weighted_average"
         or outer.get("accumulation_dtype") != "float32"
         or value["numeric_oracle"].get("updates_per_fragment") != 50
+        or value["numeric_oracle"].get("momentum_relative_l2_max") != 1e-6
         or real.get("nodes") != 4
         or real.get("ranks") != 4
         or real.get("learner_processes") != 4
@@ -279,6 +296,7 @@ def _batches(
     vocab_size: int,
     start_unix_ns: int | None = None,
     period_seconds: float | None = None,
+    step_offset: int = 0,
 ) -> Iterator[dict[str, Any]]:
     import torch
 
@@ -291,7 +309,7 @@ def _batches(
             while time.time_ns() < target:
                 remaining = (target - time.time_ns()) / 1e9
                 time.sleep(min(0.01, max(0.0, remaining)))
-        input_ids = (base + rank * 17 + step * 3) % vocab_size
+        input_ids = (base + rank * 17 + (step + step_offset) * 3) % vocab_size
         yield {
             "input_ids": input_ids,
             "labels": input_ids.clone(),
@@ -339,12 +357,13 @@ def _speed_trial(
     *,
     config: Mapping[str, Any],
     rank: int,
-    device: Any,
     phase: Mapping[str, Any],
     injected: bool,
+    runtime: LearnerRuntime,
+    progress: LearnerProgress,
+    publisher: FragmentSnapshotCoordinator,
+    adoption: FragmentAdoptionCoordinator,
 ) -> dict[str, Any]:
-    import torch
-
     speed = config["real_fs"]["speed_injection"]
     training = config["real_fs"]["training"]
     interval = float(speed["common_interval_seconds"])
@@ -352,59 +371,90 @@ def _speed_trial(
     slow_period = float(speed["slow_period_seconds"])
     slow_rank = int(speed["slow_learner_index"])
     period = slow_period if injected and rank == slow_rank else unaffected_period
-    control_steps = int(math.floor(interval / unaffected_period))
-    steps = int(math.floor(interval / period))
-    model, _, _, groups = _model(config, device)
-    progress = LearnerProgress.initialize(f"speed-{rank}", (0, 0))
-    scheduler = ConstantStepScheduler()
-    runtime, _ = _runtime(
-        model=model,
-        groups=groups,
-        progress=progress,
-        scheduler=scheduler,
-        rng=LearnerRng.initialize(f"speed-{rank}", 8100 + rank, device),
-        device=device,
-        learning_rate=float(training["inner_learning_rate"]),
-    )
     start = int(phase["start_unix_ns"])
     end = int(phase["end_unix_ns"])
+    if end - start != int(interval * 1e9):
+        raise ProfileAStressError("speed phase differs from common interval")
+    before_step = progress.local_optimizer_steps
+    before_tokens = progress.processed_input_tokens
+    before_publication = publisher.summary()["publication"][
+        "published_snapshot_count"
+    ]
+    before_adoption = adoption.summary()["adoption_count"]
     while time.time_ns() < start:
         time.sleep(0.01)
-    run = runtime.run(
-        _batches(
-            count=steps,
-            rank=rank,
-            batch_size=int(training["batch_size"]),
-            sequence_length=int(training["sequence_length"]),
-            vocab_size=int(config["real_fs"]["tiny_hf_model"]["vocab_size"]),
-            start_unix_ns=start,
-            period_seconds=period,
-        ),
-        optimizer_steps=steps,
-    )
-    completed_unix_ns = time.time_ns()
-    if completed_unix_ns > end:
-        raise ProfileAStressError("speed trial exceeded its frozen common interval")
+    scheduled_start = start
+    completions: list[int] = []
+    losses: list[float] = []
+    while scheduled_start < end:
+        while time.time_ns() < scheduled_start:
+            remaining = (scheduled_start - time.time_ns()) / 1e9
+            time.sleep(min(0.01, max(0.0, remaining)))
+        step_offset = progress.local_optimizer_steps
+        run = runtime.run(
+            _batches(
+                count=1,
+                rank=rank,
+                batch_size=int(training["batch_size"]),
+                sequence_length=int(training["sequence_length"]),
+                vocab_size=int(config["real_fs"]["tiny_hf_model"]["vocab_size"]),
+                step_offset=step_offset,
+            ),
+            optimizer_steps=1,
+        )
+        completed = time.time_ns()
+        if completed > end:
+            raise ProfileAStressError("speed trial exceeded its frozen common interval")
+        completions.append(completed)
+        losses.append(run.token_weighted_loss)
+        scheduled_start += int(period * 1e9)
     while time.time_ns() < end:
         time.sleep(0.01)
-    tokens = run.processed_input_tokens
+    publisher.drain(float(config["coordination_timeout_seconds"]))
+    completed_steps = progress.local_optimizer_steps - before_step
+    tokens = progress.processed_input_tokens - before_tokens
+    after_publication = publisher.summary()["publication"][
+        "published_snapshot_count"
+    ]
+    after_adoption = adoption.summary()["adoption_count"]
+    if (
+        completed_steps != len(completions)
+        or completed_steps <= 0
+        or tokens <= 0
+        or after_publication <= before_publication
+        or after_adoption <= before_adoption
+        or any(timestamp < start or timestamp > end for timestamp in completions)
+    ):
+        raise ProfileAStressError("integrated speed path counters did not advance")
     result = {
         "injected": injected,
         "start_unix_ns": start,
         "end_unix_ns": end,
         "common_interval_seconds": interval,
         "scheduled_period_seconds": period,
-        "control_step_count": control_steps,
-        "completed_steps": run.optimizer_steps_completed,
+        "local_optimizer_steps_before": before_step,
+        "local_optimizer_steps_after": progress.local_optimizer_steps,
+        "completed_steps": completed_steps,
+        "processed_input_tokens_before": before_tokens,
+        "processed_input_tokens_after": progress.processed_input_tokens,
         "processed_input_tokens": tokens,
         "common_interval_input_tokens_per_second": tokens / interval,
-        "training_completed_unix_ns": completed_unix_ns,
-        "finite_loss": math.isfinite(run.token_weighted_loss),
-        "token_weighted_loss": run.token_weighted_loss,
-        "distributed_initialized": run.distributed_initialized,
+        "step_completion_unix_ns": completions,
+        "finite_loss": all(math.isfinite(item) for item in losses),
+        "token_weighted_losses": losses,
+        "distributed_initialized": all(
+            event.distributed_initialized
+            is False
+            for event in run.events
+        ),
+        "publication_count_before": before_publication,
+        "publication_count_after": after_publication,
+        "publication_count_delta": after_publication - before_publication,
+        "adoption_count_before": before_adoption,
+        "adoption_count_after": after_adoption,
+        "path": "learner_runtime_snapshot_publisher_adoption_and_async_syncer",
+        "measurement": "raw_progress_counter_delta_over_scheduler_defined_common_interval",
     }
-    del runtime, model
-    torch.cuda.empty_cache()
     return result
 
 
@@ -468,6 +518,259 @@ def _stores(
         maximum_processed_tokens=1_000_000_000,
     )
     return atomic, proposals
+
+
+def _run_integrated_speed_path(
+    *,
+    root: Path,
+    coordination: Path,
+    run_id: str,
+    config_identity: str,
+    config: Mapping[str, Any],
+    rank: int,
+    device: Any,
+    timeout: float,
+) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
+    """Measure heterogeneity while the real publication/adoption/syncer path runs."""
+
+    import torch
+
+    training = config["real_fs"]["training"]
+    model, registry, fragment_map, groups = _model(config, device)
+    descriptors = build_fragment_descriptors(fragment_map)
+    speed_run_id = f"{run_id}-integrated-speed"
+    identities = GlobalStateIdentities(
+        run_identity=speed_run_id,
+        config_identity=config_identity,
+        model_identity=registry.digest,
+        fragment_map_identity=fragment_map.digest,
+    )
+    policy = _outer_policy(config)
+    provisional = {
+        "identities": identities.to_dict(),
+        "descriptors": [item.to_dict() for item in descriptors],
+    }
+    atomic, proposals = _stores(
+        root / "speed-real", catalog=provisional, policy=policy
+    )
+    if rank == 0:
+        boot = atomic.bootstrap(
+            tuple(
+                BootstrapFragment(
+                    descriptor=descriptor,
+                    parameters=serialize_fragment_parameters(
+                        group, int(descriptor.shape[0]) * 4
+                    ),
+                    outer_state=b"",
+                )
+                for descriptor, group in zip(descriptors, groups, strict=True)
+            )
+        )
+        _replace_json(
+            coordination / "speed-catalog.json",
+            _state_catalog(
+                run_id=speed_run_id,
+                config_identity=config_identity,
+                registry=registry,
+                fragment_map=fragment_map,
+                descriptors=descriptors,
+                authorities=boot.snapshot.authorities,
+            ),
+        )
+    catalog = _wait_json(coordination / "speed-catalog.json", timeout)
+    if not _catalog_matches_model(catalog, identities, descriptors):
+        raise ProfileAStressError("integrated speed model catalog differs")
+    atomic, proposals = _stores(root / "speed-real", catalog=catalog, policy=policy)
+    bootstrap_authorities = atomic.load_snapshot().authorities
+    with torch.no_grad():
+        for authority, group in zip(bootstrap_authorities, groups, strict=True):
+            values = np.frombuffer(authority.parameters, dtype="<f4")
+            offset = 0
+            for parameter in group:
+                count = int(parameter.numel())
+                source = torch.from_numpy(
+                    values[offset : offset + count].copy()
+                ).reshape(parameter.shape)
+                parameter.copy_(source.to(device=device, dtype=parameter.dtype))
+                offset += count
+
+    learner_id = _learner_ids()[rank]
+    progress = LearnerProgress.initialize(learner_id, (0, 0))
+    runtime, optimizer = _runtime(
+        model=model,
+        groups=groups,
+        progress=progress,
+        scheduler=ConstantStepScheduler(),
+        rng=LearnerRng.initialize(learner_id, 8100 + rank, device),
+        device=device,
+        learning_rate=float(training["inner_learning_rate"]),
+    )
+    publisher = FragmentSnapshotCoordinator(
+        identities=identities,
+        progress=progress,
+        descriptors=descriptors,
+        fragment_parameters=groups,
+        adopted_bases=tuple(
+            AdoptedFragmentBase(item.version, item.content_identity)
+            for item in bootstrap_authorities
+        ),
+        schedule=FragmentPublicationSchedule(
+            fragment_bytes=tuple(int(item.shape[0]) * 4 for item in descriptors),
+            intervals=(1, 1),
+            offsets=(0, 0),
+            offset_algorithm="s1_12_integrated_speed_every_step",
+        ),
+        store=proposals,
+    )
+    adoption = FragmentAdoptionCoordinator(
+        store=atomic.store,
+        progress=progress,
+        initial_states=tuple(item.state for item in bootstrap_authorities),
+        fragment_parameters=groups,
+        optimizer=optimizer,
+        base_context_sink=publisher.update_adopted_base_context,
+        identity_audit=True,
+        autostart=True,
+    )
+    runtime.safe_boundary_observers = (
+        adoption.on_safe_boundary,
+        publisher.on_safe_boundary,
+    )
+
+    syncer_updates: list[dict[str, Any]] = []
+    syncer_errors: list[str] = []
+    stop_syncer = threading.Event()
+    syncer_thread: threading.Thread | None = None
+    if rank == 0:
+        tracker = ProfileAProgressTracker(
+            _learner_ids(), (0, 0), comparison=_comparison()
+        )
+        executor = ProfileAFragmentExecutor(
+            atomic_store=atomic,
+            proposal_store=proposals,
+            profile=_profile(config),
+            outer_policy=policy,
+            progress=tracker,
+        )
+
+        def sync_continuously() -> None:
+            try:
+                while not stop_syncer.is_set():
+                    update = executor.execute_next(observed_ns=time.monotonic_ns())
+                    if update is None:
+                        time.sleep(0.002)
+                        continue
+                    syncer_updates.append(
+                        {
+                            **_update_summary(update),
+                            "completed_unix_ns": time.time_ns(),
+                        }
+                    )
+            except Exception as error:  # pragma: no cover - formal diagnostics
+                syncer_errors.append(f"{type(error).__name__}: {error}")
+                stop_syncer.set()
+
+        syncer_thread = threading.Thread(
+            target=sync_continuously,
+            name="profile-a-integrated-speed-syncer",
+        )
+        syncer_thread.start()
+
+    speed = config["real_fs"]["speed_injection"]
+    interval_ns = int(float(speed["common_interval_seconds"]) * 1e9)
+    if rank == 0:
+        start = time.time_ns() + 3_000_000_000
+        _replace_json(
+            coordination / "speed-control.json",
+            {
+                "complete": True,
+                "start_unix_ns": start,
+                "end_unix_ns": start + interval_ns,
+            },
+        )
+    control_phase = _wait_json(coordination / "speed-control.json", timeout)
+    control = _speed_trial(
+        config=config,
+        rank=rank,
+        phase=control_phase,
+        injected=False,
+        runtime=runtime,
+        progress=progress,
+        publisher=publisher,
+        adoption=adoption,
+    )
+    _replace_json(
+        coordination / f"speed-control-done-{rank:02d}.json",
+        {"complete": True, "rank": rank},
+    )
+    if rank == 0:
+        _wait_all(coordination, "speed-control-done", 4, timeout)
+        start = time.time_ns() + 3_000_000_000
+        _replace_json(
+            coordination / "speed-injected.json",
+            {
+                "complete": True,
+                "start_unix_ns": start,
+                "end_unix_ns": start + interval_ns,
+            },
+        )
+    injected_phase = _wait_json(coordination / "speed-injected.json", timeout)
+    injected = _speed_trial(
+        config=config,
+        rank=rank,
+        phase=injected_phase,
+        injected=True,
+        runtime=runtime,
+        progress=progress,
+        publisher=publisher,
+        adoption=adoption,
+    )
+    _replace_json(
+        coordination / f"speed-injected-done-{rank:02d}.json",
+        {"complete": True, "rank": rank},
+    )
+    if rank == 0:
+        _wait_all(coordination, "speed-injected-done", 4, timeout)
+        time.sleep(0.25)
+        stop_syncer.set()
+        assert syncer_thread is not None
+        syncer_thread.join(timeout)
+        if syncer_thread.is_alive():
+            syncer_errors.append("syncer thread did not stop")
+        phase_updates = {
+            "control": sum(
+                int(control_phase["start_unix_ns"])
+                <= int(item["completed_unix_ns"])
+                <= int(control_phase["end_unix_ns"])
+                for item in syncer_updates
+            ),
+            "injected": sum(
+                int(injected_phase["start_unix_ns"])
+                <= int(item["completed_unix_ns"])
+                <= int(injected_phase["end_unix_ns"])
+                for item in syncer_updates
+            ),
+        }
+        status = "pass" if not syncer_errors and all(phase_updates.values()) else "fail"
+        _replace_json(
+            coordination / "speed-syncer.json",
+            {
+                "complete": True,
+                "status": status,
+                "updates": syncer_updates,
+                "phase_update_counts": phase_updates,
+                "errors": syncer_errors,
+                "application_coordination": "shared_filesystem_only",
+            },
+        )
+    speed_syncer = _wait_json(coordination / "speed-syncer.json", timeout)
+    if speed_syncer.get("status") != "pass":
+        raise ProfileAStressError("integrated speed syncer path failed")
+    publisher.close(timeout)
+    adoption.close(timeout)
+    del runtime, model
+    torch.cuda.empty_cache()
+    return control, injected, speed_syncer
 
 
 def _update_summary(update: Any) -> dict[str, Any]:
@@ -606,6 +909,7 @@ def run_numeric_e2e(
             locals_: list[list[float]] = []
             tokens: list[int] = []
             proposal_rows = []
+            proposal_objects: list[Proposal] = []
             for learner_index, learner_id in enumerate(_learner_ids()):
                 token_count = (learner_index + 1) * 17 + cycle
                 tokens.append(token_count)
@@ -640,6 +944,7 @@ def run_numeric_e2e(
                     parameters=local_payload,
                 )
                 proposals.publish(proposal)
+                proposal_objects.append(proposal)
                 locals_.append(local)
                 proposal_rows.append(
                     {
@@ -663,6 +968,8 @@ def run_numeric_e2e(
                 "proposals": proposal_rows,
                 "tokens": tokens,
                 "locals": locals_,
+                "authority_state": authority.state,
+                "proposal_objects": proposal_objects,
             }
         for expected_fragment in range(2):
             update = executor.execute_next(observed_ns=cycle * 2 + expected_fragment + 1)
@@ -703,8 +1010,51 @@ def run_numeric_e2e(
             production_momentum = np.frombuffer(
                 update.successor.outer_optimizer_state, dtype="<f4"
             ).astype(np.float64).tolist()
+            evidence_relative = (
+                Path("authoritative")
+                / f"fragment-{index:06d}"
+                / f"cycle-{cycle:06d}"
+            )
+            evidence_directory = root / evidence_relative
+            pre_state_payload = encode_global_state(item["authority_state"])
+            successor_state_payload = encode_global_state(update.successor.state)
+            _write_bytes_new(evidence_directory / "pre-state.bin", pre_state_payload)
+            proposal_artifacts = []
+            for proposal in item["proposal_objects"]:
+                proposal_payload = encode_proposal(proposal)
+                proposal_name = f"proposal-{proposal.learner_id}.bin"
+                _write_bytes_new(evidence_directory / proposal_name, proposal_payload)
+                proposal_artifacts.append(
+                    {
+                        "learner_id": proposal.learner_id,
+                        "relative_path": proposal_name,
+                        "bytes": len(proposal_payload),
+                        "sha256": hashlib.sha256(proposal_payload).hexdigest(),
+                    }
+                )
+            _write_bytes_new(
+                evidence_directory / "successor-state.bin", successor_state_payload
+            )
+            authoritative = {
+                "relative_directory": evidence_relative.as_posix(),
+                "pre_state": {
+                    "relative_path": "pre-state.bin",
+                    "bytes": len(pre_state_payload),
+                    "sha256": hashlib.sha256(pre_state_payload).hexdigest(),
+                },
+                "proposals": proposal_artifacts,
+                "successor_state": {
+                    "relative_path": "successor-state.bin",
+                    "bytes": len(successor_state_payload),
+                    "sha256": hashlib.sha256(successor_state_payload).hexdigest(),
+                },
+            }
+            _write_json_new(evidence_directory / "manifest.json", authoritative)
             trace = {
                 **item,
+                "authority_state": None,
+                "proposal_objects": None,
+                "authoritative": authoritative,
                 "selected_proposal_ids": selected_ids,
                 "selected_weights": [
                     weight.normalized_weight for weight in update.selection.weights
@@ -773,39 +1123,16 @@ def _run_real_role(
     device = torch.device("cuda", 0)
     coordination = root / "coordination"
     timeout = float(config["coordination_timeout_seconds"])
-    speed = config["real_fs"]["speed_injection"]
-    interval_ns = int(float(speed["common_interval_seconds"]) * 1e9)
-    if rank == 0:
-        start = time.time_ns() + 3_000_000_000
-        _replace_json(
-            coordination / "speed-control.json",
-            {"complete": True, "start_unix_ns": start, "end_unix_ns": start + interval_ns},
-        )
-    control_phase = _wait_json(coordination / "speed-control.json", timeout)
-    control = _speed_trial(
-        config=config, rank=rank, device=device, phase=control_phase, injected=False
+    control, injected, speed_syncer = _run_integrated_speed_path(
+        root=root,
+        coordination=coordination,
+        run_id=run_id,
+        config_identity=config_identity,
+        config=config,
+        rank=rank,
+        device=device,
+        timeout=timeout,
     )
-    _replace_json(
-        coordination / f"speed-control-done-{rank:02d}.json",
-        {"complete": True, "rank": rank},
-    )
-    if rank == 0:
-        _wait_all(coordination, "speed-control-done", 4, timeout)
-        start = time.time_ns() + 3_000_000_000
-        _replace_json(
-            coordination / "speed-injected.json",
-            {"complete": True, "start_unix_ns": start, "end_unix_ns": start + interval_ns},
-        )
-    injected_phase = _wait_json(coordination / "speed-injected.json", timeout)
-    injected = _speed_trial(
-        config=config, rank=rank, device=device, phase=injected_phase, injected=True
-    )
-    _replace_json(
-        coordination / f"speed-injected-done-{rank:02d}.json",
-        {"complete": True, "rank": rank},
-    )
-    if rank == 0:
-        _wait_all(coordination, "speed-injected-done", 4, timeout)
 
     training = config["real_fs"]["training"]
     model, registry, fragment_map, groups = _model(config, device)
@@ -1024,7 +1351,11 @@ def _run_real_role(
                 sum(parameter.numel() for parameter in group) for group in groups
             ],
         },
-        "speed": {"control": control, "injected": injected},
+        "speed": {
+            "control": control,
+            "injected": injected,
+            "integrated_syncer": speed_syncer,
+        },
         "proposal_training": proposal_run.to_dict(),
         "proposal_publication": proposal_summary,
         "mixed_training": mixed_run.to_dict(),
@@ -1034,8 +1365,6 @@ def _run_real_role(
         "final_version_vector": [
             item.global_version for item in progress.fragments
         ],
-        "waited_for_peer_local_step": False,
-        "waited_for_version_alignment_before_mixed_training": False,
         "application_coordination": "shared_filesystem_only",
         "mpi_usage": "launcher_only",
     }
@@ -1116,7 +1445,7 @@ def _run_real_role(
             "materialize_start_unix_ns": materialize_start,
             "materialize_end_unix_ns": materialize_end,
             **writer_interval,
-            "latest_reads_during_restart_load": 0,
+            "restart_load_access_audit": loaded.access_audit,
             "purpose": "evaluation",
             "steady_state": False,
         }
@@ -1169,8 +1498,96 @@ def run_role(
     )
 
 
+def _authoritative_numeric_update(
+    root: Path,
+    *,
+    fragment_index: int,
+    cycle: int,
+    trace: Mapping[str, Any],
+) -> tuple[Any, list[Proposal], Any, Any]:
+    expected_relative = (
+        Path("authoritative")
+        / f"fragment-{fragment_index:06d}"
+        / f"cycle-{cycle:06d}"
+    )
+    declared = trace.get("authoritative")
+    if (
+        not isinstance(declared, dict)
+        or declared.get("relative_directory") != expected_relative.as_posix()
+    ):
+        raise ProfileAStressError("numeric authoritative evidence path differs")
+    directory = root / expected_relative
+    try:
+        persisted = json.loads((directory / "manifest.json").read_text())
+    except (OSError, json.JSONDecodeError) as error:
+        raise ProfileAStressError("numeric authoritative manifest is unreadable") from error
+    if persisted != declared:
+        raise ProfileAStressError("numeric trace and authoritative manifest differ")
+
+    def read_artifact(spec: object, expected_name: str) -> bytes:
+        if (
+            not isinstance(spec, dict)
+            or set(spec) != {"relative_path", "bytes", "sha256"}
+            or spec.get("relative_path") != expected_name
+        ):
+            raise ProfileAStressError("numeric authoritative artifact schema differs")
+        try:
+            payload = (directory / expected_name).read_bytes()
+        except OSError as error:
+            raise ProfileAStressError("numeric authoritative artifact is unreadable") from error
+        if (
+            len(payload) != spec.get("bytes")
+            or hashlib.sha256(payload).hexdigest() != spec.get("sha256")
+        ):
+            raise ProfileAStressError("numeric authoritative artifact integrity differs")
+        return payload
+
+    try:
+        before = decode_global_state(
+            read_artifact(declared.get("pre_state"), "pre-state.bin")
+        )
+        proposal_specs = declared.get("proposals")
+        if (
+            not isinstance(proposal_specs, list)
+            or len(proposal_specs) != 4
+            or [item.get("learner_id") for item in proposal_specs]
+            != list(_learner_ids())
+        ):
+            raise ProfileAStressError("numeric authoritative proposal index differs")
+        raw_proposals = [
+            decode_proposal(
+                read_artifact(
+                    {
+                        "relative_path": item["relative_path"],
+                        "bytes": item["bytes"],
+                        "sha256": item["sha256"],
+                    },
+                    f"proposal-{item['learner_id']}.bin",
+                )
+            )
+            for item in proposal_specs
+        ]
+        successor = decode_global_state(
+            read_artifact(declared.get("successor_state"), "successor-state.bin")
+        )
+        envelope = decode_commit_envelope(
+            successor.outer_state,
+            identities=successor.identities,
+            descriptor=successor.descriptor,
+        )
+    except ProfileAStressError:
+        raise
+    except Exception as error:
+        raise ProfileAStressError(
+            "numeric authoritative compound payload cannot be decoded"
+        ) from error
+    return before, raw_proposals, successor, envelope
+
+
 def _analyze_numeric(
-    value: Mapping[str, Any], config: Mapping[str, Any]
+    value: Mapping[str, Any],
+    config: Mapping[str, Any],
+    authoritative_root: Path,
 ) -> dict[str, Any]:
     numeric = config["numeric_oracle"]
     updates = int(numeric["updates_per_fragment"])
@@ -1189,36 +1606,83 @@ def _analyze_numeric(
         cycle = int(trace["cycle"])
         if index != position % 2 or cycle != position // 2:
             raise ProfileAStressError("numeric round-robin trace order differs")
-        current = trace["current_parameters"]
+        before, raw_proposals, successor, envelope = _authoritative_numeric_update(
+            authoritative_root,
+            fragment_index=index,
+            cycle=cycle,
+            trace=trace,
+        )
+        if (
+            before.descriptor.index != index
+            or before.version != cycle
+            or successor.descriptor != before.descriptor
+            or successor.identities != before.identities
+            or successor.version != cycle + 1
+            or successor.outer_update_count != cycle + 1
+        ):
+            raise ProfileAStressError("numeric authoritative state transition differs")
+        current = np.frombuffer(before.parameters, dtype="<f4").astype(
+            np.float64
+        ).tolist()
         if previous_successors[index] is not None and _relative_l2(
             current, previous_successors[index]
         ) > 1e-12:
             raise ProfileAStressError("numeric production authority chain is discontinuous")
+        if _relative_l2(trace["current_parameters"], current) > 1e-12:
+            raise ProfileAStressError("numeric trace current differs from raw authority")
         proposals = trace["proposals"]
         if (
             not isinstance(proposals, list)
             or len(proposals) != 4
             or len({item["learner_id"] for item in proposals}) != 4
+            or len(raw_proposals) != 4
+            or {item.learner_id for item in raw_proposals} != set(_learner_ids())
             or any(
-                item["base_version"] != cycle
-                or item["base_content_identity"] != trace["current_content_identity"]
-                or hashlib.sha256(
-                    np.asarray(item["parameters"], dtype="<f4").tobytes()
-                ).hexdigest()
-                != item["parameters_sha256"]
-                for item in proposals
+                proposal.identities != before.identities
+                or proposal.descriptor != before.descriptor
+                or proposal.base_version != cycle
+                or proposal.base_content_identity != before.content_identity
+                for proposal in raw_proposals
             )
         ):
             raise ProfileAStressError("raw numeric proposal facts differ")
-        by_id = {item["proposal_id"]: item for item in proposals}
-        selected_ids = trace["selected_proposal_ids"]
-        if set(selected_ids) != set(by_id) or len(selected_ids) != 4:
+        trace_by_id = {item["proposal_id"]: item for item in proposals}
+        raw_by_id = {item.proposal_id: item for item in raw_proposals}
+        for proposal_id, proposal in raw_by_id.items():
+            row = trace_by_id.get(proposal_id)
+            if (
+                row is None
+                or row["learner_id"] != proposal.learner_id
+                or row["processed_tokens"] != proposal.processed_tokens
+                or row["parameters_sha256"] != proposal.parameters_sha256
+                or _relative_l2(
+                    row["parameters"],
+                    np.frombuffer(proposal.parameters, dtype="<f4").astype(
+                        np.float64
+                    ),
+                )
+                > 1e-12
+            ):
+                raise ProfileAStressError("numeric trace proposal differs from raw payload")
+        selected_ids = [item.proposal_id for item in envelope.selected]
+        if (
+            trace["selected_proposal_ids"] != selected_ids
+            or set(selected_ids) != set(raw_by_id)
+            or len(selected_ids) != 4
+        ):
             raise ProfileAStressError("numeric selected proposal set differs")
-        ordered = [by_id[proposal_id] for proposal_id in selected_ids]
-        tokens = [int(item["processed_tokens"]) for item in ordered]
-        locals_ = [item["parameters"] for item in ordered]
+        ordered = [raw_by_id[proposal_id] for proposal_id in selected_ids]
+        tokens = [int(item.processed_tokens) for item in ordered]
+        locals_ = [
+            np.frombuffer(item.parameters, dtype="<f4").astype(np.float64).tolist()
+            for item in ordered
+        ]
         weights = inverse_staleness_weights(tokens, [0] * 4, 1.0)
-        if _relative_l2(trace["selected_weights"], weights) > 1e-6:
+        committed_weights = [item.normalized_weight for item in envelope.selected]
+        if (
+            _relative_l2(trace["selected_weights"], weights) > 1e-6
+            or _relative_l2(committed_weights, weights) > 1e-6
+        ):
             raise ProfileAStressError("production selected weights differ from oracle")
         merged = weighted_direct_merge(
             current=current,
@@ -1235,12 +1699,20 @@ def _analyze_numeric(
             nesterov=policy.nesterov,
         )
         states[index] = state
-        error = _relative_l2(trace["production_parameters"], expected)
+        production = np.frombuffer(successor.parameters, dtype="<f4").astype(
+            np.float64
+        ).tolist()
+        production_momentum = np.frombuffer(
+            envelope.outer_optimizer_state, dtype="<f4"
+        ).astype(np.float64).tolist()
+        error = _relative_l2(production, expected)
         momentum_error = _relative_l2(
-            trace["production_momentum"], state.momentum_buffer
+            production_momentum, state.momentum_buffer
         )
         if (
-            not math.isclose(error, trace["relative_l2"], rel_tol=0, abs_tol=1e-15)
+            _relative_l2(trace["production_parameters"], production) > 1e-12
+            or _relative_l2(trace["production_momentum"], production_momentum) > 1e-12
+            or not math.isclose(error, trace["relative_l2"], rel_tol=0, abs_tol=1e-15)
             or not math.isclose(
                 momentum_error,
                 trace["momentum_relative_l2"],
@@ -1248,20 +1720,24 @@ def _analyze_numeric(
                 abs_tol=1e-15,
             )
             or trace["successor_version"] != cycle + 1
+            or trace["current_content_identity"] != before.content_identity
+            or trace["successor_content_identity"] != successor.content_identity
             or trace["byte_accounting"]["full_model_operations"] != 0
             or trace["maximum_active_payloads"] != 1
         ):
             raise ProfileAStressError("numeric production trace differs from recomputation")
         errors[index].append(error)
         momentum_errors[index].append(momentum_error)
-        previous_successors[index] = trace["production_parameters"]
+        previous_successors[index] = production
     single_max = max(item[0] for item in errors)
     fifty_max = max(max(item) for item in errors)
     first_max = max(max(item[:10]) for item in errors)
     last_max = max(max(item[-10:]) for item in errors)
+    momentum_max = max(max(item) for item in momentum_errors)
     if (
         single_max > float(numeric["single_update_relative_l2_max"])
         or fifty_max > float(numeric["fifty_update_relative_l2_max"])
+        or momentum_max > float(numeric["momentum_relative_l2_max"])
         or last_max
         > max(first_max, float(numeric["late_window_amplification_floor"]))
         or value["final_version_vector"] != [updates, updates]
@@ -1274,7 +1750,8 @@ def _analyze_numeric(
         "updates_per_fragment": updates,
         "single_update_maximum_relative_l2": single_max,
         "fifty_update_maximum_relative_l2": fifty_max,
-        "maximum_momentum_relative_l2": max(max(item) for item in momentum_errors),
+        "maximum_momentum_relative_l2": momentum_max,
+        "authoritative_payload_updates_checked": updates * 2,
         "first_ten_maximum_relative_l2": first_max,
         "last_ten_maximum_relative_l2": last_max,
         "final_version_vector": [updates, updates],
@@ -1316,8 +1793,6 @@ def analyze(
             or learner["torch"]["distributed_initialized"] is not False
             or learner["application_coordination"] != "shared_filesystem_only"
             or learner["mpi_usage"] != "launcher_only"
-            or learner["waited_for_peer_local_step"] is not False
-            or learner["waited_for_version_alignment_before_mixed_training"] is not False
             or learner["final_version_vector"] != [1, 1]
         ):
             raise ProfileAStressError("real learner identity or topology contract failed")
@@ -1335,6 +1810,45 @@ def analyze(
             speed["common_interval_seconds"]
         ):
             raise ProfileAStressError("speed trial common interval differs across ranks")
+        for learner in learners:
+            phase = learner["speed"][phase_name]
+            completions = phase["step_completion_unix_ns"]
+            if (
+                phase["path"]
+                != "learner_runtime_snapshot_publisher_adoption_and_async_syncer"
+                or phase["measurement"]
+                != "raw_progress_counter_delta_over_scheduler_defined_common_interval"
+                or phase["completed_steps"]
+                != phase["local_optimizer_steps_after"]
+                - phase["local_optimizer_steps_before"]
+                or phase["processed_input_tokens"]
+                != phase["processed_input_tokens_after"]
+                - phase["processed_input_tokens_before"]
+                or len(completions) != phase["completed_steps"]
+                or any(
+                    int(item) < int(phase["start_unix_ns"])
+                    or int(item) > int(phase["end_unix_ns"])
+                    for item in completions
+                )
+                or phase["publication_count_delta"] <= 0
+                or phase["adoption_count_after"]
+                <= phase["adoption_count_before"]
+            ):
+                raise ProfileAStressError(
+                    "speed trial did not measure the integrated learner path"
+                )
+    syncer_records = [item["speed"]["integrated_syncer"] for item in learners]
+    if (
+        any(item != syncer_records[0] for item in syncer_records[1:])
+        or syncer_records[0].get("status") != "pass"
+        or syncer_records[0].get("application_coordination")
+        != "shared_filesystem_only"
+        or any(
+            int(syncer_records[0]["phase_update_counts"].get(phase, 0)) <= 0
+            for phase in ("control", "injected")
+        )
+    ):
+        raise ProfileAStressError("speed trial did not exercise the async syncer")
     control_rates = [
         float(item["speed"]["control"]["common_interval_input_tokens_per_second"])
         for item in learners
@@ -1409,7 +1923,10 @@ def analyze(
         or evaluation["captured_content_identities"]
         != evaluation["loaded_content_identities"]
         or evaluation["current_version_vector_after_writer"] == [1, 1]
-        or evaluation["latest_reads_during_restart_load"] != 0
+        or evaluation["restart_load_access_audit"] != loaded.access_audit
+        or loaded.access_audit["current_authority_reads"] != 0
+        or loaded.access_audit["latest_resolution_reads"] != 0
+        or loaded.access_audit["unauthorized_reads"] != 0
         or evaluation["purpose"] != "evaluation"
         or evaluation["steady_state"] is not False
         or loaded.manifest.snapshot_identity != evaluation["manifest_identity"]
@@ -1422,7 +1939,11 @@ def analyze(
     numeric_value = json.loads(
         (shared_root / "numeric" / "numeric-trace.json").read_text()
     )
-    numeric = _analyze_numeric(numeric_value, config)
+    numeric = _analyze_numeric(
+        numeric_value,
+        config,
+        shared_root / "numeric",
+    )
     return {
         "schema_version": 1,
         "status": "pass",

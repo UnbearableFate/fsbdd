@@ -32,14 +32,14 @@
     "numeric_interval": "each fragment's contiguous update zero through forty-nine",
     "single_update_gate": "first successful production commit per fragment versus independent Stage 0-C oracle",
     "drift_gate": "first-ten and last-ten maxima over exactly fifty contiguous commits per fragment",
-    "speed_common_interval": "the same predeclared monotonic start and ten-second end for every rank and both control/injected trials",
-    "speed_formula": "completed local optimizer steps multiplied by fixed input tokens per step divided by the common interval",
+    "speed_common_interval": "the same predeclared scheduler start and ten-second end for every rank and both control/injected trials while the real snapshot publisher adoption poller and asynchronous Profile A syncer remain active",
+    "speed_formula": "raw rank-local progress input-token counter delta divided by the common interval; every completion timestamp must lie in the interval and publication plus syncer counters must advance",
     "unaffected_formula": "abs(injected_rate/control_rate - 1) for learners zero through two, each <= 0.02",
     "slow_formula": "learner three injected_rate/control_rate within 0.05 of 0.5"
   },
   "evaluation_snapshot": {
     "freeze": "capture the complete ordered authority tuple once, freeze version vector plus state/content/authority identities, then materialize immutable named fragment payloads",
-    "load": "validate the manifest identity and load only its exact named payloads; no per-fragment current/latest read is permitted",
+    "load": "validate the manifest identity and route every restart filesystem read through an access audit that permits one manifest plus only its exact named payloads and rejects current latest visibility path resolution",
     "concurrency_counterexample": "advance current authorities after capture and prove the loaded evaluation vector and content remain byte-identical to the capture"
   },
   "progress_and_stop": {
@@ -51,8 +51,9 @@
     "steady_state": "per-fragment current input, selected proposal reads, successor output, and zero full-model operations",
     "full_model_exception": "the frozen evaluation snapshot is explicitly classified as evaluation rather than steady state"
   },
+  "numeric_raw_payloads": "every one of the two-by-fifty updates persists an encoded authoritative pre-state all four encoded Proposal payloads and the encoded committed compound successor; the analyzer decodes those files and gates both parameters and committed outer momentum without trusting trace arrays",
   "formal_package": "S1-00 evidence builder/finalizer/validator with code config source skill scheduler role path identities and checksums; fail if evidence root exists",
-  "attempt_budget": {"red": 1, "targeted": 6, "l1_compute": 6, "formal_l2_batch": 1},
-  "attempt_budget_exception": "Five preserved one-node diagnostic packages exhausted the prior targeted allowance before any formal run. The last two reached progressively deeper role-harness boundaries and exposed a nested-summary lookup followed by deterministic single-owner RNG rebinding. One final cheap one-node attempt is authorized by reports/stage1/S1-12-targeted-attempt-escalation.json after changing the harness to reuse its owned runtime; the one-shot four-node formal budget is unchanged.",
+  "attempt_budget": {"red": 1, "targeted": 8, "l1_compute": 8, "formal_l2_batch": 1},
+  "attempt_budget_exception": "The sixth one-node diagnostic passed, but Checker Phase A blocked formal submission on three evidence-semantic gaps: standalone rather than integrated speed measurement, trace arrays rather than encoded authoritative numeric payloads, and a constant rather than instrumented evaluation read count. Two further cheap one-node attempts are authorized only to validate those Checker-driven corrections; the one-shot four-node formal budget is unchanged.",
   "failure_ladder": "preserve the first L2 failure, reproduce the failing role or analyzer on one compute node, and do not resubmit four nodes until the reduced case passes"
 }

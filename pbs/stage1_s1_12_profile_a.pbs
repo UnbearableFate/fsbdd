@@ -19,11 +19,11 @@ trap 'echo "[ERROR] line=$LINENO command=$BASH_COMMAND" >&2' ERR
 
 PYTHON="$MAIN_ROOT/.venv/bin/python"
 CONFIG_SOURCE="configs/stage1/s1_12_profile_a_e2e.json"
-CONFIG_SHA256="c51a1be5d39df03bd59f295c8d924e51fc52f53dcac399b84800b05eb7cccf79"
-CONTRACT_SHA256="713ea4846af09ec1ed09ae3e31f7a3e49789a5b63a1e8a9022c13b6f522b70cb"
-MATRIX_SHA256="5f411fe8bdafacb7390db09cb14e412b3d61bb4da9817917b78676c7ab22e193"
-ORACLE_SHA256="8642ca07b588a9210b333dc62dbbad6b0c8d0827226724f2d3804ce09de8f6e0"
-ESCALATION_SHA256="4bb476e1a00acb446dbbee7ab750343caa035e3facdf9f2ffc15cbb6f21853de"
+CONFIG_SHA256="686551db4cc556e0ea923f2c1482e3f0ed489b3e5173efa8b0791a069bf36977"
+CONTRACT_SHA256="b37f9221d7d5c9b1c9699f760b3fb727fde9a03d41875ae693086cccc8937067"
+MATRIX_SHA256="09b0e000c0e083b97d27c08c9f98e9ae737097ad6fa6d50851d784a6ebe35f98"
+ORACLE_SHA256="b46f0da11527e565f2a7872911f11cbad740eef087ec878267a00c433f3e32de"
+ESCALATION_SHA256="33521354188a2813f57f69fa90c3787711fd0eb1f1d8dc0e0b87b3b168d2cd65"
 RESEARCH_SHA256="2c0db3148110da10ea62f445c189d2d53b405527d8da264b9af9817f5ca9d835"
 SPEC_SHA256="1ea71fb6e34fef0d7b5558d8e7999dfdedeb82957f4331afcf6f80279d1f5a7d"
 SKILL_REPOSITORY="https://github.com/UnbearableFate/miyabi-development"
@@ -152,6 +152,8 @@ mpirun -np 4 --map-by ppr:1:node --hostfile "$PBS_NODEFILE" \
   --run-id "$RUN_ID" --config-path "$PROJECT_ROOT/$CONFIG_SOURCE" \
   --config-identity "$CONFIG_SHA256" \
   > "$EVIDENCE_ROOT/stdout/mpirun.log" 2> "$EVIDENCE_ROOT/stderr/mpirun.log"
+
+cp -a "$EVIDENCE_ROOT/runtime/roles/evaluation" "$EVIDENCE_ROOT/evaluation"
 
 "$PYTHON" -m fsbdd.profile_a_stress summarize \
   --result-root "$EVIDENCE_ROOT/runtime/roles" --shared-root "$TEST_ROOT" \

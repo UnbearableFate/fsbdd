@@ -15,7 +15,7 @@ trap 'echo "[ERROR] line=$LINENO command=$BASH_COMMAND" >&2' ERR
 
 PYTHON="$MAIN_ROOT/.venv/bin/python"
 CONFIG_SOURCE="configs/stage1/s1_12_profile_a_e2e.json"
-CONFIG_SHA256="c51a1be5d39df03bd59f295c8d924e51fc52f53dcac399b84800b05eb7cccf79"
+CONFIG_SHA256="686551db4cc556e0ea923f2c1482e3f0ed489b3e5173efa8b0791a069bf36977"
 ROOT="$MAIN_ROOT/runtime_runs/S1-12/targeted-${PBS_JOBID}"
 SHARED="$ROOT/shared"
 ROLES="$ROOT/roles"
@@ -53,13 +53,17 @@ mpirun -np 4 --oversubscribe --map-by slot \
   --config-path "$PROJECT_ROOT/$CONFIG_SOURCE" --config-identity "$CONFIG_SHA256" \
   > "$ROOT/mpirun.log" 2> "$ROOT/mpirun.err"
 
-"$PYTHON" - "$ROLES" "$SHARED" <<'PY' > "$ROOT/role-check.json"
+"$PYTHON" - "$ROLES" "$SHARED" "$PROJECT_ROOT/$CONFIG_SOURCE" <<'PY' > "$ROOT/role-check.json"
 import json
 import sys
 from pathlib import Path
 
+from fsbdd.evaluation import load_evaluation_snapshot
+from fsbdd.profile_a_stress import _analyze_numeric
+
 roles = Path(sys.argv[1])
 shared = Path(sys.argv[2])
+config = json.loads(Path(sys.argv[3]).read_text())
 learners = [json.loads((roles / f"learner-{rank:02d}.json").read_text()) for rank in range(4)]
 syncer = json.loads((roles / "syncer.json").read_text())
 numeric = json.loads((shared / "numeric" / "numeric-trace.json").read_text())
@@ -67,7 +71,33 @@ assert all(item["status"] == "pass" and item["final_version_vector"] == [1, 1] f
 assert syncer["status"] == "pass"
 assert numeric["final_version_vector"] == [50, 50]
 assert numeric["stop"]["reason"] == "target_global_cycles"
-print(json.dumps({"status": "pass", "learner_roles": 4, "numeric_versions": [50, 50]}, sort_keys=True))
+numeric_analysis = _analyze_numeric(numeric, config, shared / "numeric")
+evaluation = load_evaluation_snapshot(roles / "evaluation")
+assert numeric_analysis["authoritative_payload_updates_checked"] == 100
+assert numeric_analysis["maximum_momentum_relative_l2"] <= 1e-6
+assert evaluation.access_audit["current_authority_reads"] == 0
+assert evaluation.access_audit["latest_resolution_reads"] == 0
+for learner in learners:
+    for phase in ("control", "injected"):
+        measured = learner["speed"][phase]
+        assert measured["publication_count_delta"] > 0
+        assert measured["adoption_count_after"] > measured["adoption_count_before"]
+        assert len(measured["step_completion_unix_ns"]) == measured["completed_steps"]
+        assert measured["path"] == "learner_runtime_snapshot_publisher_adoption_and_async_syncer"
+    assert learner["speed"]["integrated_syncer"]["status"] == "pass"
+    assert all(learner["speed"]["integrated_syncer"]["phase_update_counts"].values())
+control = [item["speed"]["control"]["common_interval_input_tokens_per_second"] for item in learners]
+injected = [item["speed"]["injected"]["common_interval_input_tokens_per_second"] for item in learners]
+assert all(abs(injected[index] / control[index] - 1.0) <= 0.02 for index in range(3))
+assert abs(injected[3] / control[3] - 0.5) <= 0.05
+print(json.dumps({
+    "status": "pass",
+    "learner_roles": 4,
+    "numeric_versions": [50, 50],
+    "authoritative_numeric_updates": 100,
+    "evaluation_access_audit": evaluation.access_audit,
+    "integrated_speed_syncer_updates": learners[0]["speed"]["integrated_syncer"]["phase_update_counts"],
+}, sort_keys=True))
 PY
 
 if [[ -s "$ROOT/pytest.err" || -s "$ROOT/mpirun.err" ]]; then

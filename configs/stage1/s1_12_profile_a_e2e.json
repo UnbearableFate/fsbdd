@@ -24,6 +24,7 @@
     "updates_per_fragment": 50,
     "single_update_relative_l2_max": 1e-6,
     "fifty_update_relative_l2_max": 1e-6,
+    "momentum_relative_l2_max": 1e-6,
     "late_window_amplification_floor": 1e-7
   },
   "evaluation": {

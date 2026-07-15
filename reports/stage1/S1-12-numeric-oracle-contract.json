@@ -21,6 +21,7 @@
   "gates": {
     "single_update_relative_l2": "norm(production-oracle)/max(norm(oracle),1e-12) <= 1e-6",
     "continuous_fifty_updates": "maximum successor relative L2 over exactly 50 consecutive updates of each fragment <= 1e-6",
+    "outer_momentum_state": "maximum committed outer momentum-state relative L2 over exactly 50 consecutive updates of each fragment <= 1e-6",
     "no_drift_amplification": "last-ten maximum <= max(first-ten maximum, 1e-7)"
   },
   "checker_recomputation": "decode at least one pre-update current payload and all four raw proposal payloads, recompute weights merge outer transition, and compare to the committed successor without trusting the packaged production trace"
