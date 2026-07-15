@@ -643,8 +643,10 @@ def _update_record(update: Any, global_cycle: int, completed_ns: int) -> dict[st
         "byte_accounting": update.result.byte_accounting.to_dict(),
         "source_metrics": dataclasses.asdict(update.source_metrics),
         "successor_authority_identity": update.successor.authority_identity,
-        "successor_parameters_sha256": hashlib.sha256(update.successor.parameters).hexdigest(),
-        "successor_momentum_sha256": hashlib.sha256(update.successor.outer_optimizer_state).hexdigest(),
+        "successor_parameters_sha256": update.successor.state.base_history[
+            -1
+        ].parameters_sha256,
+        "successor_momentum_sha256": update.successor.envelope.outer_optimizer_state_sha256,
         "global_cycle_after": global_cycle,
         "completed_unix_ns": completed_ns,
     }

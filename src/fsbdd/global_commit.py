@@ -123,6 +123,7 @@ class CommittedContribution:
 @dataclasses.dataclass(frozen=True, slots=True)
 class CommitEnvelope:
     outer_optimizer_state: bytes
+    outer_optimizer_state_sha256: str
     frontiers: ConsumptionFrontiers
     selected: tuple[CommittedContribution, ...]
     policy_identity: str
@@ -133,6 +134,15 @@ class CommitEnvelope:
 
     def __post_init__(self) -> None:
         _require_bytes(self.outer_optimizer_state, "outer_optimizer_state")
+        _require_hex(
+            self.outer_optimizer_state_sha256,
+            "outer_optimizer_state_sha256",
+        )
+        if (
+            hashlib.sha256(self.outer_optimizer_state).hexdigest()
+            != self.outer_optimizer_state_sha256
+        ):
+            raise AtomicCommitError("outer optimizer state checksum mismatch")
         if not isinstance(self.frontiers, ConsumptionFrontiers):
             raise AtomicCommitError("frontiers must be ConsumptionFrontiers")
         if not isinstance(self.selected, tuple) or any(
@@ -218,6 +228,7 @@ def _envelope_semantic_values(
     previous_authority_identity: str,
     selection_identity: str,
     update_identity: str,
+    outer_optimizer_state_sha256: str | None = None,
 ) -> dict[str, object]:
     return {
         "schema_version": 1,
@@ -229,7 +240,11 @@ def _envelope_semantic_values(
         "selected": [item.to_dict() for item in selected],
         "outer_optimizer_state": {
             "bytes": len(outer_optimizer_state),
-            "sha256": hashlib.sha256(outer_optimizer_state).hexdigest(),
+            "sha256": (
+                hashlib.sha256(outer_optimizer_state).hexdigest()
+                if outer_optimizer_state_sha256 is None
+                else outer_optimizer_state_sha256
+            ),
         },
     }
 
@@ -243,6 +258,7 @@ def _envelope_semantic(envelope: CommitEnvelope) -> dict[str, object]:
         previous_authority_identity=envelope.previous_authority_identity,
         selection_identity=envelope.selection_identity,
         update_identity=envelope.update_identity,
+        outer_optimizer_state_sha256=envelope.outer_optimizer_state_sha256,
     )
 
 
@@ -256,6 +272,9 @@ def make_commit_envelope(
     selection_identity: str,
     update_identity: str,
 ) -> CommitEnvelope:
+    outer_optimizer_state_sha256 = hashlib.sha256(
+        outer_optimizer_state
+    ).hexdigest()
     identity = canonical_digest(
         _envelope_semantic_values(
             outer_optimizer_state=outer_optimizer_state,
@@ -265,10 +284,12 @@ def make_commit_envelope(
             previous_authority_identity=previous_authority_identity,
             selection_identity=selection_identity,
             update_identity=update_identity,
+            outer_optimizer_state_sha256=outer_optimizer_state_sha256,
         )
     )
     return CommitEnvelope(
         outer_optimizer_state=outer_optimizer_state,
+        outer_optimizer_state_sha256=outer_optimizer_state_sha256,
         frontiers=frontiers,
         selected=selected,
         policy_identity=policy_identity,
