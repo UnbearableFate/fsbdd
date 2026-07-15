@@ -42,7 +42,8 @@ export TOKENIZERS_PARALLELISM=false OMP_NUM_THREADS=1
   config.json model.safetensors special_tokens_map.json tokenizer.json tokenizer_config.json \
   --revision 50f5173d932e8e61f858120bcb800b97af589f46 --cache-dir "$HUB_CACHE" --quiet \
   > "$LOG_ROOT/hf-pythia.txt" 2> "$LOG_ROOT/hf-pythia.err"
-"$HF" download HuggingFaceFW/fineweb-edu sample/10BT/000_00000.parquet \
+"$HF" download HuggingFaceFW/fineweb-edu \
+  sample/10BT/000_00000.parquet sample/10BT/001_00000.parquet \
   --type dataset --revision 87f09149ef4734204d70ed1d046ddc9ca3f2b8f9 \
   --cache-dir "$HUB_CACHE" --quiet \
   > "$LOG_ROOT/hf-fineweb.txt" 2> "$LOG_ROOT/hf-fineweb.err"

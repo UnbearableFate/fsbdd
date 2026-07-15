@@ -46,6 +46,7 @@ hostname > "$RESULT_ROOT/env/role-${ROLE_INDEX}-hostname.txt"
 cp "$PBS_NODEFILE" "$RESULT_ROOT/env/role-${ROLE_INDEX}-nodefile.txt"
 qstat -f "$PBS_JOBID" > "$RESULT_ROOT/env/role-${ROLE_INDEX}-qstat.txt"
 module -t list > "$RESULT_ROOT/env/role-${ROLE_INDEX}-modules.txt" 2>&1
+findmnt -T "$SHARED_ROOT" > "$RESULT_ROOT/env/role-${ROLE_INDEX}-findmnt.txt"
 ROLE_QTIME_RAW="$(awk -F' = ' '/^[[:space:]]*qtime =/{print $2}' "$RESULT_ROOT/env/role-${ROLE_INDEX}-qstat.txt")"
 export PBS_QTIME_UTC="$(date -u -d "$ROLE_QTIME_RAW JST" '+%Y-%m-%dT%H:%M:%SZ')"
 
