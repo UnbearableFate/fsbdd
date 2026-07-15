@@ -365,7 +365,7 @@ loops:
   result_commit: null
   evidence_index: evidence/indexes/S1-13.md
   checker_verdict: null
-  blocker: Formal array job 2393100[].opbs passed the authorized first formal_l3_9n attempt at exact candidate e850f5116a69ed517a4a5772799b4d2554721cc0. All nine subjobs exited 0 on distinct hosts with no abnormal nodes; 357 Stage 1 tests and all topology/loss/runtime/protocol gates passed; the 179-file formal package is checksum-exact and admissible. Same-Checker Phase B is required before any decision about long-smoke or formal-long; no further compute is authorized.
+  blocker: Same-Checker Phase B passed for formal array job 2393100[].opbs. Exactly one five-node non-formal long-profile capacity smoke is authorized at runtime commit 729ebbb89d2930ade0e20eda4679cf6fe60f8ae5 and pending; formal-long, retry, and all other compute remain blocked until that smoke passes and receives same-Checker Phase B.
 - id: S2-01
   stage: stage2
   title: 异步 GPU→CPU→FS Publication Pipeline

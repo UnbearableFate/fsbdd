@@ -248,11 +248,11 @@ nine_node_gate:
   runtime_gate: pass; 286.526301569 active seconds of 1200, 41 updates through global cycle 10, heartbeat and pending-stall checks pass
   protocol_gate: pass; final version vector [10, 10, 11, 10], 9226240 aggregate input tokens, contiguous fragment versions, bounded/classified inventories, fresh-only Q=8 selections
   package_validator: admissible; exact 179-file coverage
-  checker_phase_b: pending
+  checker_phase_b: pass; same Checker independently verified scheduler completion, all 179 package checksums, raw topology/loss/runtime/protocol facts, and the first formal_l3_9n attempt was consumed successfully with no retry warranted
 checker:
   context_id: s1_13_checker
   maker_chat_inherited: false
-  phase_a_verdict: the replacement first formal_l3_9n authorization at e850f5116a69ed517a4a5772799b4d2554721cc0 was consumed by passing array job 2393100[].opbs; exact package and scheduler supplement await same-Checker Phase B; no long-smoke, formal-long, retry, or other compute is authorized
+  phase_a_verdict: Phase A PASS for exactly one five-node non-formal long-profile capacity smoke at exact runtime commit 729ebbb89d2930ade0e20eda4679cf6fe60f8ae5 using only pbs/stage1_s1_13_long_smoke.pbs SHA c080026703700d3bc56267605e8c7bf6689fdc64345be571765618cd0fe74bdb; formal-long, retry, and every other compute remain unauthorized
   verdict: null
   report_path: reports/checkers/S1-13.md
   cycles:
@@ -301,12 +301,18 @@ checker:
       result: prepare-nine created fresh exclusive roots and marker, but qsub rejected the array before queue admission because the effective arguments supplied -r n; no job ID or formal attempt was created, and the rejected roots are preserved
     - candidate: e850f5116a69ed517a4a5772799b4d2554721cc0
       verdict: Phase B PASS for immutable rejection attribution and replacement Phase A ADMISSIBLE for exactly one first formal_l3_9n submission using only pbs/stage1_s1_13_formal_9n.pbs SHA 2d4827380e68f9aaaa17c487f94f4f31aad0bebf354bf2055cd8e79030f8cbf2; no retry, long-smoke, formal-long, or other compute authorized
-      result: explicit '#PBS -r y' overrides the effective site -r n default; formal array job 2393100 passed all nine subjobs on distinct hosts with scheduler exit 0/no abnormal nodes; all four frozen gates pass and the exact 179-file package is admissible; same-Checker Phase B pending
+      result: explicit '#PBS -r y' overrides the effective site -r n default; formal array job 2393100 passed all nine subjobs on distinct hosts with scheduler exit 0/no abnormal nodes; all four frozen gates pass and the exact 179-file package is admissible; same-Checker Phase B passed and consumed the first formal_l3_9n attempt successfully with no retry warranted
+    - candidate: b2258e0205c8eebc47708ca89e54ee8e9a1ba6cb
+      verdict: BLOCKED for a long smoke because sequential timeout ceilings totaled 2070 seconds before kill grace and setup against the 1800-second PBS walltime
+      result: no root was created and no job was submitted; cumulative pre-walltime supervision required correction
+    - candidate: 729ebbb89d2930ade0e20eda4679cf6fe60f8ae5
+      verdict: Phase A PASS for exactly one five-node non-formal long-profile capacity smoke using only pbs/stage1_s1_13_long_smoke.pbs SHA c080026703700d3bc56267605e8c7bf6689fdc64345be571765618cd0fe74bdb; no formal-long, retry, or other compute authorized
+      result: pending; sequential ceilings total 1590 seconds and one 15-second terminal grace leaves at least 195 seconds within PBS walltime for setup and evidence finalization
 persist:
   evidence_index: evidence/indexes/S1-13.md
   raw_evidence_root: runtime_runs/S1-13
   acceptance_traceability_updated: false
   next_gap: Stage 2 asynchronous GPU to CPU to filesystem publication pipeline
   handoff: >-
-    Formal array job 2393100[].opbs consumed the authorized first formal_l3_9n attempt at exact candidate e850f5116a69ed517a4a5772799b4d2554721cc0. All nine subjobs exited 0 on distinct hosts with no abnormal nodes; 357 Stage 1 tests passed; topology, loss, runtime, and protocol gates pass; and the 179-file formal package validates admissible with checksum inventory fa9d8d7819435c3f946176af9281947b8bc96be3109b89aa0259cfc1b7eb36fc. Return the immutable formal package and scheduler supplement to the same Checker for Phase B and a separate decision about the smallest admissible long-run preflight. Do not submit any long-smoke, formal-long, retry, or other compute before that verdict.
-blocker: Passing formal 9N job 2393100[].opbs awaits same-Checker Phase B. No long-smoke, formal-long, retry, or other compute is authorized.
+    Same-Checker Phase B passed for formal array job 2393100[].opbs and consumed the first formal_l3_9n attempt successfully. The same Checker authorized exactly one five-node non-formal long-profile capacity smoke at exact runtime commit 729ebbb89d2930ade0e20eda4679cf6fe60f8ae5 using only pbs/stage1_s1_13_long_smoke.pbs SHA c080026703700d3bc56267605e8c7bf6689fdc64345be571765618cd0fe74bdb. Use fresh absent roots, then return scheduler/raw/checksum/gate evidence to the same Checker Phase B. Formal-long, retry, and every other compute remain unauthorized.
+blocker: Exactly one five-node non-formal capacity smoke is authorized and pending at runtime commit 729ebbb89d2930ade0e20eda4679cf6fe60f8ae5; formal-long and all other compute remain blocked pending its passing evidence and same-Checker Phase B.
