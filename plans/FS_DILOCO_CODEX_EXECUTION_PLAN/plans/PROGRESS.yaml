@@ -365,7 +365,7 @@ loops:
   result_commit: null
   evidence_index: evidence/indexes/S1-13.md
   checker_verdict: null
-  blocker: Authorized capacity smoke job 2393122.opbs failed in pytest after exactly 264 completions and before learner/syncer launch. The raw failure, cause, expected solution, scheduler evidence, core-cache/harness correction, and reasoned one-node focused amendment are recorded and await same-Checker Phase B/Phase A. No compute is currently authorized.
+  blocker: Same-Checker Phase B passed for capacity-smoke job 2393122 failure attribution. Exactly one fifth-and-final one-node focused correction validation is authorized at cd8ca08d8711194a0fa3bcef455dcb7d02913562; replacement smoke, formal-long, retry, and all other compute remain blocked pending its passing evidence and same-Checker Phase B.
 - id: S2-01
   stage: stage2
   title: 异步 GPU→CPU→FS Publication Pipeline
