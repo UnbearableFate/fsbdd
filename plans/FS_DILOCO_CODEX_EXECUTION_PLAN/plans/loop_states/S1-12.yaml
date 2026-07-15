@@ -29,8 +29,8 @@ orient:
   raw_evidence_on_demand: [runtime_runs/S1-07, runtime_runs/S1-08, runtime_runs/S1-09, runtime_runs/S1-11]
   resource_level: L2
   available_resources: Miyabi debug-g up to four compute nodes with one local GPU per learner and shared POSIX runtime root
-  recent_failure: After targeted job 2388641.opbs passed the prior role path Checker Phase A blocked three evidence semantics. Correction job 2388765.opbs then preserved a deterministic integrated-path failure where adoption mutated progress before the publisher validated the same safe-boundary event. The corrected snapshot-then-adopt order passed job 2388775.opbs with 21 tests 100 authoritative numeric updates measured evaluation reads and integrated control/injected syncer counts 19/10.
-  attempt_budget: {red: 1, targeted: 8, l1_compute: 8, formal_l2_batch: 1}
+  recent_failure: Formal job 2388799.opbs completed the four-node runtime and all 288 Stage 1 tests but the analyzer rejected speed records because distributed_initialized stored an all-not-initialized audit result true instead of the actual runtime state false. The preserved roles show exact 128/128/128/128 control and 128/128/128/64 injected rates with integrated syncer counts 8/10. The correction stores LearnerRunSummary.distributed_initialized directly and must pass one-node replay over these exact formal inputs before Checker readmission and one formal retry.
+  attempt_budget: {red: 1, targeted: 8, l1_compute: 9, analyzer_repro: 1, formal_l2_batch: 2}
   failure_ladder: preserve the first L2 failure then reproduce the failing role or analyzer on one compute node before resubmission
   nine_node_gate_required: false
   goal_tokens_start: 4645261
@@ -56,8 +56,8 @@ green:
 harden:
   commands: [qsub -v EXPECTED_COMMIT=4bd8fb728268822dfd66b968958177586cf3d4be pbs/stage1_s1_12_targeted.pbs]
   evidence_paths: [runtime_runs/S1-12/targeted-2387668.opbs, runtime_runs/S1-12/targeted-2387680.opbs, runtime_runs/S1-12/targeted-2387700.opbs, runtime_runs/S1-12/targeted-2388610.opbs, runtime_runs/S1-12/targeted-2388627.opbs, runtime_runs/S1-12/targeted-2388641.opbs, runtime_runs/S1-12/targeted-2388765.opbs, runtime_runs/S1-12/targeted-2388775.opbs]
-  formal_result: null
+  formal_result: job 2388799.opbs failed analyzer-only after the four-node runtime and 288 tests; preserved at runtime_runs/S1-12/formal-l2
 nine_node_gate: {required: false, run_id: null, topology_gate: null, loss_gate: null, runtime_gate: null}
-checker: {context_id: s1_12_checker, maker_chat_inherited: false, phase_a_verdict: BLOCKED_PRECHECK, verdict: null, report_path: reports/checkers/S1-12.md, cycles: [phase_a_blocked_integrated_timing_raw_numeric_and_evaluation_access_audit]}
+checker: {context_id: s1_12_checker, maker_chat_inherited: false, phase_a_verdict: ADMISSIBLE_BEFORE_ANALYZER_ONLY_FORMAL_FAILURE, verdict: null, report_path: reports/checkers/S1-12.md, cycles: [phase_a_blocked_integrated_timing_raw_numeric_and_evaluation_access_audit, phase_a_admissible_candidate_395ff04, formal_2388799_analyzer_only_failure_pending_readmission]}
 persist: {evidence_index: evidence/indexes/S1-12.md, raw_evidence_root: runtime_runs/S1-12, acceptance_traceability_updated: false, next_gap: S1-13 baseline training and one-billion-token run, handoff: null}
 blocker: null

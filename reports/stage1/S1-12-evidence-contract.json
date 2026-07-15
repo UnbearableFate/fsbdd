@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "resource_level": "L2",
-  "selected_evidence_root": "/work/xg24i002/x10041/fsbdd/runtime_runs/S1-12/formal-l2",
+  "selected_evidence_root": "/work/xg24i002/x10041/fsbdd/runtime_runs/S1-12/formal-l2-retry1",
   "target_shared_root": "/work/xg24i002/x10041/fsbdd/runtime_runs",
   "code_identity_contract": {
     "submission_value": "EXPECTED_COMMIT is the exact full candidate SHA",
@@ -53,7 +53,7 @@
   },
   "numeric_raw_payloads": "every one of the two-by-fifty updates persists an encoded authoritative pre-state all four encoded Proposal payloads and the encoded committed compound successor; the analyzer decodes those files and gates both parameters and committed outer momentum without trusting trace arrays",
   "formal_package": "S1-00 evidence builder/finalizer/validator with code config source skill scheduler role path identities and checksums; fail if evidence root exists",
-  "attempt_budget": {"red": 1, "targeted": 8, "l1_compute": 8, "formal_l2_batch": 1},
-  "attempt_budget_exception": "The sixth one-node diagnostic passed, but Checker Phase A blocked formal submission on three evidence-semantic gaps: standalone rather than integrated speed measurement, trace arrays rather than encoded authoritative numeric payloads, and a constant rather than instrumented evaluation read count. Two further cheap one-node attempts are authorized only to validate those Checker-driven corrections; the one-shot four-node formal budget is unchanged.",
+  "attempt_budget": {"red": 1, "targeted": 8, "l1_compute": 9, "analyzer_repro": 1, "formal_l2_batch": 2},
+  "attempt_budget_exception": "Eight one-node diagnostics were consumed before Checker readmission. Formal job 2388799.opbs then completed the four-node runtime and 288 tests but failed only because an analyzer evidence field stored the result of an all-not-initialized predicate true where the schema denotes actual distributed state false. One one-node replay over the exact failed formal inputs and one unchanged formal retry are authorized after the same Checker readmits the corrected candidate.",
   "failure_ladder": "preserve the first L2 failure, reproduce the failing role or analyzer on one compute node, and do not resubmit four nodes until the reduced case passes"
 }

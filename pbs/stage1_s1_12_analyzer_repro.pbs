@@ -1,0 +1,59 @@
+#!/bin/bash
+#PBS -q debug-g
+#PBS -l select=1
+#PBS -l walltime=00:10:00
+#PBS -W group_list=xg24i002
+#PBS -N fsbdd-s1-12-analyzer-repro
+
+set -eEuo pipefail
+trap 'echo "[ERROR] line=$LINENO command=$BASH_COMMAND" >&2' ERR
+
+: "${PROJECT_ROOT:=/work/xg24i002/x10041/fsbdd-s100-clean}"
+: "${MAIN_ROOT:=/work/xg24i002/x10041/fsbdd}"
+: "${EXPECTED_COMMIT:?EXPECTED_COMMIT is required}"
+: "${MODULE_NAME:=nv-hpcx/25.9}"
+
+PYTHON="$MAIN_ROOT/.venv/bin/python"
+CONFIG_SOURCE="configs/stage1/s1_12_profile_a_e2e.json"
+CONFIG_SHA256="686551db4cc556e0ea923f2c1482e3f0ed489b3e5173efa8b0791a069bf36977"
+FAILED_FORMAL="$MAIN_ROOT/runtime_runs/S1-12/formal-l2"
+FAILED_SHARED="$MAIN_ROOT/runtime_runs/S1-12/shared-2388799.opbs"
+ROOT="$MAIN_ROOT/runtime_runs/S1-12/analyzer-repro-${PBS_JOBID}"
+
+module load "$MODULE_NAME"
+if [[ "$(git -C "$PROJECT_ROOT" rev-parse HEAD)" != "$EXPECTED_COMMIT" ]] || \
+   [[ -n "$(git -C "$PROJECT_ROOT" status --porcelain)" ]]; then
+  echo "analyzer repro worktree identity mismatch" >&2
+  exit 65
+fi
+if [[ -e "$ROOT" ]]; then
+  echo "refusing to reuse analyzer repro root" >&2
+  exit 73
+fi
+if [[ ! -d "$FAILED_FORMAL/runtime/roles" || ! -d "$FAILED_SHARED/numeric" ]]; then
+  echo "preserved formal analyzer inputs are missing" >&2
+  exit 66
+fi
+
+mkdir -p "$ROOT"
+cd "$PROJECT_ROOT"
+export PYTHONPATH="$PROJECT_ROOT/src"
+export OMP_NUM_THREADS=1 TOKENIZERS_PARALLELISM=false
+export HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 HF_DATASETS_OFFLINE=1
+
+git rev-parse HEAD > "$ROOT/git-commit.txt"
+qstat -f "$PBS_JOBID" > "$ROOT/qstat.txt"
+"$PYTHON" -m pytest -q tests/stage1/test_s1_12_analyzer.py \
+  > "$ROOT/pytest.log" 2> "$ROOT/pytest.err"
+"$PYTHON" -m fsbdd.profile_a_stress summarize \
+  --result-root "$FAILED_FORMAL/runtime/roles" \
+  --shared-root "$FAILED_SHARED" \
+  --config-path "$PROJECT_ROOT/$CONFIG_SOURCE" \
+  --config-identity "$CONFIG_SHA256" \
+  --output "$ROOT/profile-a-summary.json" \
+  > "$ROOT/summarize.log" 2> "$ROOT/summarize.err"
+
+if [[ -s "$ROOT/pytest.err" || -s "$ROOT/summarize.err" ]]; then
+  echo "analyzer repro produced stderr" >&2
+  exit 70
+fi

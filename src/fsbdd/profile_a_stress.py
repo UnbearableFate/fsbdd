@@ -442,11 +442,7 @@ def _speed_trial(
         "step_completion_unix_ns": completions,
         "finite_loss": all(math.isfinite(item) for item in losses),
         "token_weighted_losses": losses,
-        "distributed_initialized": all(
-            event.distributed_initialized
-            is False
-            for event in run.events
-        ),
+        "distributed_initialized": run.distributed_initialized,
         "publication_count_before": before_publication,
         "publication_count_after": after_publication,
         "publication_count_delta": after_publication - before_publication,

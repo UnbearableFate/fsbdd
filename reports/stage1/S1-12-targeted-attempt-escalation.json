@@ -1,9 +1,9 @@
 {
   "schema_version": 1,
   "loop_id": "S1-12",
-  "decision": "extend_only_low_cost_validation_for_checker_phase_a_corrections",
+  "decision": "authorize_one_analyzer_repro_and_one_formal_retry_after_analyzer_only_failure",
   "original_budget": {"red": 1, "targeted": 3, "l1_compute": 2, "formal_l2_batch": 1},
-  "revised_budget": {"red": 1, "targeted": 8, "l1_compute": 8, "formal_l2_batch": 1},
+  "revised_budget": {"red": 1, "targeted": 8, "l1_compute": 9, "analyzer_repro": 1, "formal_l2_batch": 2},
   "preserved_attempts": [
     {
       "job_id": "2387668.opbs",
@@ -40,15 +40,21 @@
       "evidence": "runtime_runs/S1-12/targeted-2388765.opbs",
       "root_cause": "the first integrated timing harness invoked adoption before snapshot publication at one safe boundary; adoption correctly changed the progress vector and the publisher then rejected the now-stale boundary event. The corrected observer order snapshots the boundary first and applies any pending adoption second, matching the established in-flight old-base contract.",
       "formal_resources_consumed": false
+    },
+    {
+      "job_id": "2388799.opbs",
+      "evidence": "runtime_runs/S1-12/formal-l2",
+      "root_cause": "the formal four-node runtime and all 288 Stage 1 tests completed, but the analyzer rejected the integrated speed record because the harness stored all(distributed_initialized is false), which is the audit result true, in a field whose schema denotes the actual distributed_initialized state false. The correction stores the runtime state directly and is isolated to analysis evidence serialization.",
+      "formal_resources_consumed": true
     }
   ],
-  "rationale": "The sixth one-node diagnostic passed, but the independent Checker blocked Phase A because the evidence path did not yet measure integrated publication/adoption/syncer timing, decode encoded authoritative numeric inputs and compound successors, or instrument all evaluation restart reads. The first correction run exposed and preserved a deterministic safe-boundary observer-order violation before its second step. The final reserved one-node validation checks the corrected established snapshot-then-adopt order before the same Checker is asked to reconsider formal admissibility. No algorithm, acceptance threshold, formal topology, or formal allowance changes.",
+  "rationale": "The only formal attempt completed the full four-node runtime and 288-test suite before an analyzer-only boolean-schema inversion rejected otherwise correct speed records. The failed package is preserved. One one-node analyzer replay over those exact immutable formal roles and shared state must pass on the corrected candidate, then the same Checker must readmit it before one retry at the unchanged topology and thresholds. No algorithm or acceptance threshold changes.",
   "invariants_unchanged": [
     "Profile A algorithm and numeric thresholds",
     "M=4 formal topology",
     "ten-second common observation interval",
     "0.5 slow-learner ratio",
     "2-percent unaffected-learner threshold",
-    "one formal L2 batch"
+    "four-node formal topology and all measurement thresholds"
   ]
 }
