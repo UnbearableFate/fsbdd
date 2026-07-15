@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "target_api": "AtomicGlobalCommitStore.commit through PosixStorageBackend.publish",
+  "authority_observation": "a fresh AtomicGlobalCommitStore.load_fragment read of the one fixed per-fragment current slot",
+  "frontier_observation": "the consumption frontier decoded from the same compound current payload as parameters outer optimizer state version and policy identity",
+  "fault_points": [
+    {
+      "name": "before_payload_write",
+      "completed_step": "validated immutable commit request only",
+      "publication_succeeded": false,
+      "expected_authority": "old complete current",
+      "selected_proposals_consumed": false
+    },
+    {
+      "name": "after_payload_write",
+      "completed_step": "new immutable compound payload written and verified but not announced",
+      "publication_succeeded": false,
+      "expected_authority": "old complete current",
+      "selected_proposals_consumed": false
+    },
+    {
+      "name": "before_record_replace",
+      "completed_step": "new immutable compound payload and staged complete current record exist but current was not replaced",
+      "publication_succeeded": false,
+      "expected_authority": "old complete current",
+      "selected_proposals_consumed": false
+    },
+    {
+      "name": "after_record_replace",
+      "completed_step": "the single current visibility record atomically names the new complete compound payload",
+      "publication_succeeded": true,
+      "expected_authority": "new complete current",
+      "selected_proposals_consumed": true
+    }
+  ],
+  "replay_rule": "after each injected interruption reconstruct from the fixed current slot only; retry the exact immutable request; pre-replace failures perform one commit and post-replace failure returns the identical already-committed authority without another version increment",
+  "gc_scope": "unreferenced immutable payloads and staged record temporaries are diagnostic orphan candidates and never authority"
+}

@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "learner_count": 4,
+  "fragment_count": 2,
+  "s_max": 0,
+  "selection": {
+    "q": 4,
+    "q_fresh": 4,
+    "max_contributors": 4,
+    "lambda_s": 1.0
+  },
+  "policy": {
+    "merge": "direct_weighted_average",
+    "outer_optimizer": "sgd",
+    "learning_rate": 0.1,
+    "momentum": 0.9,
+    "nesterov": true,
+    "accumulation_dtype": "float32"
+  },
+  "formal_workload": {
+    "successful_updates": 20,
+    "fault_replays_per_point": 4,
+    "concurrent_reader_threads": 8,
+    "minimum_reader_observations": 100
+  },
+  "publication_fault_points": [
+    "before_payload_write",
+    "after_payload_write",
+    "before_record_replace",
+    "after_record_replace"
+  ],
+  "coordination_timeout_seconds": 180
+}

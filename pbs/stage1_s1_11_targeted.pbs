@@ -1,0 +1,57 @@
+#!/bin/bash
+#PBS -q debug-g
+#PBS -l select=1
+#PBS -l walltime=00:20:00
+#PBS -W group_list=xg24i002
+#PBS -N fsbdd-s1-11-targeted
+
+set -eEuo pipefail
+trap 'echo "[ERROR] line=$LINENO command=$BASH_COMMAND" >&2' ERR
+
+: "${PROJECT_ROOT:=/work/xg24i002/x10041/fsbdd-s100-clean}"
+: "${MAIN_ROOT:=/work/xg24i002/x10041/fsbdd}"
+: "${EXPECTED_COMMIT:?EXPECTED_COMMIT is required}"
+: "${MODULE_NAME:=nv-hpcx/25.9}"
+: "${EVIDENCE_ROOT:=$MAIN_ROOT/runtime_runs/S1-11/l1-targeted-${PBS_JOBID}}"
+
+PYTHON="$MAIN_ROOT/.venv/bin/python"
+export PAGER=cat MODULES_PAGER=cat LMOD_PAGER=cat
+module load "$MODULE_NAME"
+if [[ "$(git -C "$PROJECT_ROOT" rev-parse HEAD)" != "$EXPECTED_COMMIT" ]]; then
+  echo "clean worktree commit mismatch" >&2
+  exit 65
+fi
+if [[ -n "$(git -C "$PROJECT_ROOT" status --porcelain)" ]]; then
+  echo "targeted worktree is dirty" >&2
+  exit 65
+fi
+if [[ -e "$EVIDENCE_ROOT" ]]; then
+  echo "refusing to reuse targeted evidence root: $EVIDENCE_ROOT" >&2
+  exit 73
+fi
+mkdir -p "$EVIDENCE_ROOT"/{env,stdout,stderr}
+cd "$PROJECT_ROOT"
+export PYTHONPATH="$PROJECT_ROOT/src"
+export OMP_NUM_THREADS=1
+hostname > "$EVIDENCE_ROOT/env/compute-hostname.txt"
+git rev-parse HEAD > "$EVIDENCE_ROOT/env/git-commit.txt"
+git status --porcelain > "$EVIDENCE_ROOT/env/git-status.txt"
+cp "$PBS_NODEFILE" "$EVIDENCE_ROOT/env/pbs-nodefile.txt"
+module -t list > "$EVIDENCE_ROOT/env/modules.txt" 2>&1
+"$PYTHON" --version > "$EVIDENCE_ROOT/env/python.txt" 2>&1
+"$PYTHON" -c 'import torch; print(torch.__version__)' \
+  > "$EVIDENCE_ROOT/env/torch.txt" 2>&1
+nvidia-smi -L > "$EVIDENCE_ROOT/env/nvidia-smi.txt" 2>&1
+printf '%q ' "$PYTHON" -m pytest -q \
+  tests/stage1/test_s1_11_global_commit.py \
+  tests/stage1/test_s1_11_global_commit_analyzer.py \
+  tests/stage1/test_s1_11_global_commit_static.py > "$EVIDENCE_ROOT/commands.log"
+printf '\n' >> "$EVIDENCE_ROOT/commands.log"
+"$PYTHON" -m pytest -q \
+  tests/stage1/test_s1_11_global_commit.py \
+  tests/stage1/test_s1_11_global_commit_analyzer.py \
+  tests/stage1/test_s1_11_global_commit_static.py \
+  > "$EVIDENCE_ROOT/stdout/pytest.log" 2> "$EVIDENCE_ROOT/stderr/pytest.log"
+find "$EVIDENCE_ROOT" -type f ! -name checksums.sha256 -printf '%P\0' \
+  | sort -z | xargs -0 -I{} sha256sum "$EVIDENCE_ROOT/{}" \
+  > "$EVIDENCE_ROOT/checksums.sha256"

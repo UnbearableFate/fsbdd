@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "resource_level": "L2",
+  "selected_evidence_root": "/work/xg24i002/x10041/fsbdd/runtime_runs/S1-11/formal-l2",
+  "target_shared_root": "/work/xg24i002/x10041/fsbdd/runtime_runs",
+  "code_identity_contract": {
+    "submission_value": "EXPECTED_COMMIT is the full 40-character candidate SHA supplied to qsub",
+    "required_equality": "EXPECTED_COMMIT == clean worktree HEAD == manifest identities.code.commit",
+    "dirty_allowed": false
+  },
+  "topology": {
+    "pbs_queue": "debug-g",
+    "pbs_group": "xg24i002",
+    "nodes": 2,
+    "ranks": 2,
+    "ranks_per_node": 1,
+    "roles": ["proposal_writer_reader", "atomic_committer"],
+    "application_coordination": "filesystem_only",
+    "mpi_usage": "launcher_only",
+    "logical_syncers": 1
+  },
+  "atomic_authority_contract": {
+    "publication_unit": "one immutable compound payload containing new parameters outer optimizer state selected contribution facts fixed consumption frontiers policy identity update identity and integrity metadata",
+    "visibility_unit": "one small fixed per-fragment current record atomically replaced after payload verification",
+    "success_boundary": "replacement of the current visibility record; selected sequence and base frontiers become authoritative only through the newly visible compound payload",
+    "reader_outcomes": "every fresh reader sees either the complete old authority or complete new authority and never a mixed parameter optimizer frontier or policy tuple",
+    "forbidden": "independent latest parameters outer state or consumed-frontier records and any shared global head"
+  },
+  "version_contract": {
+    "successor": "requested and published next version equals current version plus exactly one and outer update count also increments by one",
+    "retry": "an exact retry after a completed current-record replacement returns the same content and update identities without another version increment",
+    "conflict": "version skip rollback or same next version with different semantic content fails before replacing current"
+  },
+  "consumption_contract": {
+    "frontier_shape": "one fixed ordered sequence and base-version pair per frozen learner and fragment",
+    "advance": "only selected distinct learners advance to exactly their selected proposal sequence and base version",
+    "failure": "all pre-replace interruptions retain byte-identical old frontiers so every previously selected proposal remains eligible under the old authority",
+    "late_arrival": "the immutable selected set and float32 weights are commit facts; a proposal arriving after freeze is absent from the commit and may participate only through a later eligible selection"
+  },
+  "fault_matrix_source": "reports/stage1/S1-11-publication-injection-points.json",
+  "concurrency_observation": "eight reader threads repeatedly load the one current slot during successful replacements and classify complete authority identities over their common writer interval",
+  "formal_package": "S1-00 builder finalizer and validator with clean code config source skill scheduler role path and checksum identities plus fail-if-exists root",
+  "attempt_budget": {
+    "red": 1,
+    "targeted": 3,
+    "l1_compute": 2,
+    "formal_l2_batch": 1
+  },
+  "failure_ladder": "preserve the first formal L2 package and reproduce proposal writer reader plus atomic committer on one compute node with the same candidate and profile before any resubmission"
+}

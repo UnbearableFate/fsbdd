@@ -4,6 +4,7 @@ import dataclasses
 import hashlib
 import json
 import struct
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -647,7 +648,13 @@ class GlobalStateStore:
         )
 
     def publish_successor(
-        self, index: int, *, parameters: bytes, outer_state: bytes
+        self,
+        index: int,
+        *,
+        parameters: bytes,
+        outer_state: bytes,
+        crash_at: str | None = None,
+        before_visibility: Callable[[FragmentGlobalState], None] | None = None,
     ) -> FragmentGlobalState:
         _require_bytes(parameters, "parameters")
         _require_bytes(outer_state, "outer_state")
@@ -682,6 +689,17 @@ class GlobalStateStore:
                 raise GlobalStateError(
                     f"fragment {index} changed during successor publication"
                 )
+            if before_visibility is not None:
+                before_visibility(successor)
+                latest = self._backend.read(
+                    current_slot(index),
+                    self._expectation(descriptor),
+                    timeout_seconds=0,
+                )
+                if latest.record.payload_identity != visible.record.payload_identity:
+                    raise GlobalStateError(
+                        f"fragment {index} changed during successor publication hook"
+                    )
 
         self._backend.publish(
             current_slot(index),
@@ -697,6 +715,7 @@ class GlobalStateStore:
                 base_content_identity=current.content_identity,
             ),
             visibility_hook=require_unchanged_base,
+            crash_at=crash_at,
         )
         return self.load_fragment(index, timeout_seconds=0)
 

@@ -1,0 +1,77 @@
+schema_version: 2
+loop_id: S1-11
+title: Atomic global commit and consumed frontier
+stage: stage1
+status: red
+source_hashes:
+  research_plan: 2c0db3148110da10ea62f445c189d2d53b405527d8da264b9af9817f5ca9d835
+  stage0_4_spec: 1ea71fb6e34fef0d7b5558d8e7999dfdedeb82957f4331afcf6f80279d1f5a7d
+  loop_card: 3ece31bf6801cbbd28f64a358b036ea203f4e4499e9e6c8bfe0c0db5cadb17c9
+git:
+  integration_branch: master
+  branch: codex/S1-11-global-commit
+  base_commit: 83dcca92bfb85559568db32a53fdb7d4a94b320f
+  result_commit: null
+  dirty_at_start: true
+  user_owned_dirty_paths: [AGENTS.md]
+dependencies: [S1-03, S1-05, S1-10]
+requirements: [SYNC-08, GLOBAL-02, GLOBAL-03, FS-03, INV-03, INV-05, PROP-06]
+acceptance_ids: [A-GLOBAL-01, A-GLOBAL-02, A-PROP-03]
+orient:
+  unique_failing_gap: The current global-state successor API atomically couples parameters outer bytes and version but does not encode selected proposal facts fixed consumption frontiers or policy identity in the same current authority so failed publication and retry cannot prove once-only consumption.
+  non_goals: [complete Stage3 kill matrix, process kill, event log, shared global head, garbage collection, merge algorithm changes]
+  planned_files: [src/fsbdd/global_commit.py, src/fsbdd/global_commit_stress.py, src/fsbdd/global_state.py, configs/stage1/s1_11_global_commit.json, tests/stage1/test_s1_11_global_commit.py, tests/stage1/test_s1_11_global_commit_analyzer.py, tests/stage1/test_s1_11_global_commit_static.py, tests/red_cases/s1_11_unsafe_global_commit_surrogate.py, pbs/stage1_s1_11_targeted.pbs, pbs/stage1_s1_11_global_commit.pbs, reports/stage1/S1-11-requirement-matrix.csv, reports/stage1/S1-11-evidence-contract.json, reports/stage1/S1-11-publication-injection-points.json]
+  model_data_profile: Deterministic immutable byte fragments and four complete proposal authorities; no model dataset or GPU math is required by the application roles.
+  miyabi_skill_commit: c3ddfa47cadfd9132edf939d359b90b28ab5f8ed
+  initial_hostname: miyabi-g1
+  workflow: login-node static and pure-Python evidence work followed by compute-node full tests Checker Phase A and one formal two-node filesystem-only proposal-writer-reader and atomic-committer batch
+  context_inputs: [plans/PROGRESS.yaml, loops/stage1/S1-11.md, evidence/indexes/S1-03.md, evidence/indexes/S1-05.md, evidence/indexes/S1-10.md]
+  raw_evidence_on_demand: [runtime_runs/S1-03, runtime_runs/S1-05, runtime_runs/S1-10]
+  resource_level: L2
+  available_resources: Miyabi debug-g one or two compute nodes with shared POSIX evidence root and nv-hpcx launcher module
+  recent_failure: null
+  attempt_budget: {red: 1, targeted: 3, l1_compute: 2, formal_l2_batch: 1}
+  failure_ladder: preserve the first L2 failure then reproduce both roles on one compute node before any resubmission
+  nine_node_gate_required: false
+  goal_tokens_start: 4059096
+  soft_token_budget: 120000
+preflight:
+  requirement_matrix: reports/stage1/S1-11-requirement-matrix.csv
+  requirements_complete: true
+  measurement_contract: reports/stage1/S1-11-evidence-contract.json
+  package_contract: reports/stage1/S1-11-evidence-contract.json
+  fault_injection_contract: reports/stage1/S1-11-publication-injection-points.json
+  package_validator_command: fsbdd evidence validate runtime_runs/S1-11/formal-l2
+  package_validator_result: pending
+  checker_phase_a: required
+  success_boundary: atomic replacement of the one fixed current visibility record
+  replay_observation: reconstruct the complete authority from the fixed current record then rerun the exact immutable request
+red:
+  command: PYTHONPATH=src .venv/bin/python tests/red_cases/s1_11_unsafe_global_commit_surrogate.py
+  exit_code: 1
+  evidence_path: runtime_runs/S1-11/red-83dcca9-semantic
+green:
+  command: PYTHONPATH=src .venv/bin/python -m pytest -q tests/stage1/test_s1_11_global_commit.py tests/stage1/test_s1_11_global_commit_analyzer.py tests/stage1/test_s1_11_global_commit_static.py
+  evidence_path: null
+harden:
+  commands:
+  - all four payload and visibility fault boundaries with fresh-reader replay classification
+  - exact duplicate retry version skip rollback same-version conflict and same-base repeat rejection
+  - eight concurrent readers late proposal freeze stability restart and 10000 frontier advances
+  - fail-closed envelope identity checksum schema selected-weight frontier and analyzer mutations
+  evidence_paths: []
+nine_node_gate: {required: false, run_id: null, topology_gate: null, loss_gate: null, runtime_gate: null}
+checker:
+  context_id: null
+  maker_chat_inherited: false
+  phase_a_verdict: pending
+  verdict: pending
+  report_path: reports/checkers/S1-11.md
+  cycles: []
+persist:
+  evidence_index: evidence/indexes/S1-11.md
+  raw_evidence_root: runtime_runs/S1-11
+  acceptance_traceability_updated: false
+  next_gap: null
+  handoff: null
+blocker: null
