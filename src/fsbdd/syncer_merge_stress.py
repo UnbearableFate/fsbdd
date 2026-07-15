@@ -536,7 +536,7 @@ def execute_mixed_base_workload(root: Path, workload: Mapping[str, Any], config:
         },
     )
     request = FragmentMergeRequest(
-        descriptor=_descriptor_from_dict(workload["small_descriptor"]),
+        descriptor=_descriptor(2),
         fragment_map_identity=workload["fragment_map_identity"],
         current_version=1,
         current_content_identity=mixed["current_identity"],

@@ -119,10 +119,15 @@ def make_request(
     version: int = 0,
     current_identity: str = CURRENT_ID,
     outer_state: FragmentOuterState | None = None,
-    descriptor: FragmentStateDescriptor = DESCRIPTOR,
+    descriptor: FragmentStateDescriptor | None = None,
 ) -> FragmentMergeRequest:
+    resolved_descriptor = (
+        dataclasses.replace(DESCRIPTOR, shape=(len(current) // 4,))
+        if descriptor is None
+        else descriptor
+    )
     return FragmentMergeRequest(
-        descriptor=descriptor,
+        descriptor=resolved_descriptor,
         fragment_map_identity=MAP_ID,
         current_version=version,
         current_content_identity=current_identity,
