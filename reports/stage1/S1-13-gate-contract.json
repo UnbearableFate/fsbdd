@@ -62,7 +62,7 @@
     ],
     "normal_fragment_update_interval_statistic": "median of positive consecutive completion intervals for the same fragment within the heartbeat observation window",
     "maximum_unexpected_heartbeat_gap_multiple": 2.0,
-    "structured_logging_durability": "every learner and the syncer append every event, fsync every 40 events, and perform a blocking final fsync before the role result is written",
+    "structured_logging_durability": "every learner and the syncer append every event, fsync every 400 events, and perform a blocking final fsync before the role result is written",
     "pending_stall_rejection": {
       "learner_publication_pending_upload_count": 0,
       "learner_publication_in_flight_publication_count": 0,

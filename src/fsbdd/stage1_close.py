@@ -435,7 +435,7 @@ def run_learner(
         result_root / "logs" / f"{role_id}.jsonl",
         role="learner",
         run_id=run_id,
-        fsync_every=40,
+        fsync_every=400,
     )
     schedule_row = bootstrap["per_learner_schedules"][learner_index]
     schedule_offsets = tuple(int(item) for item in schedule_row["offsets"])
@@ -619,7 +619,7 @@ def run_learner(
         "gate_contract_sha256": gate_contract_sha256,
         "non_formal_long_smoke": non_formal_long_smoke,
         "logging": {
-            "jsonl_fsync_every_events": 40,
+            "jsonl_fsync_every_events": 400,
             "final_fsync_complete": True,
             "role_json_is_written_after_final_fsync": True,
         },
@@ -758,7 +758,7 @@ def run_syncer(
         result_root / "logs" / "syncer.jsonl",
         role="syncer",
         run_id=run_id,
-        fsync_every=40,
+        fsync_every=400,
     )
     updates: list[dict[str, Any]] = []
     inventories: list[dict[str, Any]] = []
@@ -899,7 +899,7 @@ def run_syncer(
         "update_count": len(updates),
         "updates": updates,
         "logging": {
-            "jsonl_fsync_every_events": 40,
+            "jsonl_fsync_every_events": 400,
             "final_fsync_complete": True,
             "role_json_is_written_after_final_fsync": True,
         },

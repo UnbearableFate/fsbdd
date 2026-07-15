@@ -393,7 +393,7 @@ def _runtime_gate(
                 "policy": learner_logging,
                 "pass": learner_logging
                 == {
-                    "jsonl_fsync_every_events": 40,
+                    "jsonl_fsync_every_events": 400,
                     "final_fsync_complete": True,
                     "role_json_is_written_after_final_fsync": True,
                 },
@@ -415,7 +415,7 @@ def _runtime_gate(
         all(item["pass"] for item in learner_pending_rows) and syncer_pending_pass
     )
     syncer_logging_pass = syncer.get("logging") == {
-        "jsonl_fsync_every_events": 40,
+        "jsonl_fsync_every_events": 400,
         "final_fsync_complete": True,
         "role_json_is_written_after_final_fsync": True,
     }
