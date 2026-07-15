@@ -382,6 +382,7 @@ def test_restart_uses_the_next_reserved_sequence(tmp_path: Path) -> None:
     first.close()
 
     restored_parameter = torch.nn.Parameter(torch.arange(4, dtype=torch.float32))
+    restored = reserved
     restarted = FragmentSnapshotCoordinator(
         identities=IDENTITIES,
         progress=restored,
