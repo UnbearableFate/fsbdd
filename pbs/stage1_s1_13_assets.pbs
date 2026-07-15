@@ -24,6 +24,7 @@ if [[ -e "$OUTPUT_ROOT" || -e "$LOG_ROOT" ]]; then
   exit 73
 fi
 mkdir -p "$LOG_ROOT"
+FSBDD_FAILURE_OUTPUT_ROOT="$LOG_ROOT"
 cd "$PROJECT_ROOT"
 export PYTHONPATH="$PROJECT_ROOT/src"
 export TOKENIZERS_PARALLELISM=false OMP_NUM_THREADS=1

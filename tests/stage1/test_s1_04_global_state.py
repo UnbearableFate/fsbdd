@@ -261,7 +261,10 @@ def test_wrong_frozen_identity_descriptor_and_compound_corruption_fail_closed(
     original_visibility = visibility_path.read_bytes()
     visibility = json.loads(original_visibility)
     visibility["base_content_identity"] = "f" * 64
-    visibility_path.write_text(json.dumps(visibility), encoding="utf-8")
+    visibility_path.write_text(
+        json.dumps(visibility, sort_keys=True, separators=(",", ":")) + "\n",
+        encoding="utf-8",
+    )
     with pytest.raises(GlobalStateError, match="base identity"):
         store.load_fragment(0)
     visibility_path.write_bytes(original_visibility)

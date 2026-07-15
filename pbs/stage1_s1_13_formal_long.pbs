@@ -43,6 +43,7 @@ if [[ -e "$SHARED_ROOT" || -e "$RESULT_ROOT" || -e "$EVIDENCE_ROOT" ]]; then
 fi
 mkdir "$SHARED_ROOT"
 mkdir -p "$RESULT_ROOT"/{roles,logs,env,stdout,stderr}
+FSBDD_FAILURE_OUTPUT_ROOT="$RESULT_ROOT"
 cd "$PROJECT_ROOT"
 export PYTHONPATH="$PROJECT_ROOT/src"
 export OMP_NUM_THREADS=1 TOKENIZERS_PARALLELISM=false

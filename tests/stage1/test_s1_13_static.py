@@ -52,6 +52,21 @@ def test_formal_topologies_freeze_independent_9n_and_coallocated_4_plus_1() -> N
     assert 'bash -n "$script"' in targeted
 
 
+def test_syncer_keeps_update_history_only_in_durable_jsonl() -> None:
+    close_source = (ROOT / "src/fsbdd/auxiliary/stage1/close.py").read_text(
+        encoding="utf-8"
+    )
+    gate_source = (ROOT / "src/fsbdd/auxiliary/stage1/gate.py").read_text(
+        encoding="utf-8"
+    )
+    assert "updates.append(" not in close_source
+    assert "inventories.append(" not in close_source
+    assert '"retained_in_memory": 0' in close_source
+    assert 'logger.emit("fragment_outer_update"' in close_source
+    assert 'logger.emit("bounded_storage_inventory"' in close_source
+    assert "_load_syncer_streams(result_root, syncer)" in gate_source
+
+
 def test_formal_package_retains_current_protocol_samples_and_rejects_placeholders() -> (
     None
 ):
@@ -59,9 +74,8 @@ def test_formal_package_retains_current_protocol_samples_and_rejects_placeholder
         encoding="utf-8"
     )
     assert "_reject_placeholders(resolved_config)" in source
-    assert (
-        "_capture_current_protocol_samples(arguments.shared_root, evidence)" in source
-    )
+    assert "_capture_current_protocol_samples(" in source
+    assert "arguments.shared_root, evidence" in source
     assert "raw-metadata/classified-current-inventory.json" in source
     assert "nine-node package requires a submission marker" in source
     assert '"gate_contract_sha256"' in source

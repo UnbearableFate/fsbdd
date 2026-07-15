@@ -53,6 +53,36 @@ def _records(path: Path, event: str) -> list[dict[str, Any]]:
     return result
 
 
+def _syncer_rows(syncer: Mapping[str, Any], name: str) -> list[dict[str, Any]]:
+    value = syncer.get(f"_{name}", syncer.get(name))
+    if not isinstance(value, list) or not all(
+        isinstance(item, dict) for item in value
+    ):
+        raise Stage1GateError(f"syncer {name} evidence must be a list of objects")
+    return value
+
+
+def _load_syncer_streams(result_root: Path, syncer: dict[str, Any]) -> None:
+    stream_path = Path("logs/syncer.jsonl")
+    definitions = (
+        ("updates", "update", "fragment_outer_update"),
+        ("inventories", "inventory", "bounded_storage_inventory"),
+    )
+    for rows_name, metadata_name, event in definitions:
+        rows = _records(result_root / stream_path, event)
+        expected = {
+            "path": stream_path.as_posix(),
+            "event": event,
+            "count": len(rows),
+            "retained_in_memory": 0,
+        }
+        if syncer.get(f"{metadata_name}_count") != len(rows):
+            raise Stage1GateError(f"syncer {metadata_name} count mismatch")
+        if syncer.get(f"{metadata_name}_stream") != expected:
+            raise Stage1GateError(f"syncer {metadata_name} stream mismatch")
+        syncer[f"_{rows_name}"] = rows
+
+
 def _rolling_medians(values: Sequence[float], window: int) -> list[float]:
     return [
         statistics.median(values[index - window : index])
@@ -346,12 +376,11 @@ def _runtime_gate(
             "safe_boundary",
         )
         step_latencies.extend(float(item["step_latency_seconds"]) for item in events)
-    update_latencies = [
-        float(item["update_latency_seconds"]) for item in syncer["updates"]
-    ]
+    updates = _syncer_rows(syncer, "updates")
+    update_latencies = [float(item["update_latency_seconds"]) for item in updates]
     target_updates = []
     target_reached = False
-    for item in syncer["updates"]:
+    for item in updates:
         target_updates.append(item)
         if int(item["global_cycle_after"]) >= target:
             target_reached = True
@@ -567,7 +596,7 @@ def _protocol_gate(
 ) -> dict[str, Any]:
     learner_count = len(roles)
     expected_learner_ids = {str(item["learner_id"]) for item in roles}
-    updates = syncer["updates"]
+    updates = _syncer_rows(syncer, "updates")
     per_fragment: dict[int, list[int]] = {}
     selections_pass = True
     byte_pass = True
@@ -640,7 +669,9 @@ def _protocol_gate(
         and int(progress_fragments[index]["stale_accepted_contributions"]) == 0
         for index, versions in per_fragment.items()
     )
-    inventories = syncer["inventories"]
+    inventories = _syncer_rows(syncer, "inventories")
+    if not inventories:
+        raise Stage1GateError("syncer inventory evidence must not be empty")
     inventory = inventories[-1]
     expected_policy = {
         "minimum_unreferenced_payload_age_seconds": float(
@@ -698,6 +729,14 @@ def _protocol_gate(
         and not bool(syncer["forbidden_runtime"]["torch_distributed_initialized"])
         and int(syncer["forbidden_runtime"]["history_scan_operations"]) == 0
         and int(syncer["forbidden_runtime"]["full_model_operations"]) == 0
+        and int(
+            syncer["forbidden_runtime"].get("in_memory_update_history", 0)
+        )
+        == 0
+        and int(
+            syncer["forbidden_runtime"].get("in_memory_inventory_history", 0)
+        )
+        == 0
     )
     frozen_asset_identity_pass = all(
         item["identity"]["model_revision"]
@@ -872,6 +911,7 @@ def analyze(
         for index in range(count)
     ]
     syncer = _read(result_root / "roles" / "syncer.json")
+    _load_syncer_streams(result_root, syncer)
     for role in roles:
         role["_result_root"] = str(result_root)
     topology = _topology_gate(

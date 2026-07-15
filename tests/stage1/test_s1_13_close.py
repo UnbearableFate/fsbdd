@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-import os
 import json
+import os
 import subprocess
 import sys
 import time
@@ -26,7 +26,12 @@ from fsbdd.diloco.syncer.readiness import (
     ReadinessConfig,
     SyncerReadinessMachine,
 )
-from fsbdd.auxiliary.stage1.gate import _runtime_gate, _topology_gate
+from fsbdd.auxiliary.stage1.gate import (
+    Stage1GateError,
+    _load_syncer_streams,
+    _runtime_gate,
+    _topology_gate,
+)
 from fsbdd.auxiliary.stage1.package import (
     Stage1PackageError,
     _capture_current_protocol_samples,
@@ -344,10 +349,54 @@ def test_stage1_pbs_failures_install_err_and_exit_capture() -> None:
     )
     assert "trap - ERR EXIT" in helper
     assert "record_experiment_exit" in helper
+    assert "FSBDD_FAILURE_OUTPUT_ROOT" in helper
+    assert "runtime_runs/S1-13/rejected-submissions" in helper
     for path in sorted(root.glob("pbs/stage1_s1_13_*.pbs")):
         source = path.read_text(encoding="utf-8")
         assert "record_experiment_failure.sh" in source
         assert "install_experiment_failure_traps" in source
+        authorization_anchor = (
+            "fsbdd.auxiliary.stage1.submit validate-nine"
+            if path.name == "stage1_s1_13_formal_9n.pbs"
+            else "refusing to reuse"
+        )
+        assert source.index(authorization_anchor) < source.index(
+            "FSBDD_FAILURE_OUTPUT_ROOT="
+        )
+
+
+def test_syncer_role_references_durable_bounded_evidence_stream(tmp_path: Path) -> None:
+    log = tmp_path / "logs" / "syncer.jsonl"
+    log.parent.mkdir()
+    rows = [
+        {"event": "fragment_outer_update", "fragment_index": 0},
+        {"event": "bounded_storage_inventory", "global_cycle": 1},
+    ]
+    log.write_text(
+        "".join(json.dumps(row) + "\n" for row in rows), encoding="utf-8"
+    )
+    syncer = {
+        "update_count": 1,
+        "update_stream": {
+            "path": "logs/syncer.jsonl",
+            "event": "fragment_outer_update",
+            "count": 1,
+            "retained_in_memory": 0,
+        },
+        "inventory_count": 1,
+        "inventory_stream": {
+            "path": "logs/syncer.jsonl",
+            "event": "bounded_storage_inventory",
+            "count": 1,
+            "retained_in_memory": 0,
+        },
+    }
+    _load_syncer_streams(tmp_path, syncer)
+    assert syncer["_updates"] == [rows[0]]
+    assert syncer["_inventories"] == [rows[1]]
+    syncer["update_count"] = 2
+    with pytest.raises(Stage1GateError, match="update count mismatch"):
+        _load_syncer_streams(tmp_path, syncer)
 
 
 def _runtime_fixture(

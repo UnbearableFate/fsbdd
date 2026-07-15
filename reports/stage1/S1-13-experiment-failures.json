@@ -10,7 +10,7 @@
   "failures": [
     {
       "experiment_id": "s1-13-long-smoke-20260715T161208Z-0023c3d",
-      "analysis_status": "reviewed_pending_solution_validation",
+      "analysis_status": "reviewed_corrections_static_pass_retry_not_authorized",
       "workload": "five-node four-learner plus CPU-only syncer long-run preflight smoke",
       "pbs_job_id": "2391236.opbs",
       "code_commit": "0023c3d05d978e659f9b11d233728b459fe156aa",
@@ -66,6 +66,80 @@
         "tracejob_sha256": "258f007a56ea51c7233d154c5f779735a0f1137ad99b3fd53b334b0571497f59",
         "mpirun_stderr_sha256": "6184385f7a6bbf079b5afa989f1316648a6855f7ae069a0260552c25d7ae49dd",
         "raw_checksums": "runtime_runs/S1-13/long-smoke-20260715T161208Z-0023c3d/checksums.sha256"
+      }
+    },
+    {
+      "experiment_id": "fsbdd-s1-13-targeted-2392180.opbs",
+      "analysis_status": "reviewed_pending_solution_validation",
+      "workload": "one-node identity-bound static and complete Stage 1 targeted regression",
+      "pbs_job_id": "2392180.opbs",
+      "code_commit": "f0bb4fb5cbe6b2115eaf2b63db66a9732b4d70f6",
+      "queued_at_utc": "2026-07-15T18:07:20Z",
+      "failed_at_utc": "2026-07-15T18:08:23Z",
+      "raw_evidence_root": "runtime_runs/S1-13/targeted-f0bb4fb-20260715T180720Z",
+      "failure": {
+        "summary": "The identity-bound targeted regression failed the complete Stage 1 pytest gate after all static gates passed.",
+        "exit_code": 1,
+        "observed_progress": {
+          "stage1_tests_passed": 332,
+          "stage1_tests_failed": 7,
+          "compileall": "pass",
+          "ruff": "pass",
+          "pyright": "pass with zero errors and warnings",
+          "bash_syntax": "pass"
+        },
+        "failed_tests": [
+          "tests/stage1/test_s1_04_global_state.py::test_wrong_frozen_identity_descriptor_and_compound_corruption_fail_closed",
+          "tests/stage1/test_s1_05_proposal.py::test_fixed_slot_record_is_bound_to_body_learner_sequence_and_base",
+          "tests/stage1/test_s1_06_learner.py::test_asset_identity_and_visibility_last_materialization",
+          "tests/stage1/test_s1_06_learner.py::test_gpt2_registry_covers_position_embedding_static_buffers_and_tied_head",
+          "tests/stage1/test_s1_08_learner_adopt.py::test_tied_parameter_has_one_fragment_owner_and_target_only_adoption",
+          "tests/stage1/test_s1_09_syncer_readiness.py::test_profile_a_freezes_every_learner_immediately_and_is_order_independent",
+          "tests/stage1/test_s1_13_static.py::test_formal_package_retains_current_protocol_samples_and_rejects_placeholders"
+        ]
+      },
+      "cause": {
+        "status": "diagnosed_from_complete_pytest_trace",
+        "summary": "The pre-runtime review changes were statically valid but seven regression expectations or dependent consumers were not updated consistently.",
+        "root_causes": [
+          "Two corruption tests rewrote visibility JSON with noncanonical formatting, so the new canonical storage boundary correctly rejected the record before the tests reached their intended deeper identity mismatch.",
+          "The selective-shard test expected the underlying LearnerAssetError even though PackedTokenShard deliberately translates asset failures to LearnerError.",
+          "Sorting tied-parameter aliases made lm_head.weight the recorded owner_name; PyTorch remove_duplicate=True exposes only transformer.wte.weight for GPT-2, so two real tied-weight group builders could not resolve the canonical parameter.",
+          "The readiness stress validator omitted the newly identity-bearing logical_syncer_id field from its exact frozen-selection schema.",
+          "A static package test searched for a single-line source literal that the formatter had split across lines."
+        ],
+        "scope": "No learner/syncer runtime reproduction was launched. The failure occurred entirely inside the authorized one-node targeted regression."
+      },
+      "expected_solution": {
+        "status": "implemented_static_validation_passed_checker_retry_review_pending",
+        "changes": [
+          "Make visibility-corruption fixtures emit canonical record bytes before asserting the intended semantic mismatch.",
+          "Assert the PackedTokenShard public LearnerError boundary for a corrupted selected shard.",
+          "Choose a stable owner alias below the logical owner path and resolve tied parameters through the complete alias view rather than remove_duplicate=True.",
+          "Add and validate logical_syncer_id in the readiness stress schema and selection identity.",
+          "Make the package source assertion insensitive to formatting-only line breaks.",
+          "Remove the syncer's unbounded in-memory update and inventory histories; retain append-only evidence in the durable structured log and keep only scalar counts in the live role state.",
+          "Keep pre-authorization and output-reuse failures outside the rejected experiment root, and bind failure capture to the experiment root only after exclusive authorization succeeds."
+        ],
+        "static_validation": {
+          "compileall": "pass",
+          "ruff": "pass",
+          "pyright": "pass with zero errors and warnings",
+          "bash_syntax": "pass for every active S1-13 PBS script and failure helper",
+          "json_and_diff_integrity": "pass",
+          "runtime_retry_submitted": false
+        },
+        "validation_before_next_experiment": [
+          "Pass compileall, Ruff, Pyright, diff checks, and all S1-13 PBS Bash syntax checks again.",
+          "Return the reviewed failure and exact correction diff to the same Checker for retry authorization.",
+          "Use a new identity-bound commit and verified nonexistent output root for any single targeted retry."
+        ]
+      },
+      "evidence_integrity": {
+        "checksum_inventory_sha256": "a492a0e678ed39d8fd25083115a4ebfc0444ab269b31bf8412b5a017e7108361",
+        "tracejob_sha256": "ebdaec75784502b57f975a2bd5626d9102da46651064c3302ce2015d77d0cdf6",
+        "pytest_log_sha256": "635bb6561b00b404c786e74ecd9339dff3137833561ecc8326f2b16e1f06a9c8",
+        "raw_failure_sha256": "5cb2180aa2ee2eb79e67cd76bf714a6e1a817df35a08ac75978f44ed5b7b6721"
       }
     }
   ]

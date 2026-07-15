@@ -24,6 +24,7 @@ if [[ -e "$OUTPUT_ROOT" ]]; then
   exit 73
 fi
 mkdir -p "$OUTPUT_ROOT"/{results,stdout,stderr}
+FSBDD_FAILURE_OUTPUT_ROOT="$OUTPUT_ROOT"
 SHARED="$PROJECT_ROOT/runtime_runs/S1-13/shared-smoke-2n-${PBS_JOBID}"
 mkdir "$SHARED"
 cd "$PROJECT_ROOT"

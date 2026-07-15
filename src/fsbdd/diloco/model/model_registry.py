@@ -467,10 +467,13 @@ def build_logical_layer_registry(
         shape = _parameter_shape(parameter)
         dtype = str(getattr(parameter, "dtype", "unknown"))
         identity = canonical_digest({"aliases": names, "shape": shape, "dtype": dtype})
+        owner_aliases = tuple(
+            name for name in names if _under(name, logical_paths[owner])
+        )
         record = ParameterRecord(
             identity=identity,
             owner_layer=layer_names[owner],
-            owner_name=names[0],
+            owner_name=owner_aliases[0] if owner_aliases else names[0],
             aliases=names,
             shape=shape,
             dtype=dtype,

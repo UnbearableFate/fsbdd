@@ -11,7 +11,7 @@ record_experiment_failure() {
 
   local project_root="${PROJECT_ROOT:-$PWD}"
   local python="${PYTHON:-${MAIN_ROOT:-$project_root}/.venv/bin/python}"
-  local output_root="${RESULT_ROOT:-${OUTPUT_ROOT:-${LOG_ROOT:-$project_root/runtime_runs/failures/${PBS_JOBID:-unknown}}}}"
+  local output_root="${FSBDD_FAILURE_OUTPUT_ROOT:-$project_root/runtime_runs/S1-13/rejected-submissions/${PBS_JOBID:-unknown-job}-${BASHPID:-$$}}"
   local experiment_id="${RUN_ID:-${PBS_JOBNAME:-unknown-experiment}-${PBS_JOBID:-unknown-job}}"
   local role_id="${PBS_ARRAY_INDEX:-${ROLE_INDEX:-}}"
   local job_id="${PBS_JOBID:-unknown-job}"

@@ -573,6 +573,7 @@ def _validate_frozen_selection(
     expected_count: int,
 ) -> None:
     exact_fields = {
+        "logical_syncer_id",
         "fragment_index",
         "current_version",
         "authority_identity",
@@ -590,7 +591,8 @@ def _validate_frozen_selection(
         raise ReadinessStressError("frozen selection schema is malformed")
     current_version = selection["current_version"]
     if (
-        selection["fragment_index"] != fragment_index
+        selection["logical_syncer_id"] != profile["logical_syncer_id"]
+        or selection["fragment_index"] != fragment_index
         or not isinstance(current_version, int)
         or isinstance(current_version, bool)
         or current_version < 0
@@ -697,7 +699,7 @@ def _validate_frozen_selection(
             )
     semantic = {
         "schema_version": 1,
-        "logical_syncer_id": profile["logical_syncer_id"],
+        "logical_syncer_id": selection["logical_syncer_id"],
         "fragment_index": fragment_index,
         "current_version": current_version,
         "authority_identity": selection["authority_identity"],

@@ -869,8 +869,8 @@ def run_syncer(
         run_id=run_id,
         fsync_every=400,
     )
-    updates: list[dict[str, Any]] = []
-    inventories: list[dict[str, Any]] = []
+    update_count = 0
+    inventory_count = 0
     last_inventory_cycle = -1
     inventory_policy = {
         "minimum_unreferenced_payload_age_seconds": float(
@@ -915,8 +915,8 @@ def run_syncer(
             row["update_latency_seconds"] = (
                 time.monotonic_ns() - update_started_ns
             ) / 1_000_000_000
-            updates.append(row)
             logger.emit("fragment_outer_update", **row)
+            update_count += 1
         report = tracker.report()
         cycle = report.global_cycle
         interval = int(config["bounded_state"]["inventory_every_global_cycles"])
@@ -946,8 +946,8 @@ def run_syncer(
                     ),
                 ),
             }
-            inventories.append(inventory)
             logger.emit("bounded_storage_inventory", **inventory)
+            inventory_count += 1
             last_inventory_cycle = cycle
         if workload == "nine_node" and cycle >= target:
             final_plan = FrozenEvaluationPlan.capture(atomic)
@@ -1004,7 +1004,6 @@ def run_syncer(
             loss_bearing_target_tokens=int(progress["loss_bearing_target_tokens"]),
         )
     final_report = tracker.report()
-    logger.sync()
     readiness = dataclasses.asdict(executor.readiness.snapshot())
     final_inventory = {
         "global_cycle": final_report.global_cycle,
@@ -1013,7 +1012,9 @@ def run_syncer(
         "global": global_backend.inspect_inventory(),
         "proposals": proposal_backend.inspect_inventory(),
     }
-    inventories.append(final_inventory)
+    logger.emit("bounded_storage_inventory", **final_inventory)
+    inventory_count += 1
+    logger.sync()
     result = {
         "schema_version": 1,
         "status": "pass",
@@ -1032,15 +1033,26 @@ def run_syncer(
         "completion": completion,
         "completed_unix_ns": time.time_ns(),
         "progress": final_report.to_dict(),
-        "update_count": len(updates),
-        "updates": updates,
+        "update_count": update_count,
+        "update_stream": {
+            "path": "logs/syncer.jsonl",
+            "event": "fragment_outer_update",
+            "count": update_count,
+            "retained_in_memory": 0,
+        },
         "logging": {
             "jsonl_fsync_every_events": 400,
             "final_fsync_complete": True,
             "role_json_is_written_after_final_fsync": True,
         },
         "readiness": readiness,
-        "inventories": inventories,
+        "inventory_count": inventory_count,
+        "inventory_stream": {
+            "path": "logs/syncer.jsonl",
+            "event": "bounded_storage_inventory",
+            "count": inventory_count,
+            "retained_in_memory": 0,
+        },
         "final_roles": [
             {
                 "learner_id": item["learner_id"],
@@ -1056,6 +1068,8 @@ def run_syncer(
             "network_data_plane": False,
             "full_model_operations": 0,
             "history_scan_operations": 0,
+            "in_memory_update_history": 0,
+            "in_memory_inventory_history": 0,
         },
     }
     _replace_json(result_root / "roles" / "syncer.json", result)

@@ -48,7 +48,7 @@
     "contracts/S1-13-experiment-failures.json"
   ],
   "failure_reporting": {
-    "raw_record": "the initiating failure is backfilled by the reviewed ledger; every subsequent nonzero PBS experiment exit writes failures/raw-<job-role-pid>.json under its output root",
+    "raw_record": "the initiating failure is backfilled by the reviewed ledger; every subsequent nonzero PBS experiment exit writes failures/raw-<job-role-pid>.json under its exclusively authorized output root, while pre-authorization/reuse failures write below runtime_runs/S1-13/rejected-submissions without mutating the rejected root",
     "reviewed_ledger": "reports/stage1/S1-13-experiment-failures.json",
     "required_fields": ["failure", "cause", "expected_solution"],
     "next_experiment_blocked_until_review_complete": true

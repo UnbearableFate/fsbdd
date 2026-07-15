@@ -400,7 +400,7 @@ def test_asset_identity_and_visibility_last_materialization(
     original_other = other_shard.read_bytes()
     other_shard.write_bytes(bytes([original_other[0] ^ 1]) + original_other[1:])
     PackedTokenShard(profile, output, learner_index=0)
-    with pytest.raises(LearnerAssetError, match="checksum mismatch"):
+    with pytest.raises(LearnerError, match="checksum mismatch"):
         PackedTokenShard(profile, output, learner_index=1)
     other_shard.write_bytes(original_other)
 

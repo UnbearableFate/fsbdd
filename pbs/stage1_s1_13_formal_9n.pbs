@@ -51,6 +51,7 @@ fi
   --gate-contract-sha256 "$GATE_CONTRACT_SHA256" \
   --submission-marker-sha256 "$SUBMISSION_MARKER_SHA256" > /dev/null
 
+FSBDD_FAILURE_OUTPUT_ROOT="$RESULT_ROOT"
 mkdir -p "$RESULT_ROOT"/{roles,logs,env,stdout,stderr}
 cd "$PROJECT_ROOT"
 export OMP_NUM_THREADS=1 TOKENIZERS_PARALLELISM=false

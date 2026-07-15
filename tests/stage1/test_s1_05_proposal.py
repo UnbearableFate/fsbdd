@@ -322,7 +322,10 @@ def test_fixed_slot_record_is_bound_to_body_learner_sequence_and_base(
     copied.unlink()
     record = json.loads(source.read_text(encoding="utf-8"))
     record["sequence"] = 99
-    source.write_text(json.dumps(record), encoding="utf-8")
+    source.write_text(
+        json.dumps(record, sort_keys=True, separators=(",", ":")) + "\n",
+        encoding="utf-8",
+    )
     with pytest.raises(ProposalError, match="sequence"):
         store.load_latest("a", 0)
 

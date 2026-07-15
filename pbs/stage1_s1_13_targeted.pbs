@@ -22,6 +22,7 @@ if [[ -e "$OUTPUT_ROOT" ]]; then
   exit 73
 fi
 mkdir "$OUTPUT_ROOT"
+FSBDD_FAILURE_OUTPUT_ROOT="$OUTPUT_ROOT"
 cd "$PROJECT_ROOT"
 if [[ "$(git rev-parse HEAD)" != "$EXPECTED_COMMIT" ]] || \
    [[ -n "$(git status --porcelain --untracked-files=all -- \

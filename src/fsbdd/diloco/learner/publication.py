@@ -266,7 +266,14 @@ def build_fragment_parameter_groups(
         raise SnapshotPublishError(
             "fragment map and registry identities differ"
         ) from error
-    parameters = dict(model.named_parameters(remove_duplicate=True))
+    try:
+        parameters = dict(
+            model.named_parameters(recurse=True, remove_duplicate=False)
+        )
+    except (AttributeError, TypeError) as error:
+        raise SnapshotPublishError(
+            "model must support named_parameters(remove_duplicate=False)"
+        ) from error
     records = {record.identity: record for record in registry.parameters}
     groups: list[tuple[Any, ...]] = []
     for fragment in fragment_map.fragments:
