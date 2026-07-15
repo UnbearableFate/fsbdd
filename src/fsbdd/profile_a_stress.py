@@ -913,7 +913,9 @@ def _run_real_role(
             "complete": True,
             "rank": rank,
             "hostname": socket.gethostname().split(".")[0],
-            "published": proposal_summary["published_snapshot_count"],
+            "published": proposal_summary["publication"][
+                "published_snapshot_count"
+            ],
         },
     )
     real_tracker = None
