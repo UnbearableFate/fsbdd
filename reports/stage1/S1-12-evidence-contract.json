@@ -1,0 +1,57 @@
+{
+  "schema_version": 1,
+  "resource_level": "L2",
+  "selected_evidence_root": "/work/xg24i002/x10041/fsbdd/runtime_runs/S1-12/formal-l2",
+  "target_shared_root": "/work/xg24i002/x10041/fsbdd/runtime_runs",
+  "code_identity_contract": {
+    "submission_value": "EXPECTED_COMMIT is the exact full candidate SHA",
+    "required_equality": "EXPECTED_COMMIT == clean formal worktree HEAD == manifest code commit",
+    "dirty_allowed": false
+  },
+  "topology": {
+    "pbs_queue": "debug-g",
+    "pbs_group": "xg24i002",
+    "nodes": 4,
+    "ranks": 4,
+    "ranks_per_node": 1,
+    "roles": ["learner-00+logical-syncer", "learner-01", "learner-02", "learner-03-slow-injection"],
+    "gpu_rule": "each learner rank uses only its node-local GPU zero",
+    "application_coordination": "shared_filesystem_only",
+    "mpi_usage": "launcher_only"
+  },
+  "profile_a": {
+    "learner_count": 4,
+    "q": 4,
+    "q_fresh": 4,
+    "s_max": 0,
+    "grace_seconds": 0.0,
+    "merge": "direct_weighted_average",
+    "schedule": "deterministic round robin"
+  },
+  "measurement": {
+    "numeric_interval": "each fragment's contiguous update zero through forty-nine",
+    "single_update_gate": "first successful production commit per fragment versus independent Stage 0-C oracle",
+    "drift_gate": "first-ten and last-ten maxima over exactly fifty contiguous commits per fragment",
+    "speed_common_interval": "the same predeclared monotonic start and three-second end for every rank and both control/injected trials",
+    "speed_formula": "completed local optimizer steps multiplied by fixed input tokens per step divided by the common interval",
+    "unaffected_formula": "abs(injected_rate/control_rate - 1) for learners zero through two, each <= 0.02",
+    "slow_formula": "learner three injected_rate/control_rate within 0.05 of 0.5"
+  },
+  "evaluation_snapshot": {
+    "freeze": "capture the complete ordered authority tuple once, freeze version vector plus state/content/authority identities, then materialize immutable named fragment payloads",
+    "load": "validate the manifest identity and load only its exact named payloads; no per-fragment current/latest read is permitted",
+    "concurrency_counterexample": "advance current authorities after capture and prove the loaded evaluation vector and content remain byte-identical to the capture"
+  },
+  "progress_and_stop": {
+    "global_cycle": "minimum independent per-fragment outer update count",
+    "reports": "learner local steps/input tokens and fragment outer counts/accepted tokens/fresh/stale contribution counts are separate fields",
+    "stop": "a frozen global-cycle/wallclock/compute/token/FLOP policy; no fastest-learner local-step stop"
+  },
+  "byte_accounting": {
+    "steady_state": "per-fragment current input, selected proposal reads, successor output, and zero full-model operations",
+    "full_model_exception": "the frozen evaluation snapshot is explicitly classified as evaluation rather than steady state"
+  },
+  "formal_package": "S1-00 evidence builder/finalizer/validator with code config source skill scheduler role path identities and checksums; fail if evidence root exists",
+  "attempt_budget": {"red": 1, "targeted": 3, "l1_compute": 2, "formal_l2_batch": 1},
+  "failure_ladder": "preserve the first L2 failure, reproduce the failing role or analyzer on one compute node, and do not resubmit four nodes until the reduced case passes"
+}

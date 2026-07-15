@@ -1,0 +1,57 @@
+schema_version: 2
+loop_id: S1-12
+title: Profile A numeric end-to-end and frozen evaluation snapshot
+stage: stage1
+status: red_complete
+source_hashes:
+  research_plan: 2c0db3148110da10ea62f445c189d2d53b405527d8da264b9af9817f5ca9d835
+  stage0_4_spec: 1ea71fb6e34fef0d7b5558d8e7999dfdedeb82957f4331afcf6f80279d1f5a7d
+  loop_card: 66401128d434be49962a0d224aee869ca2e514c873e4477dd041e0d64ece64fc
+git:
+  integration_branch: master
+  branch: codex/S1-12-profile-a-e2e
+  base_commit: 92b9006efa04d6b6962c14a9b1b03efcbfa3dc18
+  result_commit: null
+  dirty_at_start: true
+  user_owned_dirty_paths: [AGENTS.md]
+dependencies: [S1-07, S1-08, S1-09, S1-11]
+requirements: [GLOBAL-05, PROG-01, PROG-02, PROG-03, PROG-04, REPORT-02]
+acceptance_ids: [A-ALG-01, A-EVAL-01, A-LEARN-01, A-LEARN-03]
+orient:
+  unique_failing_gap: Existing components separately publish adopt select merge and atomically commit fragments but there is no integrated Profile A executor frozen evaluation loader or system-level progress and stop authority.
+  non_goals: [one-billion-token run, nine-node baseline, stale proposals, adaptive grace, quality or efficiency comparison]
+  planned_files: [src/fsbdd/evaluation.py, src/fsbdd/profile_a.py, src/fsbdd/profile_a_stress.py, configs/stage1/s1_12_profile_a_e2e.json, tests/stage1/test_s1_12_profile_a.py, tests/stage1/test_s1_12_evaluation.py, tests/stage1/test_s1_12_analyzer.py, tests/stage1/test_s1_12_static.py, tests/red_cases/s1_12_naive_profile_a_surrogate.py, pbs/stage1_s1_12_profile_a.pbs]
+  model_data_profile: Deterministic fp32 two-fragment numeric oracle workload plus four independent single-GPU ranks running a real in-memory Hugging Face GPTNeoX causal LM configuration and deterministic token batches.
+  miyabi_skill_commit: c3ddfa47cadfd9132edf939d359b90b28ab5f8ed
+  initial_hostname: miyabi-g1
+  workflow: login-node pure-Python RED then compute-node targeted tests Checker Phase A and one formal four-node filesystem-only M=4 run
+  context_inputs: [plans/PROGRESS.yaml, loops/stage1/S1-12.md, evidence/indexes/S1-07.md, evidence/indexes/S1-08.md, evidence/indexes/S1-09.md, evidence/indexes/S1-11.md]
+  raw_evidence_on_demand: [runtime_runs/S1-07, runtime_runs/S1-08, runtime_runs/S1-09, runtime_runs/S1-11]
+  resource_level: L2
+  available_resources: Miyabi debug-g up to four compute nodes with one local GPU per learner and shared POSIX runtime root
+  recent_failure: null
+  attempt_budget: {red: 1, targeted: 3, l1_compute: 2, formal_l2_batch: 1}
+  failure_ladder: preserve the first L2 failure then reproduce the failing role or analyzer on one compute node before resubmission
+  nine_node_gate_required: false
+  goal_tokens_start: 4645261
+  soft_token_budget: 140000
+preflight:
+  requirement_matrix: reports/stage1/S1-12-requirement-matrix.csv
+  requirements_complete: true
+  measurement_contract: reports/stage1/S1-12-evidence-contract.json
+  numeric_oracle_contract: reports/stage1/S1-12-numeric-oracle-contract.json
+  package_contract: reports/stage1/S1-12-evidence-contract.json
+  checker_phase_a: required
+  topology: four distinct compute hosts and four single-GPU learner ranks with logical syncer colocated on rank zero after local work
+  walltime_budget: 00:30:00
+  package_profile: L2
+red:
+  command: PYTHONPATH=src .venv/bin/python tests/red_cases/s1_12_naive_profile_a_surrogate.py
+  exit_code: 1
+  evidence_path: runtime_runs/S1-12/red-92b9006-semantic
+green: {command: null, evidence_path: null, result: null}
+harden: {commands: [], evidence_paths: [], formal_result: null}
+nine_node_gate: {required: false, run_id: null, topology_gate: null, loss_gate: null, runtime_gate: null}
+checker: {context_id: null, maker_chat_inherited: false, phase_a_verdict: null, verdict: null, report_path: reports/checkers/S1-12.md, cycles: []}
+persist: {evidence_index: evidence/indexes/S1-12.md, raw_evidence_root: runtime_runs/S1-12, acceptance_traceability_updated: false, next_gap: S1-13 baseline training and one-billion-token run, handoff: null}
+blocker: null

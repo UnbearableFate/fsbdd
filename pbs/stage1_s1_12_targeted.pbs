@@ -1,0 +1,76 @@
+#!/bin/bash
+#PBS -q debug-g
+#PBS -l select=1
+#PBS -l walltime=00:20:00
+#PBS -W group_list=xg24i002
+#PBS -N fsbdd-s1-12-targeted
+
+set -eEuo pipefail
+trap 'echo "[ERROR] line=$LINENO command=$BASH_COMMAND" >&2' ERR
+
+: "${PROJECT_ROOT:=/work/xg24i002/x10041/fsbdd-s100-clean}"
+: "${MAIN_ROOT:=/work/xg24i002/x10041/fsbdd}"
+: "${EXPECTED_COMMIT:?EXPECTED_COMMIT is required}"
+: "${MODULE_NAME:=nv-hpcx/25.9}"
+
+PYTHON="$MAIN_ROOT/.venv/bin/python"
+CONFIG_SOURCE="configs/stage1/s1_12_profile_a_e2e.json"
+CONFIG_SHA256="f2ba4034872fb9cbeb8738d614aecc3c7ed04ab33a7c71753569f047eb63a097"
+ROOT="$MAIN_ROOT/runtime_runs/S1-12/targeted-${PBS_JOBID}"
+SHARED="$ROOT/shared"
+ROLES="$ROOT/roles"
+
+module load "$MODULE_NAME"
+if [[ "$(git -C "$PROJECT_ROOT" rev-parse HEAD)" != "$EXPECTED_COMMIT" ]] || \
+   [[ -n "$(git -C "$PROJECT_ROOT" status --porcelain)" ]]; then
+  echo "targeted worktree identity mismatch" >&2
+  exit 65
+fi
+if [[ -e "$ROOT" ]]; then
+  echo "refusing to reuse targeted root" >&2
+  exit 73
+fi
+mkdir -p "$ROOT"
+cd "$PROJECT_ROOT"
+export PYTHONPATH="$PROJECT_ROOT/src"
+export OMP_NUM_THREADS=1 TOKENIZERS_PARALLELISM=false
+export HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 HF_DATASETS_OFFLINE=1
+
+"$PYTHON" -m pytest -q \
+  tests/stage1/test_s1_12_profile_a.py \
+  tests/stage1/test_s1_12_evaluation.py \
+  tests/stage1/test_s1_12_analyzer.py \
+  tests/stage1/test_s1_12_static.py \
+  > "$ROOT/pytest.log" 2> "$ROOT/pytest.err"
+
+mkdir "$SHARED"
+mpirun -np 4 --oversubscribe --map-by slot \
+  /usr/bin/env "PYTHONPATH=$PYTHONPATH" "OMP_NUM_THREADS=$OMP_NUM_THREADS" \
+  "HF_HUB_OFFLINE=$HF_HUB_OFFLINE" "TRANSFORMERS_OFFLINE=$TRANSFORMERS_OFFLINE" \
+  "HF_DATASETS_OFFLINE=$HF_DATASETS_OFFLINE" \
+  "$PYTHON" -m fsbdd.profile_a_stress role \
+  --root "$SHARED" --result-root "$ROLES" --run-id "s1-12-targeted-${PBS_JOBID}" \
+  --config-path "$PROJECT_ROOT/$CONFIG_SOURCE" --config-identity "$CONFIG_SHA256" \
+  > "$ROOT/mpirun.log" 2> "$ROOT/mpirun.err"
+
+"$PYTHON" - "$ROLES" "$SHARED" <<'PY' > "$ROOT/role-check.json"
+import json
+import sys
+from pathlib import Path
+
+roles = Path(sys.argv[1])
+shared = Path(sys.argv[2])
+learners = [json.loads((roles / f"learner-{rank:02d}.json").read_text()) for rank in range(4)]
+syncer = json.loads((roles / "syncer.json").read_text())
+numeric = json.loads((shared / "numeric" / "numeric-trace.json").read_text())
+assert all(item["status"] == "pass" and item["final_version_vector"] == [1, 1] for item in learners)
+assert syncer["status"] == "pass"
+assert numeric["final_version_vector"] == [50, 50]
+assert numeric["stop"]["reason"] == "target_global_cycles"
+print(json.dumps({"status": "pass", "learner_roles": 4, "numeric_versions": [50, 50]}, sort_keys=True))
+PY
+
+if [[ -s "$ROOT/pytest.err" || -s "$ROOT/mpirun.err" ]]; then
+  echo "targeted run produced stderr" >&2
+  exit 70
+fi

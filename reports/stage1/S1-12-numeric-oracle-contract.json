@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "oracle": {
+    "module": "fsbdd_stage0.oracle",
+    "functions": ["inverse_staleness_weights", "weighted_direct_merge", "outer_sgd_step"],
+    "independence": "oracle consumes decoded raw current/base/local vectors and token counts; it does not consume production merged gradients or successors"
+  },
+  "dtype": {
+    "wire": "little-endian float32",
+    "production_accumulation": "torch.float32 on CPU",
+    "oracle_arithmetic": "the Stage 0-C reference transition with production inputs decoded to Python float values",
+    "error_reduction": "float64 Euclidean norm"
+  },
+  "formula": {
+    "fresh_pseudo_gradient": "g_i = current - local_i",
+    "raw_weight": "r_i = processed_tokens_i / (1 + lambda_s * 0)",
+    "normalized_weight": "w_i = r_i / sum_j(r_j)",
+    "merge": "g_merge = sum_i(w_i * g_i)",
+    "outer": "Stage 0-C Nesterov SGD applied to current and the per-fragment outer state"
+  },
+  "gates": {
+    "single_update_relative_l2": "norm(production-oracle)/max(norm(oracle),1e-12) <= 1e-6",
+    "continuous_fifty_updates": "maximum successor relative L2 over exactly 50 consecutive updates of each fragment <= 1e-6",
+    "no_drift_amplification": "last-ten maximum <= max(first-ten maximum, 1e-7)"
+  },
+  "checker_recomputation": "decode at least one pre-update current payload and all four raw proposal payloads, recompute weights merge outer transition, and compare to the committed successor without trusting the packaged production trace"
+}
