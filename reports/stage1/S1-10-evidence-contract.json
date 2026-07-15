@@ -1,0 +1,87 @@
+{
+  "schema_version": 1,
+  "resource_level": "L2",
+  "selected_evidence_root": "/work/xg24i002/x10041/fsbdd/runtime_runs/S1-10/formal-l2",
+  "target_shared_root": "/work/xg24i002/x10041/fsbdd/runtime_runs",
+  "code_identity_contract": {
+    "submission_value": "EXPECTED_COMMIT is the full 40-character candidate SHA supplied to qsub",
+    "required_equality": "EXPECTED_COMMIT == clean worktree HEAD == manifest identities.code.commit",
+    "dirty_allowed": false
+  },
+  "topology": {
+    "pbs_queue": "debug-g",
+    "pbs_group": "xg24i002",
+    "nodes": 2,
+    "ranks": 2,
+    "ranks_per_node": 1,
+    "roles": ["proposal_writer", "outer_syncer"],
+    "application_coordination": "filesystem_only",
+    "mpi_usage": "launcher_only",
+    "logical_syncers": 1
+  },
+  "frozen_workload": {
+    "config_source": "configs/stage1/s1_10_streaming_merge.json",
+    "learner_count": 8,
+    "fragment_count": 4,
+    "fragment_elements": 1048576,
+    "reference_updates": 50,
+    "order_permutations": 16,
+    "accumulation_dtype": "float32",
+    "default_merge": "direct_weighted_average",
+    "outer_optimizer": "SGD with momentum 0.9 learning rate 0.1 and updated-buffer Nesterov",
+    "control": "SGD with momentum zero learning rate one and no Nesterov"
+  },
+  "numeric_contract": {
+    "pseudo_gradient": "for contribution i compute float32 G_f at the proposal-declared base version minus float32 L_i,f",
+    "merge": "in frozen selection order accumulate float32 weight_i times pseudo-gradient_i into a float32 fragment accumulator",
+    "application": "apply the merged gradient to current G_f^v and current fragment outer state O_f^v",
+    "single_update_relative_l2": "norm(production minus Stage0 oracle)_2 divided by max(norm(oracle)_2, 1e-12) must be at most 1e-6",
+    "fifty_update_gate": "every one of 50 relative L2 errors is at most 1e-6 and max(last ten) is no greater than max(max(first ten), 1e-7)",
+    "order_gate": "each of 16 deterministic contribution permutations differs from the canonical direct merge by relative L2 at most 1e-6"
+  },
+  "memory_contract": {
+    "source_lifetime": "each selected local payload is opened through a context-managed lease and released before the next contribution",
+    "active_payload_gate": "maximum simultaneous local payload leases is exactly one for a nonempty update",
+    "tensor_ledger_gate": "instrumented live tensor bytes never exceed eight times one fragment payload and do not scale with M times fragment size",
+    "rss_observation": "dedicated warmed child processes report Linux VmHWM minus the pre-merge VmRSS baseline for identical M=1 and M=8 fragment shapes",
+    "rss_gate": "M=8 peak RSS minus M=1 peak RSS is at most 12 MiB",
+    "cache_all_counterexample": "the RED surrogate holds all eight source leases and must report eight live payloads"
+  },
+  "byte_accounting": {
+    "observation_interval": "entry through successful return of exactly one target-fragment update",
+    "local_reads": "sum of exact selected local payload byte lengths",
+    "base_reads": "zero for a current resident base and exact payload bytes for each resolver read of a retained noncurrent base",
+    "current_and_output": "one current fragment input and one successor fragment output",
+    "forbidden": "no full-model load save stack concatenate or assembly operation",
+    "acceptance": "every trace operation names the selected fragment and no operation byte count equals or includes the F-fragment model"
+  },
+  "update_identity": {
+    "required_fields": [
+      "current_version",
+      "current_content_identity",
+      "selection_identity",
+      "ordered_proposal_identities",
+      "ordered_proposal_content_identities",
+      "ordered_base_versions",
+      "ordered_base_content_identities",
+      "ordered_processed_tokens",
+      "ordered_staleness",
+      "ordered_float32_weights",
+      "merge_policy",
+      "outer_optimizer_policy",
+      "outer_hyperparameters",
+      "accumulation_dtype",
+      "fragment_map_identity",
+      "fragment_identity"
+    ],
+    "mutation_rule": "changing any required semantic fact changes the canonical SHA-256 update identity"
+  },
+  "formal_package": "S1-00 builder finalizer and validator with clean code config source skill scheduler role path and checksum identities plus fail-if-exists root",
+  "attempt_budget": {
+    "red": 1,
+    "targeted": 3,
+    "l1_compute": 2,
+    "formal_l2_batch": 1
+  },
+  "failure_ladder": "preserve the first formal L2 package and reproduce writer plus syncer on one compute node with the same candidate and profile before any resubmission"
+}

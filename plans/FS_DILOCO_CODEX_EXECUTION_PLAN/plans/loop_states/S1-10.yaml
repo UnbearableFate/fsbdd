@@ -1,0 +1,77 @@
+schema_version: 2
+loop_id: S1-10
+title: Streaming direct merge and fragment-wise outer optimizer
+stage: stage1
+status: red
+source_hashes:
+  research_plan: 2c0db3148110da10ea62f445c189d2d53b405527d8da264b9af9817f5ca9d835
+  stage0_4_spec: 1ea71fb6e34fef0d7b5558d8e7999dfdedeb82957f4331afcf6f80279d1f5a7d
+  loop_card: d00dced57be05877f0afdfc57d2bec4041bc3e9198f4d627a96486d82f0661a0
+git:
+  integration_branch: master
+  branch: codex/S1-10-merge-outer
+  base_commit: 5e76a2757eee7a38378ed95468928283f8384988
+  result_commit: null
+  dirty_at_start: true
+  user_owned_dirty_paths: [AGENTS.md]
+dependencies: [S1-09, S0C-02]
+requirements: [SYNC-06, SYNC-07, OPT-01, OPT-02, OPT-04, OPT-05, OPT-06]
+acceptance_ids: [A-ALG-01, A-PERF-01]
+orient:
+  unique_failing_gap: There is no production fragment kernel that streams frozen contributions through declared-base fp32 direct averaging and applies a per-fragment momentum or Nesterov step to current state without M-times-fragment or full-model materialization.
+  non_goals: [RDA, compression, global publication, consumption commit, positive-staleness selection]
+  planned_files: [src/fsbdd/syncer_merge.py, src/fsbdd/syncer_merge_stress.py, configs/stage1/s1_10_streaming_merge.json, tests/stage1/test_s1_10_syncer_merge.py, tests/stage1/test_s1_10_merge_analyzer.py, tests/stage1/test_s1_10_merge_stress_static.py, tests/red_cases/s1_10_naive_merge_surrogate.py, pbs/stage1_s1_10_targeted.pbs, pbs/stage1_s1_10_streaming_merge.pbs, reports/stage1/S1-10-requirement-matrix.csv, reports/stage1/S1-10-evidence-contract.json]
+  model_data_profile: Deterministic little-endian fp32 fragment vectors and immutable selected proposal files; the outer syncer runs Torch CPU tensor math while the writer needs no Torch or GPU.
+  miyabi_skill_commit: c3ddfa47cadfd9132edf939d359b90b28ab5f8ed
+  initial_hostname: miyabi-g1
+  workflow: login-node static and pure-Python evidence work followed by compute-node Torch tests Checker Phase A and one formal two-node filesystem-only writer and outer-syncer batch
+  context_inputs: [plans/PROGRESS.yaml, loops/stage1/S1-10.md, evidence/indexes/S0C-02.md, evidence/indexes/S1-09.md]
+  raw_evidence_on_demand: [runtime_runs/S1-10]
+  resource_level: L2
+  available_resources: Miyabi debug-g one or two compute nodes with shared POSIX evidence root and nv-hpcx launcher module
+  recent_failure: null
+  attempt_budget: {red: 1, targeted: 3, l1_compute: 2, formal_l2_batch: 1}
+  failure_ladder: preserve the first L2 failure then reproduce both roles on one compute node before any resubmission
+  nine_node_gate_required: false
+  goal_tokens_start: 3332228
+  soft_token_budget: 120000
+preflight:
+  requirement_matrix: reports/stage1/S1-10-requirement-matrix.csv
+  requirements_complete: true
+  measurement_contract: reports/stage1/S1-10-evidence-contract.json
+  package_contract: reports/stage1/S1-10-evidence-contract.json
+  package_validator_command: fsbdd evidence validate runtime_runs/S1-10/formal-l2
+  package_validator_result: pending
+  checker_phase_a: required
+  relative_l2_formula: norm(production minus oracle) divided by max(norm(oracle) 1e-12)
+  accumulation_order: frozen selection order with float32 multiply then float32 accumulation
+  peak_memory_observation: context-managed live payload leases instrumented tensor byte ledger and warmed child-process Linux VmHWM minus pre-merge VmRSS
+red:
+  command: PYTHONPATH=src .venv/bin/python tests/red_cases/s1_10_naive_merge_surrogate.py
+  exit_code: null
+  evidence_path: runtime_runs/S1-10/red-5e76a27-semantic
+green:
+  command: PYTHONPATH=src .venv/bin/python -m pytest -q tests/stage1/test_s1_10_syncer_merge.py tests/stage1/test_s1_10_merge_analyzer.py tests/stage1/test_s1_10_merge_stress_static.py
+  evidence_path: null
+harden:
+  commands:
+  - Stage0 golden and independent wrong-base current-application Nesterov and no-momentum controls
+  - single and eight contributor extreme-token order permutation and fifty-update drift properties
+  - context-managed one-live-payload source tensor byte ledger actual child VmHWM and forbidden full-model spy
+  - fail-closed dtype shape checksum identity weight duplicate learner outer-state and analyzer mutations
+  evidence_paths: []
+nine_node_gate: {required: false, run_id: null, topology_gate: null, loss_gate: null, runtime_gate: null}
+checker:
+  context_id: null
+  maker_chat_inherited: false
+  phase_a_verdict: pending
+  verdict: pending
+  report_path: reports/checkers/S1-10.md
+  cycles: []
+persist:
+  evidence_index: evidence/indexes/S1-10.md
+  raw_evidence_root: runtime_runs/S1-10
+  acceptance_traceability_updated: false
+  next_gap: null
+  handoff: null
+blocker: null
