@@ -115,6 +115,8 @@ orient:
       reason: Job 2392959 completed the intended real-model incompatibility diagnosis but the PBS harness treated its expected exit 1 as fatal because set +e does not suppress the inherited ERR trap. The diagnostic proves exact registry/map drift and that model parameters match, but no output root was created and no asset materialization or post-validation ran. One replacement job is required to execute the already-reviewed rebuild body after the minimal conditional-status correction.
       scope: Add exactly one third-and-final one-node asset_stage attempt. It must reuse the completed exact mismatch diagnosis contract, run the validator inside an ERR-trap-immune if condition, hard-link reuse all four datasets, record the exact producer commit, post-validate both workloads, and create unique absent roots. No reproduction-preflight, L2, 9N, long-smoke, or formal budget changes.
       authorization_gate: The same S1-13 Checker must review job 2392959's immutable evidence, reviewed failure entry, minimal control-flow correction, static gates, and this amendment and explicitly authorize an exact clean commit before submission.
+      authorization_commit: 240084d17e9e609104715c9073aac395034fd9d1
+      checker_verdict: ADMISSIBLE for exactly one third-and-final asset_stage job; no other compute run authorized
     - amended_at_utc: 2026-07-15T19:18:02Z
       prior_targeted_budget: 3
       amended_targeted_budget: 4
@@ -186,7 +188,7 @@ nine_node_gate: {required: true, run_id: null, topology_gate: null, loss_gate: n
 checker:
   context_id: s1_13_checker
   maker_chat_inherited: false
-  phase_a_verdict: the prior asset-stage authorization was consumed by failed job 2392959; its exact incompatibility diagnosis succeeded but the harness aborted on the expected exit 1. A one-attempt asset budget amendment and corrected exact commit now require same-Checker review; no compute run is authorized
+  phase_a_verdict: same-Checker Phase B passed job 2392959 failure attribution and admitted the reasoned asset_stage amendment 2 to 3; exactly one third-and-final asset job is authorized at 240084d17e9e609104715c9073aac395034fd9d1 using only pbs/stage1_s1_13_assets.pbs; no other compute run authorized
   verdict: null
   report_path: reports/checkers/S1-13.md
   cycles:
@@ -224,11 +226,14 @@ checker:
     - candidate: 6a5adf91028759ff9608de219c59f27cdc5d409d
       verdict: Phase B PASS for job 2392852 failure attribution; Phase A ADMISSIBLE for exactly one second-and-final asset_stage job using only pbs/stage1_s1_13_assets.pbs; no reproduction-preflight, L2, 9N, long-smoke, or formal run authorized
       result: job 2392959 passed three focused tests and emitted the exact old/current registry and fragment-map mismatch, then failed before materialization because its expected status 1 activated the inherited ERR trap; scheduler exit 1
+    - candidate: 240084d17e9e609104715c9073aac395034fd9d1
+      verdict: Phase B PASS for job 2392959 failure attribution and asset_stage budget amendment 2 to 3; Phase A ADMISSIBLE for exactly one third-and-final asset_stage job using only pbs/stage1_s1_13_assets.pbs; no other compute run authorized
+      result: pending exact-clean offline producer-bound asset rebuild
 persist:
   evidence_index: evidence/indexes/S1-13.md
   raw_evidence_root: runtime_runs/S1-13
   acceptance_traceability_updated: false
   next_gap: Stage 2 asynchronous GPU to CPU to filesystem publication pipeline
   handoff: >-
-    Asset-stage job 2392959 failed before materialization after successfully producing exact mismatch evidence. Its automatic and reviewed failure records, scheduler evidence, checksums, and absence of an output root are preserved. Correction 04f05e6 replaces set +e with an ERR-trap-immune conditional capture and adds a static regression; all login static gates pass. Asset budget is reasonedly amended 2 to 3 for exactly one replacement rebuild, pending same-Checker exact-commit authorization. No asset, preflight, L2, 9N, long-smoke, or formal run is authorized.
-blocker: Same-Checker review is required for the reasoned third-and-final asset_stage amendment and corrected exact commit. No compute run is currently authorized.
+    Same-Checker Phase B passed job 2392959 failure attribution, admitted the reasoned asset budget amendment, and authorized exactly one third-and-final asset_stage job at 240084d17e9e609104715c9073aac395034fd9d1. Use only pbs/stage1_s1_13_assets.pbs from an exact-clean detached worktree with the frozen old identities, fully offline cache, all four dataset hard links, and unique absent roots. It must re-prove the mismatch, materialize producer-bound bootstraps, and post-validate both workloads. No preflight, L2, 9N, long-smoke, or formal run is authorized.
+blocker: Exactly one third-and-final asset_stage job is authorized at 240084d17e9e609104715c9073aac395034fd9d1 and not yet submitted. No other compute run is authorized.
