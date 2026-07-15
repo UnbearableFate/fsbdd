@@ -41,6 +41,9 @@ def test_formal_topologies_freeze_independent_9n_and_coallocated_4_plus_1() -> N
     assert "mpirun -np 5 --map-by ppr:1:node" in long
     assert "timeout --signal=TERM --kill-after=30s 600s" in long
     assert "timeout --signal=TERM --kill-after=30s 26400s" in long
+    assert "timeout --signal=TERM --kill-after=30s 120s" in long
+    assert "timeout --signal=TERM --kill-after=30s 60s" in long
+    assert "timeout --signal=TERM --kill-after=30s 900s" in long
     assert "CUDA_VISIBLE_DEVICES" in long or "fsbdd.auxiliary.stage1.close mpi" in long
     assert (ROOT / "pbs/stage1_s1_13_numpy_correction.pbs").is_file()
     smoke = (ROOT / "pbs/stage1_s1_13_long_smoke.pbs").read_text(encoding="utf-8")
@@ -49,6 +52,8 @@ def test_formal_topologies_freeze_independent_9n_and_coallocated_4_plus_1() -> N
     assert "fsbdd.auxiliary.stage1.gate" in smoke
     assert "timeout --signal=TERM --kill-after=30s 300s" in smoke
     assert "timeout --signal=TERM --kill-after=30s 1350s" in smoke
+    assert "timeout --signal=TERM --kill-after=30s 120s" in smoke
+    assert smoke.count("timeout --signal=TERM --kill-after=30s 300s") == 2
     targeted = (ROOT / "pbs/stage1_s1_13_targeted.pbs").read_text(encoding="utf-8")
     assert "EXPECTED_COMMIT" in targeted
     assert 'if [[ -e "$OUTPUT_ROOT" ]]' in targeted

@@ -58,7 +58,8 @@ findmnt -T "$SHARED_ROOT" > "$RESULT_ROOT/env/findmnt.txt"
 cp "$PROJECT_ROOT/pbs/stage1_s1_13_long_smoke.pbs" "$RESULT_ROOT/env/pbs-script.pbs"
 ROLE_QTIME_RAW="$(awk -F' = ' '/^[[:space:]]*qtime =/{print $2}' "$RESULT_ROOT/env/qstat.txt")"
 export PBS_QTIME_UTC="$(date -u -d "$ROLE_QTIME_RAW JST" '+%Y-%m-%dT%H:%M:%SZ')"
-mpirun -np 5 --map-by ppr:1:node --hostfile "$PBS_NODEFILE" nvidia-smi -L \
+timeout --signal=TERM --kill-after=30s 120s \
+  mpirun -np 5 --map-by ppr:1:node --hostfile "$PBS_NODEFILE" nvidia-smi -L \
   > "$RESULT_ROOT/env/nvidia-smi-all-nodes.txt" 2>&1
 
 timeout --signal=TERM --kill-after=30s 300s \
@@ -77,7 +78,8 @@ timeout --signal=TERM --kill-after=30s 1350s \
   --non-formal-long-smoke --timeout-seconds 1200 \
   > "$RESULT_ROOT/stdout/mpirun.log" 2> "$RESULT_ROOT/stderr/mpirun.log"
 
-"$PYTHON" -m fsbdd.auxiliary.stage1.gate \
+timeout --signal=TERM --kill-after=30s 300s \
+  "$PYTHON" -m fsbdd.auxiliary.stage1.gate \
   --result-root "$RESULT_ROOT" --config "$RESOLVED_CONFIG" \
   --gate-contract "$GATE_CONTRACT" --output-root "$RESULT_ROOT/analysis" \
   --non-formal-long-smoke \

@@ -61,13 +61,15 @@ findmnt -T "$SHARED_ROOT" > "$RESULT_ROOT/env/findmnt.txt"
 cp "$PROJECT_ROOT/pbs/stage1_s1_13_formal_long.pbs" "$RESULT_ROOT/env/formal-pbs-script.pbs"
 ROLE_QTIME_RAW="$(awk -F' = ' '/^[[:space:]]*qtime =/{print $2}' "$RESULT_ROOT/env/qstat.txt")"
 export PBS_QTIME_UTC="$(date -u -d "$ROLE_QTIME_RAW JST" '+%Y-%m-%dT%H:%M:%SZ')"
-mpirun -np 5 --map-by ppr:1:node --hostfile "$PBS_NODEFILE" nvidia-smi -L \
+timeout --signal=TERM --kill-after=30s 120s \
+  mpirun -np 5 --map-by ppr:1:node --hostfile "$PBS_NODEFILE" nvidia-smi -L \
   > "$RESULT_ROOT/env/nvidia-smi-all-nodes.txt" 2>&1
 
 timeout --signal=TERM --kill-after=30s 600s \
   "$PYTHON" -m pytest -q tests/stage1 \
   > "$RESULT_ROOT/stdout/pytest.log" 2> "$RESULT_ROOT/stderr/pytest.log"
-"$PYTHON" -m fsbdd.cli requirements \
+timeout --signal=TERM --kill-after=30s 60s \
+  "$PYTHON" -m fsbdd.cli requirements \
   plans/FS_DILOCO_CODEX_EXECUTION_PLAN/loops/stage1/S1-13.md \
   reports/stage1/S1-13-requirement-matrix.csv \
   > "$RESULT_ROOT/requirements.json" 2> "$RESULT_ROOT/stderr/requirements.log"
@@ -88,7 +90,8 @@ timeout --signal=TERM --kill-after=30s 26400s \
 QTIME_RAW="$(awk -F' = ' '/^[[:space:]]*qtime =/{print $2}' "$RESULT_ROOT/env/qstat.txt")"
 QTIME_UTC="$(date -u -d "$QTIME_RAW JST" '+%Y-%m-%dT%H:%M:%SZ')"
 QUEUE="$(awk -F' = ' '/^[[:space:]]*queue =/{print $2}' "$RESULT_ROOT/env/qstat.txt")"
-"$PYTHON" -m fsbdd.auxiliary.stage1.package \
+timeout --signal=TERM --kill-after=30s 900s \
+  "$PYTHON" -m fsbdd.auxiliary.stage1.package \
   --project-root "$PROJECT_ROOT" --evidence-root "$EVIDENCE_ROOT" \
   --result-root "$RESULT_ROOT" --shared-root "$SHARED_ROOT" --asset-root "$ASSET_ROOT" \
   --config "$RESOLVED_CONFIG" --requirements "$RESULT_ROOT/requirements.json" \
