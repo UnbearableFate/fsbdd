@@ -1,0 +1,89 @@
+{
+  "schema_version": 1,
+  "resource_level": "L1",
+  "selected_evidence_root": "/work/xg24i002/x10041/fsbdd/runtime_runs/S1-06/formal-l1",
+  "target_shared_root": "/work/xg24i002/x10041/fsbdd/runtime_runs",
+  "code_identity_contract": {
+    "submission_value": "EXPECTED_COMMIT is the full 40-character candidate SHA supplied to qsub",
+    "required_equality": "EXPECTED_COMMIT == clean worktree HEAD == manifest identities.code.commit",
+    "dirty_allowed": false
+  },
+  "topology": {
+    "pbs_queue": "debug-g",
+    "pbs_group": "xg24i002",
+    "nodes": 1,
+    "processes": 1,
+    "gpus": 1,
+    "roles": ["learner_smoke"],
+    "torch_distributed_process_group": false
+  },
+  "semantic_profiles": {
+    "tiny": {
+      "model": "seeded transformers GPTNeoXForCausalLM fixture",
+      "data": "deterministic integer token blocks",
+      "optimizer_steps": 10,
+      "purpose": "parameter update loss accumulation resume isolation and failure semantics"
+    },
+    "gpt2_wikitext": {
+      "model_repository": "openai-community/gpt2",
+      "model_revision": "607a30d783dfa663caf39e06633721c8d4cfcd7e",
+      "dataset_repository": "Salesforce/wikitext",
+      "dataset_revision": "b08601e04326c79dfdd32d625aee71d232d685c3",
+      "dataset_config": "wikitext-2-raw-v1",
+      "sequence_length": 512,
+      "batch_size": 4,
+      "gradient_accumulation": 1,
+      "optimizer_steps": 10,
+      "precision": "bf16",
+      "expected_parameters": 124439808,
+      "profile_source": "docs/06_8L1S_50X10_GATE.md section 6.3"
+    },
+    "pythia160m_fineweb": {
+      "model_repository": "EleutherAI/pythia-160m",
+      "model_revision": "50f5173d932e8e61f858120bcb800b97af589f46",
+      "dataset_repository": "HuggingFaceFW/fineweb-edu",
+      "dataset_revision": "87f09149ef4734204d70ed1d046ddc9ca3f2b8f9",
+      "smoke_source": "sample/10BT/000_00000.parquet",
+      "long_run_source_order": "lexicographic sample/10BT/*.parquet at the immutable revision",
+      "long_run_minimum_processed_input_tokens": 1000000000,
+      "sequence_length": 512,
+      "batch_size": 4,
+      "gradient_accumulation": 1,
+      "optimizer_steps": 10,
+      "precision": "bf16",
+      "expected_parameters": 162322944,
+      "asset_hash_contract": "exact raw and processed hashes are frozen in the tracked profile and ADR before RED"
+    }
+  },
+  "inner_optimizer": {
+    "class": "torch.optim.AdamW",
+    "lr": 0.00005,
+    "betas": [0.9, 0.999],
+    "eps": 1e-8,
+    "weight_decay": 0.01,
+    "grad_clip_norm": 1.0,
+    "scheduler": "constant",
+    "scheduler_basis": "local_optimizer_steps"
+  },
+  "safe_boundary": "an event is emitted only after backward accumulation gradient clipping optimizer.step scheduler.step and zero_grad complete",
+  "token_accounting": {
+    "processed_input_tokens": "sum attention_mask or non-padding input positions over all microbatches in one optimizer step",
+    "loss_bearing_target_tokens": "count labels[:,1:] != -100 intersect attention_mask[:,1:] after causal shift",
+    "fragment_counters": "each full-model optimizer step increments every fragment once and by the same processed input token count"
+  },
+  "throughput_observation": {
+    "interval": "training_start_monotonic_ns through final safe_boundary_monotonic_ns for each profile",
+    "rate": "total processed input tokens divided by that observed common interval",
+    "forbidden": ["sum of rank-local rates", "mean of per-step rates", "synthetic concurrent aggregate"]
+  },
+  "failure_semantics": [
+    "empty batch fails",
+    "missing or non-scalar loss fails",
+    "NaN or Inf loss fails before optimizer mutation",
+    "nonfinite gradients or overflow fail",
+    "unchanged parameters after the requested run fail",
+    "preinitialized or newly initialized torch.distributed process group fails"
+  ],
+  "formal_package": "S1-00 builder/finalizer/validator with clean code profile asset source skill scheduler GPU and path identity and fail-if-exists root",
+  "failure_ladder": "preserve the first formal L1 package; reproduce with the same immutable profile on one compute node before any resubmission"
+}

@@ -232,11 +232,11 @@ loops:
   depends_on:
   - S1-00
   - S1-01
-  status: not_started
+  status: in_progress
   nine_node_gate_required: false
   acceptance_ids: []
-  branch: null
-  base_commit: null
+  branch: codex/S1-06-learner-inner-training
+  base_commit: 9388997989bb5b5e698f2e828d2619ec39e5613a
   result_commit: null
   evidence_index: null
   checker_verdict: null

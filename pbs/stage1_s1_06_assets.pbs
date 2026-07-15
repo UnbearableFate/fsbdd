@@ -1,0 +1,71 @@
+#!/bin/bash
+#PBS -q debug-g
+#PBS -l select=1
+#PBS -l walltime=01:00:00
+#PBS -W group_list=xg24i002
+#PBS -N fsbdd-s1-06-assets
+
+set -eEuo pipefail
+trap 'echo "[ERROR] line=$LINENO command=$BASH_COMMAND" >&2' ERR
+
+: "${PROJECT_ROOT:=/work/xg24i002/x10041/fsbdd}"
+: "${MAIN_ROOT:=/work/xg24i002/x10041/fsbdd}"
+: "${HF_HOME:=/work/xg24i002/x10041/hf_home}"
+: "${MODULE_NAME:=nv-hpcx/25.9}"
+: "${STAGE_ROOT:=$MAIN_ROOT/runtime_runs/S1-06/assets-${PBS_JOBID}}"
+
+HF="$PROJECT_ROOT/.venv/bin/hf"
+if [[ ! -x "$HF" ]]; then
+  echo "Missing project hf CLI: $HF" >&2
+  exit 69
+fi
+if [[ -e "$STAGE_ROOT" ]]; then
+  echo "Refusing to overwrite asset-stage evidence: $STAGE_ROOT" >&2
+  exit 73
+fi
+
+export PAGER=cat MODULES_PAGER=cat LMOD_PAGER=cat
+module load "$MODULE_NAME"
+mkdir -p "$STAGE_ROOT"/{env,stdout,stderr}
+hostname > "$STAGE_ROOT/env/compute-hostname.txt"
+module -t list > "$STAGE_ROOT/env/modules.txt" 2>&1
+qstat -f "$PBS_JOBID" > "$STAGE_ROOT/env/qstat.txt"
+"$HF" version > "$STAGE_ROOT/env/hf-version.txt"
+
+"$HF" download openai-community/gpt2 \
+  config.json generation_config.json merges.txt model.safetensors tokenizer.json tokenizer_config.json vocab.json \
+  --revision 607a30d783dfa663caf39e06633721c8d4cfcd7e \
+  --cache-dir "$HF_HOME/hub" --quiet \
+  > "$STAGE_ROOT/stdout/gpt2-path.txt" 2> "$STAGE_ROOT/stderr/gpt2.log"
+"$HF" download Salesforce/wikitext \
+  wikitext-2-raw-v1/train-00000-of-00001.parquet wikitext-2-raw-v1/validation-00000-of-00001.parquet \
+  --type dataset --revision b08601e04326c79dfdd32d625aee71d232d685c3 \
+  --cache-dir "$HF_HOME/hub" --quiet \
+  > "$STAGE_ROOT/stdout/wikitext-path.txt" 2> "$STAGE_ROOT/stderr/wikitext.log"
+"$HF" download EleutherAI/pythia-160m \
+  config.json model.safetensors special_tokens_map.json tokenizer.json tokenizer_config.json \
+  --revision 50f5173d932e8e61f858120bcb800b97af589f46 \
+  --cache-dir "$HF_HOME/hub" --quiet \
+  > "$STAGE_ROOT/stdout/pythia-path.txt" 2> "$STAGE_ROOT/stderr/pythia.log"
+"$HF" download HuggingFaceFW/fineweb-edu sample/10BT/000_00000.parquet \
+  --type dataset --revision 87f09149ef4734204d70ed1d046ddc9ca3f2b8f9 \
+  --cache-dir "$HF_HOME/hub" --quiet \
+  > "$STAGE_ROOT/stdout/fineweb-path.txt" 2> "$STAGE_ROOT/stderr/fineweb.log"
+
+GPT2_PATH="$(<"$STAGE_ROOT/stdout/gpt2-path.txt")"
+WIKITEXT_PATH="$(<"$STAGE_ROOT/stdout/wikitext-path.txt")"
+PYTHIA_PATH="$(<"$STAGE_ROOT/stdout/pythia-path.txt")"
+FINEWEB_FILE="$(<"$STAGE_ROOT/stdout/fineweb-path.txt")"
+{
+  find -L "$GPT2_PATH" -maxdepth 1 -type f -print0
+  find -L "$WIKITEXT_PATH/wikitext-2-raw-v1" -maxdepth 1 -type f -print0
+  find -L "$PYTHIA_PATH" -maxdepth 1 -type f -print0
+  printf '%s\0' "$FINEWEB_FILE"
+} | sort -z | xargs -0 sha256sum > "$STAGE_ROOT/raw-files.sha256"
+
+MARKER_TMP="$STAGE_ROOT/.complete.json.tmp"
+printf '{"schema_version":1,"status":"complete","job_id":"%s","hostname":"%s","raw_hash_list_sha256":"%s"}\n' \
+  "$PBS_JOBID" "$(hostname)" "$(sha256sum "$STAGE_ROOT/raw-files.sha256" | awk '{print $1}')" \
+  > "$MARKER_TMP"
+mv "$MARKER_TMP" "$STAGE_ROOT/complete.json"
+printf '%s\n' "$STAGE_ROOT"

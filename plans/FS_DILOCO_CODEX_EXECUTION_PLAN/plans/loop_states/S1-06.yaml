@@ -1,0 +1,73 @@
+schema_version: 2
+loop_id: S1-06
+title: Torch/HF learner inner training core
+stage: stage1
+status: in_progress
+source_hashes:
+  research_plan: 2c0db3148110da10ea62f445c189d2d53b405527d8da264b9af9817f5ca9d835
+  stage0_4_spec: 1ea71fb6e34fef0d7b5558d8e7999dfdedeb82957f4331afcf6f80279d1f5a7d
+git:
+  integration_branch: master
+  branch: codex/S1-06-learner-inner-training
+  base_commit: 9388997989bb5b5e698f2e828d2619ec39e5613a
+  result_commit: null
+  dirty_at_start: true
+dependencies: [S1-00, S1-01]
+requirements: [LEARN-01, LEARN-02, PROG-04, PROG-05, TEL-01, TEL-04]
+acceptance_ids: []
+orient:
+  unique_failing_gap: No production single-process learner executes real HF causal-LM optimizer steps while exposing an unambiguous post-step safe boundary, independent deterministic data state, per-fragment counters, and loss/throughput telemetry.
+  planned_files: [src/fsbdd/learner.py, src/fsbdd/learner_assets.py, src/fsbdd/learner_smoke.py, src/fsbdd/cli.py, configs/stage1/s1_06_gpt2_wikitext_smoke.json, configs/stage1/s1_06_pythia160m_fineweb_smoke.json, tests/stage1/test_s1_06_learner.py, tests/red_cases/s1_06_naive_learner_surrogate.py, pbs/stage1_s1_06_assets.pbs, pbs/stage1_s1_06_learner.pbs, reports/stage1/S1-06-model-data-adr.md, reports/stage1/S1-06-requirement-matrix.csv, reports/stage1/S1-06-evidence-contract.json]
+  model_data_profile: Seeded tiny real HF causal LM and tensors for semantic checks; frozen pretrained GPT-2 small plus WikiText-2 raw packed-512 regression; frozen pretrained Pythia-160m plus FineWeb-Edu packed-512 research profile, each with separate ten-step evidence.
+  miyabi_skill_commit: c3ddfa47cadfd9132edf939d359b90b28ab5f8ed
+  initial_hostname: miyabi-g1
+  workflow: login-static contract work plus one-node immutable asset staging and focused/property/real-model checks followed by Checker Phase A and one formal one-node batch
+  context_inputs: [plans/PROGRESS.yaml, loops/stage1/S1-06.md, evidence/indexes/S1-00.md, evidence/indexes/S1-01.md, docs/06_8L1S_50X10_GATE.md]
+  raw_evidence_on_demand: [runtime_runs/S1-06]
+  resource_level: L1
+  attempt_budget: {asset_stage: 1, red: 1, targeted: 2, l1: 3, formal_l1_batch: 1}
+  goal_tokens_start: 1294928
+  soft_token_budget: 70000
+preflight:
+  requirement_matrix: reports/stage1/S1-06-requirement-matrix.csv
+  requirements_complete: true
+  measurement_contract: reports/stage1/S1-06-evidence-contract.json
+  package_contract: reports/stage1/S1-06-evidence-contract.json
+  package_validator_command: fsbdd evidence validate runtime_runs/S1-06/formal-l1
+  package_validator_result: pending
+  checker_phase_a: required
+  asset_freeze: pending exact raw-file hashes and materialized smoke-manifest digests before RED
+red: {command: null, exit_code: null, evidence_path: null}
+green: {command: null, evidence_path: null}
+harden: {commands: [], evidence_paths: []}
+nine_node_gate: {required: false, run_id: null, topology_gate: null, loss_gate: null, runtime_gate: null}
+checker:
+  context_id: null
+  maker_chat_inherited: false
+  phase_a_verdict: null
+  verdict: null
+  report_path: null
+  cycles: []
+persist:
+  evidence_index: null
+  raw_evidence_root: runtime_runs/S1-06
+  acceptance_traceability_updated: false
+  next_gap: null
+  handoff:
+    proven_facts:
+    - S1-00 supplies frozen identity progress and evidence schemas and S1-01 supplies complete deterministic HF logical-layer ownership.
+    - The regression workload is the immutable GPT-2 small and WikiText-2 profile from docs/06 section 6.3.
+    - The research workload is frozen to pretrained EleutherAI Pythia-160m and an immutable FineWeb-Edu stream; exact raw and processed hashes remain a RED precondition.
+    checked_commit: null
+    selected_evidence: []
+    next_command: stage immutable raw assets on one compute node then freeze exact model data and preprocessing manifests before semantic RED
+  cost:
+    attempts_by_level: {L0: 1, L1: 0, L2: 0}
+    queue_seconds: null
+    active_seconds: null
+    checker_cycles: 0
+    goal_tokens_end: null
+    agent_tokens_used: null
+    phase_token_deltas: {}
+    rework_causes: []
+blocker: null
