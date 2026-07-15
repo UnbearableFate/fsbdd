@@ -38,13 +38,19 @@ orient:
     raw_evidence_root: runtime_runs/S1-13/targeted-681e013-20260715T182501Z
     reviewed_ledger: reports/stage1/S1-13-experiment-failures.json
     correction_commit: 5b061cbb1546d5ce6357081009e942ebf61ad469
-    retry_submitted: false
+    retry_submitted: true
     focused_validation:
       experiment_id: fsbdd-s1-13-targeted-focus-2392542.opbs
       pbs_job_id: 2392542.opbs
       code_commit: a02650506593803584a060cb6f839eff14ebbe78
       result: 21 selected tests passed in 0.42 seconds; scheduler exit status 0
       raw_evidence_root: runtime_runs/S1-13/targeted-focus-a026505-20260715T191211Z
+    complete_targeted_validation:
+      experiment_id: fsbdd-s1-13-targeted-2392578.opbs
+      pbs_job_id: 2392578.opbs
+      code_commit: bac11aeae6c730fc25712bdef38190a38eb4e8da
+      result: all static gates and 342 Stage 1 tests passed in 30.29 seconds; scheduler exit status 0
+      raw_evidence_root: runtime_runs/S1-13/targeted-bac11ae-20260715T192015Z
   attempt_budget: {asset_stage: 2, red: 1, targeted: 4, l1_real: 2, l2_real: 2, formal_l3_9n: 2, formal_l4_long: 2}
   attempt_budget_amendments:
     - amended_at_utc: 2026-07-15T19:18:02Z
@@ -55,6 +61,8 @@ orient:
       reason: The same Checker required job 2392542 as a bounded focused reproduction after the second complete suite exposed a defective readiness fixture and an unbounded test harness. That focused run consumed the third targeted-class attempt and passed, but it intentionally exercised only the 21 directly implicated tests and therefore cannot replace the required complete Stage 1 targeted correctness gate.
       scope: Add exactly one one-node targeted attempt for one complete identity-bound suite; do not change any learner/syncer runtime, L2, 9N, long-smoke, or formal-run budget.
       authorization_gate: The same Checker must review this amendment and explicitly authorize the fourth targeted attempt at an exact clean commit before submission.
+      final_attempt: 2392578.opbs
+      final_attempt_result: pass; all static gates and 342 Stage 1 tests passed
   failure_ladder: preserve the first expensive failure then reproduce its failing role or analyzer at the smallest one-node or two-node topology before an authorized retry
   nine_node_gate_required: true
   goal_tokens_start: 5924432
@@ -79,12 +87,12 @@ green:
   evidence_path: reports/stage1/S1-13-experiment-failures.json
 harden:
   commands: [bash -n every active S1-13 PBS script and failure helper, jq empty failure and evidence contracts, git diff --check]
-  evidence_paths: [runtime_runs/S1-13/targeted-f0bb4fb-20260715T180720Z, runtime_runs/S1-13/targeted-681e013-20260715T182501Z, runtime_runs/S1-13/targeted-focus-a026505-20260715T191211Z, evidence/indexes/S1-13.md]
+  evidence_paths: [runtime_runs/S1-13/targeted-f0bb4fb-20260715T180720Z, runtime_runs/S1-13/targeted-681e013-20260715T182501Z, runtime_runs/S1-13/targeted-focus-a026505-20260715T191211Z, runtime_runs/S1-13/targeted-bac11ae-20260715T192015Z, evidence/indexes/S1-13.md]
 nine_node_gate: {required: true, run_id: null, topology_gate: null, loss_gate: null, runtime_gate: null}
 checker:
   context_id: s1_13_checker
   maker_chat_inherited: false
-  phase_a_verdict: candidate a026505 was admitted for exactly one focused reproduction; job 2392542 passed all 21 selected tests; no complete targeted or runtime run is yet authorized
+  phase_a_verdict: candidate bac11ae was admitted for the fourth and final complete targeted suite after explicit budget amendment; job 2392578 passed every static gate and all 342 Stage 1 tests; no runtime run is yet authorized
   verdict: null
   report_path: reports/checkers/S1-13.md
   cycles:
@@ -104,10 +112,13 @@ checker:
     - candidate: d48e7c899f88f8d5ebcc046304fdaf8f80530bd5
       verdict: BLOCKED for a complete targeted suite because jobs 2392180, 2392261, and 2392542 consumed the frozen three-attempt targeted budget
       result: focused evidence passed review; explicit reasoned budget amendment required before another authorization
+    - candidate: bac11aeae6c730fc25712bdef38190a38eb4e8da
+      verdict: ADMISSIBLE for exactly one fourth and final one-node complete targeted suite
+      result: all static gates and 342 Stage 1 tests passed; scheduler exit status 0
 persist:
   evidence_index: evidence/indexes/S1-13.md
   raw_evidence_root: runtime_runs/S1-13
   acceptance_traceability_updated: false
   next_gap: Stage 2 asynchronous GPU to CPU to filesystem publication pipeline
-  handoff: Candidate a026505 passed the Checker-authorized focused reproduction; the original targeted budget is exhausted, so the loop now records a reasoned increase from three to four targeted attempts for exactly one complete suite; return the amendment in a new exact candidate to the same Checker; no runtime experiment is authorized.
-blocker: Same Checker approval of the explicit targeted-budget amendment is required before exactly one complete targeted retry; no learner/syncer runtime, 9N, long smoke, or formal long submission is allowed.
+  handoff: Candidate bac11ae passed all static gates and the complete 342-test Stage 1 suite in Checker-authorized job 2392578; the fourth and final targeted attempt is consumed; return the evidence to the same Checker to select and authorize exactly one smallest meaningful real shared-filesystem runtime reproduction.
+blocker: Same Checker review of complete targeted job 2392578 is required before any reduced learner/syncer runtime reproduction; no 9N, long smoke, or formal long submission is allowed.
