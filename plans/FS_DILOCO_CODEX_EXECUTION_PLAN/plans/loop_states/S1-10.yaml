@@ -2,7 +2,7 @@ schema_version: 2
 loop_id: S1-10
 title: Streaming direct merge and fragment-wise outer optimizer
 stage: stage1
-status: red
+status: pass
 source_hashes:
   research_plan: 2c0db3148110da10ea62f445c189d2d53b405527d8da264b9af9817f5ca9d835
   stage0_4_spec: 1ea71fb6e34fef0d7b5558d8e7999dfdedeb82957f4331afcf6f80279d1f5a7d
@@ -29,7 +29,7 @@ orient:
   raw_evidence_on_demand: [runtime_runs/S1-10]
   resource_level: L2
   available_resources: Miyabi debug-g one or two compute nodes with shared POSIX evidence root and nv-hpcx launcher module
-  recent_failure: Formal L2 retry job 2386509.opbs ran 233 Stage 1 tests and both two-node roles successfully, then the independent analyzer correctly rejected a non-comparable RSS sample because the old two-element warmup did not prime target-fragment allocator paths (M1 9 MiB versus M8 27 MiB; delta 18 MiB above the 12 MiB gate). The incomplete formal-l2-retry1 package is preserved. The correction freezes two identical M8 target-shape streaming warmups in each dedicated child before the target M1/M8 observation and moves selected evidence to fail-if-exists formal-l2-retry2.
+  recent_failure: null
   attempt_budget: {red: 1, targeted: 3, l1_compute: 2, formal_l2_batch: 1}
   failure_ladder: preserve the first L2 failure then reproduce both roles on one compute node before any resubmission
   nine_node_gate_required: false
@@ -41,31 +41,31 @@ preflight:
   measurement_contract: reports/stage1/S1-10-evidence-contract.json
   package_contract: reports/stage1/S1-10-evidence-contract.json
   package_validator_command: fsbdd evidence validate runtime_runs/S1-10/formal-l2-retry2
-  package_validator_result: pending
+  package_validator_result: admissible at runtime_runs/S1-10/formal-l2-retry2 (28/28 payload files; manifest 14e497a8afef7ee971000f22e4365a6d7745d5c6a92e5bbbfbb6458b3a545e07)
   checker_phase_a: required
   relative_l2_formula: norm(production minus oracle) divided by max(norm(oracle) 1e-12)
   accumulation_order: frozen selection order with float32 multiply then float32 accumulation
-  peak_memory_observation: context-managed live payload leases instrumented tensor byte ledger and current Linux VmRSS sampled at each production allocation checkpoint within dedicated warmed child target-update intervals
+  peak_memory_observation: context-managed live payload leases instrumented tensor byte ledger and current Linux VmRSS sampled at each production allocation checkpoint after two identical M8 target-shape warmups in each dedicated child
 red:
   command: PYTHONPATH=src .venv/bin/python tests/red_cases/s1_10_naive_merge_surrogate.py
-  exit_code: null
+  exit_code: 1
   evidence_path: runtime_runs/S1-10/red-5e76a27-semantic
 green:
-  command: PYTHONPATH=src .venv/bin/python -m pytest -q tests/stage1/test_s1_10_syncer_merge.py tests/stage1/test_s1_10_merge_analyzer.py tests/stage1/test_s1_10_merge_stress_static.py
-  evidence_path: null
+  command: PYTHONPATH=src .venv/bin/python -m pytest -q tests/stage1
+  evidence_path: runtime_runs/S1-10/formal-l2-retry2/stdout/pytest.log
 harden:
   commands:
   - Stage0 golden and independent wrong-base current-application Nesterov and no-momentum controls
   - single and eight contributor extreme-token order permutation and fifty-update drift properties
-  - context-managed one-live-payload source tensor byte ledger actual child VmHWM and forbidden full-model spy
+  - context-managed one-live-payload source tensor byte ledger identically warmed target-interval current VmRSS and forbidden full-model spy
   - fail-closed dtype shape checksum identity weight duplicate learner outer-state and analyzer mutations
-  evidence_paths: []
+  evidence_paths: [runtime_runs/S1-10/l1-targeted-2386338.opbs, runtime_runs/S1-10/l1-targeted-2386359.opbs, runtime_runs/S1-10/l1-targeted-2386436.opbs, runtime_runs/S1-10/l1-targeted-2386440.opbs, runtime_runs/S1-10/preflight-ffae9ef, runtime_runs/S1-10/formal-l2, runtime_runs/S1-10/l1-targeted-2386492.opbs, runtime_runs/S1-10/failure-repro-corrected-2386493.opbs, runtime_runs/S1-10/preflight-4c698d8, runtime_runs/S1-10/formal-l2-retry1, runtime_runs/S1-10/l1-targeted-2386571.opbs, runtime_runs/S1-10/rss-repro-corrected-2386572.opbs, runtime_runs/S1-10/preflight-7a6ca50, runtime_runs/S1-10/formal-l2-retry2, runtime_runs/S1-10/scheduler-2386588.opbs]
 nine_node_gate: {required: false, run_id: null, topology_gate: null, loss_gate: null, runtime_gate: null}
 checker:
   context_id: /root/s1_10_checker
   maker_chat_inherited: false
-  phase_a_verdict: BLOCKED_PRECHECK on 59bdef3 for unbound frozen config identity incomplete descriptor shape validation and a lifetime-high-water RSS comparison outside the target update interval
-  verdict: pending
+  phase_a_verdict: BLOCKED_PRECHECK on 59bdef3 followed by ADMISSIBLE rechecks on ffae9ef after semantic hardening 4c698d8 after the manifest correction and 7a6ca50 after the identically warmed target-shape RSS correction
+  verdict: PASS_WITH_FOLLOWUPS
   report_path: reports/checkers/S1-10.md
   cycles:
   - cycle: 1
@@ -83,10 +83,49 @@ checker:
     checked_candidate: 4c698d8ed9dea2821994a26d45ceac4fea0857a3
     verdict: ADMISSIBLE
     correction: Manifest repair matches the identity-map schema with exact regression coverage; the failed package is preserved and the degraded one-node two-role failure reproduction passes without a formal topology claim.
+  - cycle: 4
+    phase: A
+    checked_candidate: 7a6ca502e6a9d38febda741cc13992157fa785db
+    verdict: ADMISSIBLE
+    correction: Identical M8 target-shape warmups make the M1 and M8 allocator states comparable bind the warmup profile fail closed and pass a full-size one-node two-role reproduction before the fresh formal root is submitted.
+  - cycle: 5
+    phase: B
+    checked_candidate: 7a6ca502e6a9d38febda741cc13992157fa785db
+    verdict: PASS_WITH_FOLLOWUPS
+    report_sha256: d410cd13c01d24a5c738ac7f60704021aae9d7101a00c41ee5d4769220026db7
+    followup: Qualify GPU-zero reporting as application-role scoped and separately record validation-plane GPU accounting or hide GPUs from CPU-only validation where feasible.
 persist:
   evidence_index: evidence/indexes/S1-10.md
   raw_evidence_root: runtime_runs/S1-10
-  acceptance_traceability_updated: false
-  next_gap: null
-  handoff: null
+  acceptance_traceability_updated: true
+  next_gap: S1-11 must atomically publish new fragment parameters outer state version selected and consumed frontiers and policy identity so any failed publication leaves proposals eligible under the old authority.
+  handoff:
+    proven_facts:
+    - The production kernel streams one selected fragment in frozen order with at most one live local payload and no collection stack concatenation or full-model operation.
+    - Every contribution computes float32 weight times declared base minus local and the merged pseudo-gradient is applied to current parameters and current per-fragment outer state.
+    - Per-fragment SGD implements updated-buffer Nesterov momentum-free controls and independent state while matching 50 Stage 0 oracle transitions.
+    - Canonical update identity binds current state selection ordered proposal and content identities bases tokens staleness float32 weights policies hyperparameters dtype and fragment map facts.
+    - Maximum 50-update parameter relative L2 is 2.114216746296519e-9 the late-ten maximum is zero all 50 identities are distinct and all 16 proposal orders have zero relative L2 difference.
+    - The distinguishing mixed-base transition produces 9 -5 exactly while the prohibited current-relative stale surrogate produces 4.5 -1.5 with relative L2 0.5537181355029882.
+    - Identically warmed 4 MiB M1 and M8 updates both peak 9 MiB above entry RSS for difference zero each with one live payload and a three-fragment tensor ledger.
+    - Exact byte accounting records 4 MiB and 32 MiB local reads for M1 and M8 plus one fragment current and successor and zero 16 MiB full-model operations.
+    - Formal job 2386588.opbs exits zero after 36 seconds on distinct hosts mg0020 and mg0023 with filesystem-only application coordination and zero application-role GPU memory.
+    - The full 235-test Stage 1 suite passes the 28-file package is validator-admissible all packaged stderr is empty and the independent Checker returns closable PASS_WITH_FOLLOWUPS.
+    checked_commit: 7a6ca502e6a9d38febda741cc13992157fa785db
+    selected_evidence: [runtime_runs/S1-10/formal-l2-retry2, runtime_runs/S1-10/scheduler-2386588.opbs]
+    next_command: create the S1-11 branch from the S1-10 closure commit and begin its ORIENT phase
+  cost:
+    attempts_by_level: {L0: 5, L1: 8, L2: 3}
+    queue_seconds: 3
+    active_seconds: 173
+    checker_cycles: 5
+    goal_tokens_end: null
+    agent_tokens_used: null
+    phase_token_deltas: {}
+    rework_causes:
+    - Checker Phase A found unbound role config identity incomplete descriptor shape validation and a lifetime-high-water RSS comparison; corrections added exact bindings and target-interval current-RSS checkpoints before formal submission.
+    - Targeted job 2386436 exposed stale test fixture descriptor shapes after the Checker correction; the corrected exact candidate passed job 2386440.
+    - Formal job 2386456 passed tests roles and analysis but exposed an obsolete manifest builder call; the package was preserved and the corrected API passed exact regression and degraded one-node reproduction.
+    - Formal retry 2386509 exposed an incomparable allocator warmup; the package was preserved and two identical M8 target-shape warmups were frozen and reproduced at full size before the successful retry.
+    - Checker-driven corrections and both formal failure-ladder reproductions exceeded the original L1 and L2 attempt budgets; every failure was preserved diagnosed at smaller topology and corrected before resubmission.
 blocker: null

@@ -58,12 +58,12 @@ MODEL-03,passed,S1-01,,Deterministic adjacent-byte misc assignment
 MODEL-04,passed,S1-01,,Tied embedding/head single-owner and aliases
 MODEL-05,passed,S1-01,,Unique trainable coverage plus fail-closed registered-buffer classification
 MODEL-06,passed,S1-01,,Unknown family and out-of-scope explicit mapping fail closed
-OPT-01,planned,S0C-01,S1-10,
-OPT-02,planned,S1-10,,
+OPT-01,passed,S0C-01,S1-10,S0C-01 oracle plus S1-10 production declared-base fp32 displacement and independently distinguishing mixed-base transition
+OPT-02,passed,S1-10,,Explicit pluggable direct-weighted-average default matches Stage 0 oracle across 50 transitions and 16 contribution orders
 OPT-03,deferred_stage5,DEFERRED_STAGE5,,RDA在source changelog中说明已移至Stage5，不是Stage0–4当前条款
-OPT-04,planned,S0C-02,S1-10,
-OPT-05,planned,S1-10,,
-OPT-06,planned,S1-10,,
+OPT-04,passed,S0C-02,S1-10,S0C-02 oracle plus S1-10 per-fragment updated-buffer Nesterov momentum-free controls isolation and 50-transition production evidence
+OPT-05,passed,S1-10,,Merged declared-base pseudo-gradient is applied to current parameters and current fragment outer state with a distinguishing wrong-application counterexample
+OPT-06,passed,S1-10,,Canonical update identity binds all frozen current selection contribution base token weight policy dtype and fragment-map facts with fail-closed mutations
 ORACLE-01,planned,S0C-01,,
 ORACLE-02,planned,S0C-01,,
 ORACLE-03,planned,S0C-02,,
@@ -117,8 +117,8 @@ SYNC-02,passed,S1-04,S1-09;S3-02;S4-01,S1-04 provides independent authority vers
 SYNC-03,passed,S1-09,S4-03,Readiness is driven by fragment authority distinct eligible proposals Q Q_fresh fixed grace and cyclic fair scheduling; S4-03 extends the proven S_max=0 scope to stale-inclusive production
 SYNC-04,passed,S1-09,,Profile A Q=M grace zero and decoupled Q<M fixed grace both freeze all eligible distinct proposals at grace end with loss and recovery coverage
 SYNC-05,passed,S1-09,S3-04,Deterministic cyclic scheduling claims fragments 0 1 2 3 with maximum continuously-ready service window F
-SYNC-06,planned,S1-10,,
-SYNC-07,planned,S1-10,,
+SYNC-06,passed,S1-10,,One live local payload three-fragment tensor ledger and identically warmed M1/M8 target RSS difference zero against the 12 MiB gate
+SYNC-07,passed,S1-10,,Exact target-fragment contribution current and successor byte accounting with zero full-model operations
 SYNC-08,planned,S1-11,,
 SYNC-09,passed,S1-09,S4-03,Frozen proposal facts float32 weights content identities and canonical selection identity are stable across history restart and post-freeze arrival; S4-03 extends stale selection
 TEL-01,passed,S1-06,S1-13;S2-01;S2-02;S2-04,Per-step training and S1-07 publication telemetry plus S1-08 FS-to-CPU CPU-to-GPU version-lag extra-step and publication-to-adoption traces; later loops add gate aggregation
