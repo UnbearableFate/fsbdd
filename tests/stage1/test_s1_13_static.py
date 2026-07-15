@@ -88,8 +88,9 @@ def test_frozen_gate_contract_covers_heartbeat_stalls_and_long_capacity_smoke() 
 
 def test_resolved_configs_bind_the_complete_immutable_asset_bundle() -> None:
     expected_marker = "6d13e621bb912495ba9e983a305991bf716f9307d24fe241d34a39e5f0b62c7f"
-    asset_root = str(
-        ROOT / "runtime_runs" / "S1-13" / "assets-2389469.opbs"
+    asset_root = (
+        "/work/xg24i002/x10041/fsbdd/runtime_runs/S1-13/"
+        "assets-2389469.opbs"
     )
     for workload, learners in (("nine_node", 8), ("long_run", 4)):
         path = ROOT / "configs" / "stage1" / f"s1_13_{workload}_resolved.json"
