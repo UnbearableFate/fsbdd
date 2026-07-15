@@ -339,7 +339,7 @@ def test_nine_node_submission_roots_are_exclusive_and_identity_bound(
         "evidence_root": tmp_path / "evidence",
         "run_id": "s1-13-nine-test",
         "submission_utc": "2026-07-15T00:00:00Z",
-        "code_commit": "1" * 64,
+        "code_commit": "1" * 40,
         "config_sha256": "2" * 64,
         "asset_marker_sha256": "3" * 64,
         "gate_contract_sha256": "4" * 64,
@@ -372,7 +372,7 @@ def test_nine_node_submission_rejects_invalid_timestamp_and_overlapping_roots(
         "evidence_root": tmp_path / "evidence",
         "run_id": "s1-13-nine-test",
         "submission_utc": "invalidZ",
-        "code_commit": "1" * 64,
+        "code_commit": "1" * 40,
         "config_sha256": "2" * 64,
         "asset_marker_sha256": "3" * 64,
         "gate_contract_sha256": "4" * 64,
@@ -380,6 +380,10 @@ def test_nine_node_submission_rejects_invalid_timestamp_and_overlapping_roots(
     with pytest.raises(Stage1SubmissionError, match="invalid submission_utc"):
         prepare_nine_node_roots(**values)
     values["submission_utc"] = "2026-07-15T00:00:00Z"
+    values["code_commit"] = "1" * 64
+    with pytest.raises(Stage1SubmissionError, match="40-hex Git identity"):
+        prepare_nine_node_roots(**values)
+    values["code_commit"] = "1" * 40
     values["result_root"] = values["shared_root"]
     with pytest.raises(Stage1SubmissionError, match="must differ"):
         prepare_nine_node_roots(**values)

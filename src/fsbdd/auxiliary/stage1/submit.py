@@ -16,6 +16,7 @@ class Stage1SubmissionError(RuntimeError):
 
 
 _SHA256 = re.compile(r"[0-9a-f]{64}")
+_COMMIT = re.compile(r"[0-9a-f]{40}")
 
 
 def _canonical_root(path: Path, field: str) -> Path:
@@ -41,6 +42,14 @@ def _sha256(path: Path) -> str:
 def _identity(value: str, field: str) -> str:
     if not _SHA256.fullmatch(value):
         raise Stage1SubmissionError(f"{field} must be a lowercase SHA-256 identity")
+    return value
+
+
+def _commit_identity(value: str) -> str:
+    if not _COMMIT.fullmatch(value):
+        raise Stage1SubmissionError(
+            "code_commit must be a lowercase 40-hex Git identity"
+        )
     return value
 
 
@@ -78,7 +87,7 @@ def _marker(
         "workload": "nine_node",
         "run_id": run_id,
         "submission_utc": submission_utc,
-        "code_commit": _identity(code_commit, "code_commit"),
+        "code_commit": _commit_identity(code_commit),
         "config_sha256": _identity(config_sha256, "config_sha256"),
         "asset_marker_sha256": _identity(asset_marker_sha256, "asset_marker_sha256"),
         "gate_contract_sha256": _identity(gate_contract_sha256, "gate_contract_sha256"),
@@ -113,8 +122,6 @@ def prepare_nine_node_roots(
     shared = _canonical_root(shared_root, "shared_root")
     result = _canonical_root(result_root, "result_root")
     evidence = _canonical_root(evidence_root, "evidence_root")
-    if len({shared, result, evidence}) != 3:
-        raise Stage1SubmissionError("shared, result, and evidence roots must differ")
     if len({shared, result, evidence}) != 3:
         raise Stage1SubmissionError("shared, result, and evidence roots must differ")
     for path in (shared, result, evidence):
