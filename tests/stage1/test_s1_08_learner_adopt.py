@@ -4,6 +4,7 @@ import dataclasses
 import hashlib
 import math
 import threading
+import time
 from pathlib import Path
 
 import numpy as np
@@ -43,7 +44,11 @@ from fsbdd.learner_publish import (  # noqa: E402
 )
 from fsbdd.model_registry import build_logical_layer_registry  # noqa: E402
 from fsbdd.proposal import ProposalStore  # noqa: E402
-from fsbdd.storage import PosixStorageBackend, PublicationError  # noqa: E402
+from fsbdd.storage import (  # noqa: E402
+    PosixStorageBackend,
+    PublicationError,
+    PublicationNotReady,
+)
 
 
 IDENTITIES = GlobalStateIdentities(
@@ -198,6 +203,8 @@ def test_latest_only_target_scope_counters_and_moments(tmp_path: Path) -> None:
     assert trace["target_payload_sha256"] == hashlib.sha256(latest.parameters).hexdigest()
     assert trace["parameter_hashes_after"][0] == trace["target_payload_sha256"]
     assert trace["optimizer_state_hashes_before"] == trace["optimizer_state_hashes_after"]
+    assert trace["optimizer_state_entry_counts_before"] == [1, 1, 1]
+    assert trace["optimizer_state_entry_counts_after"] == [1, 1, 1]
     assert [fragment_payload_sha256((parameter,)) for parameter in parameters][1:] == before_parameters[1:]
     assert [
         optimizer_fragment_state_sha256(optimizer, (parameter,))
@@ -288,12 +295,83 @@ def test_wrong_fragment_map_identity_is_rejected_by_fixed_slot_poll(
     poller = LatestFragmentPoller(
         wrong,
         adopted_versions=(0,),
+        adopted_content_identities=("0" * 64,),
         completed_step=lambda: 0,
         autostart=False,
     )
     with pytest.raises(PublicationError, match="fragment_map_identity"):
         poller.poll_once()
     poller.close()
+
+
+class _OneTransientReadBackend:
+    def __init__(self, backend: PosixStorageBackend) -> None:
+        self.backend = backend
+        self.remaining_transient_reads = 0
+
+    @property
+    def root(self) -> Path:
+        return self.backend.root
+
+    def publish(self, *args: object, **kwargs: object) -> object:
+        return self.backend.publish(*args, **kwargs)
+
+    def read(self, *args: object, **kwargs: object) -> object:
+        if self.remaining_transient_reads > 0:
+            self.remaining_transient_reads -= 1
+            raise PublicationNotReady("injected eventually-readable payload")
+        return self.backend.read(*args, **kwargs)
+
+
+def test_background_poller_retries_eventually_readable_payload_and_adopts(
+    tmp_path: Path,
+) -> None:
+    parameter = torch.nn.Parameter(torch.arange(4, dtype=torch.float32))
+    descriptor = _descriptors((parameter,))
+    backend = _OneTransientReadBackend(PosixStorageBackend(tmp_path / "global"))
+    store = GlobalStateStore(
+        backend,
+        identities=IDENTITIES,
+        descriptors=descriptor,
+        s_max=0,
+    )
+    initial = store.bootstrap(
+        (
+            BootstrapFragment(
+                descriptor=descriptor[0],
+                parameters=serialize_fragment_parameters((parameter,), 16),
+                outer_state=b"outer-v0",
+            ),
+        )
+    ).snapshot.states
+    store.publish_successor(
+        0,
+        parameters=_shift(initial[0].parameters, 1.0),
+        outer_state=b"outer-v1",
+    )
+    backend.remaining_transient_reads = 1
+    progress = LearnerProgress.initialize("learner-00", (0,))
+    coordinator = FragmentAdoptionCoordinator(
+        store=store,
+        progress=progress,
+        initial_states=initial,
+        fragment_parameters=((parameter,),),
+        poll_interval_seconds=0.001,
+        autostart=True,
+    )
+    deadline = time.monotonic() + 5
+    while coordinator.summary()["poller"]["discovery_count"] == 0:
+        if time.monotonic() >= deadline:
+            raise AssertionError("eventually readable fragment was not discovered")
+        time.sleep(0.001)
+    polling = coordinator.summary()["poller"]
+    assert polling["transient_read_retry_count"] == 1
+    assert polling["errors"] == []
+    _advance(progress)
+    metrics = coordinator.on_safe_boundary(_event(progress))
+    assert metrics["adoption_applied_fragments"] == [0]
+    assert progress.fragments[0].global_version == 1
+    coordinator.close()
 
 
 def _tiny_neox() -> torch.nn.Module:

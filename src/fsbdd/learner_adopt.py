@@ -15,6 +15,7 @@ from .identity import canonical_digest
 from .learner import LearnerProgress, SafeBoundaryEvent
 from .learner_publish import fragment_payload_sha256
 from .logging import StructuredLogger
+from .storage import PublicationNotReady
 
 
 class AdoptionError(RuntimeError):
@@ -110,6 +111,14 @@ def optimizer_fragment_state_sha256(
     return canonical_digest({"schema_version": 1, "parameters": states})
 
 
+def optimizer_fragment_state_entry_count(
+    optimizer: Any, fragment_parameters: Sequence[Any]
+) -> int:
+    """Number of fragment parameters whose optimizer state has been initialized."""
+
+    return sum(bool(optimizer.state.get(parameter, {})) for parameter in fragment_parameters)
+
+
 @dataclasses.dataclass(frozen=True, slots=True)
 class PendingFragmentAdoption:
     state: FragmentGlobalState
@@ -164,6 +173,7 @@ class LatestFragmentPoller:
         store: GlobalStateStore,
         *,
         adopted_versions: Sequence[int],
+        adopted_content_identities: Sequence[str],
         completed_step: Callable[[], int],
         poll_interval_seconds: float = 0.01,
         trace_sink: DiscoveryTraceSink | None = None,
@@ -177,8 +187,14 @@ class LatestFragmentPoller:
         versions = tuple(
             _nonnegative_int(value, "adopted version") for value in adopted_versions
         )
+        contents = tuple(
+            _hex_identity(value, "adopted content identity")
+            for value in adopted_content_identities
+        )
         if len(versions) != len(store.descriptors):
             raise AdoptionError("adopted versions must match the fragment store")
+        if len(contents) != len(versions):
+            raise AdoptionError("adopted content identities must match adopted versions")
         if not callable(completed_step):
             raise AdoptionError("completed_step must be callable")
         if trace_sink is not None and not callable(trace_sink):
@@ -196,7 +212,9 @@ class LatestFragmentPoller:
         self._poll_lock = threading.Lock()
         self._stop = threading.Event()
         self._adopted_versions = list(versions)
+        self._adopted_content_identities = list(contents)
         self._highest_observed_versions = list(versions)
+        self._highest_observed_content_identities = list(contents)
         self._pending: list[PendingFragmentAdoption | None] = [
             None for _ in versions
         ]
@@ -207,6 +225,7 @@ class LatestFragmentPoller:
         self._pending_replacement_count = 0
         self._repeated_current_count = 0
         self._ignored_stale_count = 0
+        self._transient_read_retry_count = 0
         self._errors: list[BaseException] = []
         self._started = False
         self._closed = False
@@ -241,10 +260,27 @@ class LatestFragmentPoller:
                     f"global current slot regressed for fragment {index}: "
                     f"{state.version} < {highest}"
                 )
+            if (
+                state.version == highest
+                and state.content_identity
+                != self._highest_observed_content_identities[index]
+            ):
+                raise AdoptionError(
+                    f"global current content changed at version {state.version} "
+                    f"for fragment {index}"
+                )
             current = self._adopted_versions[index]
             pending = self._pending[index]
             if state.version <= current:
                 if state.version == current:
+                    if (
+                        state.content_identity
+                        != self._adopted_content_identities[index]
+                    ):
+                        raise AdoptionError(
+                            f"adopted content identity changed at version {current} "
+                            f"for fragment {index}"
+                        )
                     self._repeated_current_count += 1
                 else:
                     self._ignored_stale_count += 1
@@ -260,6 +296,7 @@ class LatestFragmentPoller:
                 replaced_version = pending.state.version
                 self._pending_replacement_count += 1
             self._highest_observed_versions[index] = state.version
+            self._highest_observed_content_identities[index] = state.content_identity
             self._pending[index] = observation
             self._maximum_pending[index] = 1
             self._discovery_count += 1
@@ -279,7 +316,13 @@ class LatestFragmentPoller:
         with self._poll_lock:
             for index in range(len(self.store.descriptors)):
                 started = self.clock_ns()
-                state = self.store.load_fragment(index, timeout_seconds=0)
+                try:
+                    state = self.store.load_fragment(index, timeout_seconds=0)
+                except PublicationNotReady:
+                    with self._condition:
+                        self._read_count += 1
+                        self._transient_read_retry_count += 1
+                    continue
                 completed = self.clock_ns()
                 step = _nonnegative_int(self.completed_step(), "completed step")
                 observation = PendingFragmentAdoption(
@@ -340,9 +383,12 @@ class LatestFragmentPoller:
             self._pending = [None for _ in self._pending]
             return result
 
-    def mark_adopted(self, fragment_index: int, version: int) -> None:
+    def mark_adopted(
+        self, fragment_index: int, version: int, content_identity: str
+    ) -> None:
         index = _nonnegative_int(fragment_index, "fragment index")
         value = _nonnegative_int(version, "adopted version")
+        content = _hex_identity(content_identity, "adopted content identity")
         with self._condition:
             try:
                 current = self._adopted_versions[index]
@@ -351,6 +397,7 @@ class LatestFragmentPoller:
             if value <= current:
                 raise AdoptionError("adopted version must strictly increase")
             self._adopted_versions[index] = value
+            self._adopted_content_identities[index] = content
             pending = self._pending[index]
             if pending is not None and pending.state.version <= value:
                 self._pending[index] = None
@@ -363,7 +410,13 @@ class LatestFragmentPoller:
             return {
                 "schema_version": 1,
                 "adopted_versions": list(self._adopted_versions),
+                "adopted_content_identities": list(
+                    self._adopted_content_identities
+                ),
                 "highest_observed_versions": list(self._highest_observed_versions),
+                "highest_observed_content_identities": list(
+                    self._highest_observed_content_identities
+                ),
                 "pending": pending,
                 "pending_count": sum(item is not None for item in self._pending),
                 "maximum_pending_per_fragment": list(self._maximum_pending),
@@ -374,6 +427,7 @@ class LatestFragmentPoller:
                 "pending_replacement_count": self._pending_replacement_count,
                 "repeated_current_count": self._repeated_current_count,
                 "ignored_stale_count": self._ignored_stale_count,
+                "transient_read_retry_count": self._transient_read_retry_count,
                 "errors": [
                     f"{type(error).__name__}: {error}" for error in self._errors
                 ],
@@ -480,6 +534,9 @@ class FragmentAdoptionCoordinator:
         self.poller = LatestFragmentPoller(
             store,
             adopted_versions=tuple(fragment.global_version for fragment in progress.fragments),
+            adopted_content_identities=tuple(
+                state.content_identity for state in initial_states
+            ),
             completed_step=lambda: self.progress.local_optimizer_steps,
             poll_interval_seconds=poll_interval_seconds,
             logger=logger,
@@ -557,15 +614,19 @@ class FragmentAdoptionCoordinator:
             raise AdoptionError("global fragment parameters do not cover the target")
         return tuple(sources)
 
-    def _audit_hashes(self) -> tuple[list[str], list[str]]:
+    def _audit_hashes(self) -> tuple[list[str], list[str], list[int]]:
         if not self.identity_audit or self.optimizer is None:
-            return [], []
+            return [], [], []
         parameters = [fragment_payload_sha256(group) for group in self.fragment_parameters]
         moments = [
             optimizer_fragment_state_sha256(self.optimizer, group)
             for group in self.fragment_parameters
         ]
-        return parameters, moments
+        entries = [
+            optimizer_fragment_state_entry_count(self.optimizer, group)
+            for group in self.fragment_parameters
+        ]
+        return parameters, moments, entries
 
     def _apply_one(
         self, event: SafeBoundaryEvent, observation: PendingFragmentAdoption
@@ -578,7 +639,11 @@ class FragmentAdoptionCoordinator:
         if state.version <= fragment.global_version:
             return None
         sources = self._decode_sources(observation)
-        parameter_hashes_before, moment_hashes_before = self._audit_hashes()
+        (
+            parameter_hashes_before,
+            moment_hashes_before,
+            moment_entry_counts_before,
+        ) = self._audit_hashes()
         counters_before = [
             {
                 "global_version": item.global_version,
@@ -609,6 +674,9 @@ class FragmentAdoptionCoordinator:
         for device in cuda_devices:
             torch.cuda.synchronize(device)
         completed = self.clock_ns()
+        adoption_unix_ns = _nonnegative_int(
+            self.wall_clock_ns(), "adoption wall clock"
+        )
         cpu_to_gpu_seconds = max(0.0, (completed - started) / 1e9)
 
         fragment.global_version = state.version
@@ -617,9 +685,13 @@ class FragmentAdoptionCoordinator:
         self._content_identities[index] = state.content_identity
         if self.base_context_sink is not None:
             self.base_context_sink(index, state.version, state.content_identity)
-        self.poller.mark_adopted(index, state.version)
+        self.poller.mark_adopted(index, state.version, state.content_identity)
 
-        parameter_hashes_after, moment_hashes_after = self._audit_hashes()
+        (
+            parameter_hashes_after,
+            moment_hashes_after,
+            moment_entry_counts_after,
+        ) = self._audit_hashes()
         target_payload_sha256 = hashlib.sha256(state.parameters).hexdigest()
         if self.identity_audit:
             if any(
@@ -635,7 +707,10 @@ class FragmentAdoptionCoordinator:
                 for parameter in self.fragment_parameters[index]
             ) and parameter_hashes_after[index] != target_payload_sha256:
                 raise AdoptionError("adopted target differs from verified global payload")
-            if moment_hashes_before != moment_hashes_after:
+            if (
+                moment_hashes_before != moment_hashes_after
+                or moment_entry_counts_before != moment_entry_counts_after
+            ):
                 raise AdoptionError("adoption changed inner optimizer state")
         counters_after = [
             {
@@ -647,9 +722,6 @@ class FragmentAdoptionCoordinator:
             for item in self.progress.fragments
         ]
         jump = state.version - version_before
-        adoption_unix_ns = _nonnegative_int(
-            self.wall_clock_ns(), "adoption wall clock"
-        )
         trace: dict[str, Any] = {
             "event": "global_fragment_adopted",
             "learner_id": self.progress.learner_id,
@@ -681,6 +753,8 @@ class FragmentAdoptionCoordinator:
             "parameter_hashes_after": parameter_hashes_after,
             "optimizer_state_hashes_before": moment_hashes_before,
             "optimizer_state_hashes_after": moment_hashes_after,
+            "optimizer_state_entry_counts_before": moment_entry_counts_before,
+            "optimizer_state_entry_counts_after": moment_entry_counts_after,
             "counters_before": counters_before,
             "counters_after": counters_after,
             "version_vector_after": [

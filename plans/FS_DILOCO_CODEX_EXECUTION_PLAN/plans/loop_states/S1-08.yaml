@@ -55,8 +55,20 @@ harden:
   evidence_paths:
   - runtime_runs/S1-08/l1-targeted-2385717.opbs
   - runtime_runs/S1-08/l1-targeted-2385721.opbs
+  - runtime_runs/S1-08/l1-targeted-2385838.opbs
 nine_node_gate: {required: false, run_id: null, topology_gate: null, loss_gate: null, runtime_gate: null}
-checker: {context_id: null, maker_chat_inherited: false, phase_a_verdict: null, verdict: null, report_path: reports/checkers/S1-08.md, cycles: []}
+checker:
+  context_id: /root/s1_08_checker
+  maker_chat_inherited: false
+  phase_a_verdict: BLOCKED_PRECHECK on e1d8afd; corrected candidate pending recheck
+  verdict: null
+  report_path: reports/checkers/S1-08.md
+  cycles:
+  - cycle: 1
+    phase: A
+    checked_candidate: e1d8afd35581fb392bb12266f764b0c3b98a841c
+    verdict: BLOCKED_PRECHECK
+    correction: classify an absent or incomplete named payload as PublicationNotReady retry it without stopping fixed-slot polling and prove eventual background discovery and adoption after one injected transient read
 persist:
   evidence_index: evidence/indexes/S1-08.md
   raw_evidence_root: runtime_runs/S1-08

@@ -575,6 +575,8 @@ def summarize(
         after_parameters = trace["parameter_hashes_after"]
         before_moments = trace["optimizer_state_hashes_before"]
         after_moments = trace["optimizer_state_hashes_after"]
+        before_moment_entries = trace["optimizer_state_entry_counts_before"]
+        after_moment_entries = trace["optimizer_state_entry_counts_after"]
         if (
             trace["content_identity"] != publication["content_identity"]
             or trace["target_payload_sha256"] != publication["parameters_sha256"]
@@ -587,6 +589,8 @@ def summarize(
                 if position != target
             )
             or before_moments != after_moments
+            or before_moment_entries != after_moment_entries
+            or any(int(value) <= 0 for value in before_moment_entries)
             or len(before_parameters) != int(profile["training"]["fragment_count"])
             or len(before_moments) != int(profile["training"]["fragment_count"])
         ):

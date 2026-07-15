@@ -16,7 +16,11 @@ class PublicationError(RuntimeError):
     pass
 
 
-class PublicationNotFound(PublicationError):
+class PublicationNotReady(PublicationError):
+    """A fixed slot or its named payload may become readable on a later poll."""
+
+
+class PublicationNotFound(PublicationNotReady):
     """The requested fixed visibility slot was absent at the read deadline."""
 
 
@@ -391,7 +395,7 @@ class PosixStorageBackend:
             if valid:
                 return PublishedPayload(record=record, payload=payload)
             if time.monotonic() >= deadline:
-                raise PublicationError(
+                raise PublicationNotReady(
                     "payload did not become complete and readable before timeout"
                 )
             time.sleep(float(poll_interval_seconds))

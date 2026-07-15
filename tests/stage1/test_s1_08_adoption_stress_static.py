@@ -119,6 +119,8 @@ def _trace(index: int, version: int, payload_sha: str) -> dict[str, object]:
         "parameter_hashes_after": parameter_after,
         "optimizer_state_hashes_before": moments,
         "optimizer_state_hashes_after": list(moments),
+        "optimizer_state_entry_counts_before": [1, 1, 1, 1],
+        "optimizer_state_entry_counts_after": [1, 1, 1, 1],
         "counters_before": before,
         "counters_after": after,
         "version_vector_after": after_versions,

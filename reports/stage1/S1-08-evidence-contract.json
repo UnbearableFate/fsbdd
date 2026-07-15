@@ -58,6 +58,7 @@
     "polling": "one background worker reads only the F fixed global-current slots and verifies compound payload identities and checksums",
     "pending_bound": "one latest-wins complete pending state per fragment",
     "repeated_current": "ignored and counted",
+    "eventually_readable_retry": "PublicationNotReady is retried without stopping the worker while identity schema and version regressions remain fatal",
     "direct_jump": "one application may advance v directly to any observed v+k and reports k-1 skipped intermediate versions",
     "resident_trace_bound": "one latest adoption trace per fragment plus aggregate counters"
   },
