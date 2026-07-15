@@ -33,19 +33,23 @@ def test_formal_topologies_freeze_independent_9n_and_coallocated_4_plus_1() -> N
     assert "#PBS -l select=1" in nine
     assert "PBS_ARRAY_INDEX" in nine
     assert "mpirun" not in nine
-    assert "stage1_submit validate-nine" in nine
+    assert "fsbdd.auxiliary.stage1.submit validate-nine" in nine
     assert "SUBMISSION_MARKER_SHA256" in nine
     assert "#PBS -l select=5" in long
     assert "mpirun -np 5 --map-by ppr:1:node" in long
-    assert "CUDA_VISIBLE_DEVICES" in long or "stage1_close mpi" in long
+    assert "CUDA_VISIBLE_DEVICES" in long or "fsbdd.auxiliary.stage1.close mpi" in long
     assert (ROOT / "pbs/stage1_s1_13_numpy_correction.pbs").is_file()
     smoke = (ROOT / "pbs/stage1_s1_13_long_smoke.pbs").read_text(encoding="utf-8")
     assert "#PBS -l select=5" in smoke
     assert "--non-formal-long-smoke" in smoke
-    assert "stage1_gate" in smoke
+    assert "fsbdd.auxiliary.stage1.gate" in smoke
     targeted = (ROOT / "pbs/stage1_s1_13_targeted.pbs").read_text(encoding="utf-8")
     assert "EXPECTED_COMMIT" in targeted
     assert 'if [[ -e "$OUTPUT_ROOT" ]]' in targeted
+    assert "compileall -q src tests" in targeted
+    assert "uvx --offline ruff check src/fsbdd tests" in targeted
+    assert 'uvx --offline pyright --pythonpath "$PYTHON" src/fsbdd' in targeted
+    assert 'bash -n "$script"' in targeted
 
 
 def test_formal_package_retains_current_protocol_samples_and_rejects_placeholders() -> (

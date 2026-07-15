@@ -4,6 +4,7 @@ import dataclasses
 import hashlib
 import json
 import struct
+import threading
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -621,6 +622,34 @@ class GlobalStateStore:
         self.identities = identities
         self.descriptors = descriptors
         self.s_max = s_max
+        self._authority_lock = threading.Lock()
+        self._verified_authorities: dict[
+            int, tuple[PublicationRecord, FragmentGlobalState]
+        ] = {}
+
+    def _remember_authority(
+        self,
+        index: int,
+        record: PublicationRecord,
+        state: FragmentGlobalState,
+    ) -> None:
+        """Bind an immutable decoded state to the record whose bytes verified it."""
+
+        with self._authority_lock:
+            self._verified_authorities[index] = (record, state)
+
+    def _require_verified_authority(
+        self,
+        index: int,
+        record: PublicationRecord,
+        state: FragmentGlobalState,
+    ) -> None:
+        with self._authority_lock:
+            verified = self._verified_authorities.get(index)
+        if verified is None or verified[0] != record or verified[1] is not state:
+            raise GlobalStateError(
+                "current state was not decoded from the expected visibility record"
+            )
 
     def _descriptor(self, index: int) -> FragmentStateDescriptor:
         index = _require_ordinal(index, "fragment index")
@@ -697,7 +726,9 @@ class GlobalStateStore:
             self._expectation(descriptor),
             timeout_seconds=timeout_seconds,
         )
-        return self._validate_published(published, descriptor), published.record
+        state = self._validate_published(published, descriptor)
+        self._remember_authority(index, published.record, state)
+        return state, published.record
 
     @property
     def supports_bound_record_reads(self) -> bool:
@@ -716,7 +747,9 @@ class GlobalStateStore:
         published = self._backend.read_bound_record(record)
         if published.record != record:
             raise GlobalStateError("bound fragment read returned different metadata")
-        return self._validate_published(published, descriptor)
+        state = self._validate_published(published, descriptor)
+        self._remember_authority(index, record, state)
+        return state
 
     def peek_fragment_record(
         self, index: int, *, timeout_seconds: float = 0
@@ -859,14 +892,10 @@ class GlobalStateStore:
     ) -> FragmentGlobalState:
         _require_bytes(parameters, "parameters")
         _require_bytes(outer_state, "outer_state")
-        descriptor = self._descriptor(index)
-        visible = self._backend.read(
-            current_slot(index), self._expectation(descriptor), timeout_seconds=0
-        )
-        current = self._validate_published(visible, descriptor)
+        current, record = self.load_fragment_publication(index, timeout_seconds=0)
         successor, _record = self.publish_successor_from_current(
             current,
-            expected_record=visible.record,
+            expected_record=record,
             parameters=parameters,
             outer_state=outer_state,
             crash_at=crash_at,
@@ -917,6 +946,7 @@ class GlobalStateStore:
             raise GlobalStateError(
                 "expected record is not bound to the supplied current state"
             )
+        self._require_verified_authority(index, expected_record, current)
         visible = self.peek_fragment_record(index, timeout_seconds=0)
         if visible != expected_record:
             raise GlobalStateError(
@@ -966,6 +996,7 @@ class GlobalStateStore:
             visibility_hook=require_unchanged_base,
             crash_at=crash_at,
         )
+        self._remember_authority(index, record, successor)
         return successor, record
 
     def inspect_live_set(self) -> LiveSetReport:

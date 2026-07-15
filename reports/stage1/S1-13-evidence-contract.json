@@ -13,7 +13,7 @@
     "runtime_runs/S1-13/results-long-<pbs-job-id>"
   ],
   "nine_node_submission_roots": {
-    "creation": "tracked stage1_submit prepare-nine helper performs exclusive mkdir before qsub",
+    "creation": "tracked fsbdd.auxiliary.stage1.submit prepare-nine helper performs exclusive mkdir before qsub",
     "marker": "identical submission-root.json in shared and result roots",
     "marker_identity_required_by_every_array_role": true,
     "shared_result_and_evidence_roots_must_all_be_absent_before_creation": true

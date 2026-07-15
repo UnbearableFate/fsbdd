@@ -209,6 +209,32 @@ def test_successor_derives_exact_plus_one_and_rolls_bounded_base_window(
     assert store.load_fragment(1).version == 0
 
 
+def test_successor_rejects_state_from_a_different_record_with_same_metadata(
+    tmp_path: Path,
+) -> None:
+    initial_a = fragments(1)
+    store_a, _ = store_at(tmp_path / "a", initial=initial_a)
+    store_a.bootstrap(initial_a)
+    state_a, record_a = store_a.load_fragment_publication(0)
+
+    initial_b = (
+        dataclasses.replace(initial_a[0], parameters=b"different-authority-bytes"),
+    )
+    store_b, _ = store_at(tmp_path / "b", initial=initial_b)
+    state_b = store_b.bootstrap(initial_b).snapshot.states[0]
+    assert state_b.version == state_a.version
+    assert state_b.content_identity != state_a.content_identity
+
+    with pytest.raises(GlobalStateError, match="not decoded from the expected"):
+        store_a.publish_successor_from_current(
+            state_b,
+            expected_record=record_a,
+            parameters=b"forged-successor",
+            outer_state=b"forged-outer-state",
+        )
+    assert store_a.load_fragment(0).content_identity == state_a.content_identity
+
+
 def test_wrong_frozen_identity_descriptor_and_compound_corruption_fail_closed(
     tmp_path: Path,
 ) -> None:

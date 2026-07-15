@@ -33,12 +33,17 @@ export PYTHONPATH="$PROJECT_ROOT/src"
 export OMP_NUM_THREADS=1 TOKENIZERS_PARALLELISM=false
 export HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 HF_DATASETS_OFFLINE=1
 
+"$PYTHON" -m compileall -q src tests \
+  > "$OUTPUT_ROOT/compile.log" 2> "$OUTPUT_ROOT/compile.err"
+uvx --offline ruff check src/fsbdd tests \
+  > "$OUTPUT_ROOT/ruff.log" 2> "$OUTPUT_ROOT/ruff.err"
+uvx --offline pyright --pythonpath "$PYTHON" src/fsbdd \
+  > "$OUTPUT_ROOT/pyright.log" 2> "$OUTPUT_ROOT/pyright.err"
+for script in pbs/stage1_s1_13_*.pbs pbs/lib/record_experiment_failure.sh; do
+  bash -n "$script"
+done > "$OUTPUT_ROOT/bash-syntax.log" 2> "$OUTPUT_ROOT/bash-syntax.err"
 "$PYTHON" -m pytest -q tests/stage1 \
   > "$OUTPUT_ROOT/pytest.log" 2> "$OUTPUT_ROOT/pytest.err"
-"$PYTHON" -m py_compile \
-  src/fsbdd/auxiliary/stage1/assets.py src/fsbdd/auxiliary/stage1/close.py src/fsbdd/auxiliary/stage1/gate.py \
-  src/fsbdd/auxiliary/stage1/package.py src/fsbdd/auxiliary/stage1/submit.py \
-  > "$OUTPUT_ROOT/compile.log" 2> "$OUTPUT_ROOT/compile.err"
 hostname > "$OUTPUT_ROOT/hostname.txt"
 git rev-parse HEAD > "$OUTPUT_ROOT/commit.txt"
 qstat -f "$PBS_JOBID" > "$OUTPUT_ROOT/qstat.txt"
