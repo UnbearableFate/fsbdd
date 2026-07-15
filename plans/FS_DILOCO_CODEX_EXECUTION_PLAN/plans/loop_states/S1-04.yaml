@@ -34,7 +34,7 @@ preflight:
   measurement_contract: reports/stage1/S1-04-evidence-contract.json
   package_contract: reports/stage1/S1-04-evidence-contract.json
   package_validator_command: fsbdd evidence validate runtime_runs/S1-04/formal-l2
-  package_validator_result: pending
+  package_validator_result: admissible at runtime_runs/S1-04/formal-l2 (27/27 files; manifest 1aae5431a175dd837e934bd21c1bf366f8baa2eb1e7a7c52e1c2ce388957d288)
   checker_phase_a: required
 red:
   command: PYTHONPATH=src .venv/bin/python tests/red_cases/s1_04_naive_bootstrap_surrogate.py
@@ -42,34 +42,67 @@ red:
   evidence_path: runtime_runs/S1-04/red-773a1b2
 green:
   command: PYTHONPATH=src .venv/bin/python -m pytest -q tests/stage1
-  evidence_path: runtime_runs/S1-04/preflight-b9cfe88/stdout/pytest.log
+  evidence_path: runtime_runs/S1-04/formal-l2/stdout/pytest.log
 harden:
   commands:
   - PYTHONPATH=src .venv/bin/python -m pytest -q tests/stage1
-  - PYTHONPATH=src mpirun --oversubscribe --map-by slot -np 2 .venv/bin/python -m fsbdd.global_state_stress role --fragment-count 4 --payload-bytes 65536 --history-objects 10000 --interrupt-after 2 --s-max 0
+  - mpirun -np 2 --map-by ppr:1:node python -m fsbdd.global_state_stress role with frozen run/config/model/map identities and 10000 history objects
   evidence_paths:
-  - runtime_runs/S1-04/preflight-b9cfe88
+  - runtime_runs/S1-04/preflight-clean-1ff459f
+  - runtime_runs/S1-04/formal-l2
 nine_node_gate: {required: false, run_id: null, topology_gate: null, loss_gate: null, runtime_gate: null}
-checker: {context_id: null, maker_chat_inherited: false, phase_a_verdict: null, verdict: null, report_path: null}
+checker:
+  context_id: /root/s1_04_checker
+  maker_chat_inherited: false
+  phase_a_verdict: ADMISSIBLE after authority-parser module-order and state-identity corrections
+  verdict: null
+  report_path: reports/checkers/S1-04.md
+  cycles:
+  - cycle: 1
+    phase: A
+    checked_candidate: fb6ea79415a0b69a235e268755ee0b6df10fb5c8
+    verdict: REJECTED
+    correction: authority-ID grammar omitted GLOBAL and SYNC so the requirements command failed despite mechanical package validation
+  - cycle: 2
+    phase: A-recheck
+    checked_candidate: d897a32995456b25297a3919b51653b75e3d0c05
+    verdict: REJECTED
+    correction: Miyabi modules had to load before project Python
+  - cycle: 3
+    phase: A-recheck
+    checked_candidate: 416aa8a62b2e9fe5803509793d8f1655853aa2b3
+    verdict: REJECTED
+    correction: formal state run config model and fragment-map identities were not pre-registered or bound to role and manifest evidence
+  - cycle: 4
+    phase: A-recheck
+    checked_candidate: 1ff459f3b4fa500ccd9adf2ee850f39a5e4cd818
+    verdict: ADMISSIBLE
 persist:
-  evidence_index: null
+  evidence_index: evidence/indexes/S1-04.md
   raw_evidence_root: runtime_runs/S1-04
   acceptance_traceability_updated: false
-  next_gap: null
+  next_gap: S1-05 must define proposal schema latest-wins discovery and general eligibility over this independently authoritative global state.
   handoff:
     proven_facts:
     - S1-02 supplies a frozen complete fragment map and S1-03 supplies payload-first visibility-last fixed-slot publication.
-    - The compute preflight passes all 79 Stage 1 tests and the full interruption/resume/idempotence/conflict/10000-object stress protocol with exactly four snapshot reads before and after history injection.
-    checked_commit: b9cfe88689a6c537a3ccb12ca5ef6bb4fa020597
-    selected_evidence: [runtime_runs/S1-04/preflight-b9cfe88]
-    next_command: freeze a clean candidate worktree and request Checker Phase A before the single formal two-node run
+    - The clean candidate passes 9/9 requirements all 79 Stage 1 tests and the full interruption resume idempotence conflict and 10000-object protocol.
+    - Selected L2 job 2384764.opbs exits zero on writer mg0018 and reader mg0019 with identical frozen run config model and map identities.
+    - Partial bootstrap is rejected resume publishes only missing fragments conflict changes no authority and identical repeat creates no payload.
+    - Exactly four current records reference four payloads and retain four bases while startup reads remain four before and after 10000 unrelated objects.
+    - The finalized package is checksum-valid and validator-admissible with all stderr logs empty.
+    checked_commit: 1ff459f3b4fa500ccd9adf2ee850f39a5e4cd818
+    selected_evidence: [runtime_runs/S1-04/formal-l2]
+    next_command: independent Checker Phase B final review of the checked candidate and selected L2 package
   cost:
-    attempts_by_level: {L0: 3, L1: 1, L2: 0}
-    queue_seconds: null
-    active_seconds: null
-    checker_cycles: 0
+    attempts_by_level: {L0: 3, L1: 5, L2: 1}
+    queue_seconds: 3
+    active_seconds: 32
+    checker_cycles: 4
     goal_tokens_end: null
     agent_tokens_used: null
     phase_token_deltas: {}
-    rework_causes: []
+    rework_causes:
+    - early preflight exposed requirement-parser namespace omissions and was retained but rejected semantically
+    - Checker required Miyabi module setup before any project Python invocation
+    - Checker required pre-registered byte-identical run config model and map identities across contract roles analyzer and manifest
 blocker: null

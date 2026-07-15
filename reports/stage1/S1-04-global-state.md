@@ -31,12 +31,19 @@ the complete model config and serialized fragment content. The compute test
 uses a tiny real GPT-NeoX model initialized from a fixed seed and verifies every
 deserialized tensor exactly. Filesystem-only roles do not import Torch.
 
-The committed one-node preflight at `b9cfe88689a6c537a3ccb12ca5ef6bb4fa020597`
-passes all 79 Stage 1 tests. Its two-rank same-node protocol smoke injects a
-two-of-four-fragment interruption, rejects the partial snapshot, resumes only
-the two missing fragments, rejects conflicting bootstrap content, creates no
-payload on an identical repeat, and retains four authoritative records and
-four base entries after adding 10,000 unrelated historical objects. Snapshot
-reads are exactly four before and after that history injection. The selected
-formal proof remains the frozen two-node PBS package required by the evidence
-contract.
+Phase A rejected early preflights for an incomplete authority-ID grammar,
+Miyabi module ordering, and unbound synthetic stress identities. Candidate
+`1ff459f3b4fa500ccd9adf2ee850f39a5e4cd818` corrects each issue. The contract
+pre-registers the resolved config identity and canonical synthetic model/map
+identities; both roles recompute or consume them, report them with the same run
+identity, and the analyzer and manifest builder require exact agreement.
+
+The selected formal package is `runtime_runs/S1-04/formal-l2`, PBS job
+`2384764.opbs`. It ran the writer on `mg0018` and reader on `mg0019`, exited
+zero in 32 seconds, passes all 79 Stage 1 tests, and is validator-admissible
+(27/27 files; manifest `1aae5431...d288`). The protocol interrupts after two
+of four fragments, rejects the partial snapshot, resumes only the two missing
+fragments, rejects conflicting bootstrap content, creates no payload on an
+identical repeat, and retains four authoritative records and four base entries
+after adding 10,000 unrelated historical objects. Snapshot reads are exactly
+four both before and after the history injection; every stderr log is empty.
