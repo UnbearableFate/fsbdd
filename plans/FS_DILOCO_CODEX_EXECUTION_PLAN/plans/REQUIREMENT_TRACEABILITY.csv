@@ -18,19 +18,19 @@ FRAG-08,passed,S1-02,,Complete ownership interval byte objective and balance rep
 FS-01,passed,S1-03,,Immutable payload plus fixed-slot discovery contract; no event-log or history-scan correctness path
 FS-02,passed,S1-03,S0B-02,Payload-first visibility-last production backend with zero invalid two-node reads
 FS-03,passed,S1-03,S1-04;S1-11,One small record atomically binds one complete compound payload; later loops instantiate global-state business semantics
-FS-04,planned,S1-04,,
+FS-04,passed,S1-04,,Four independent fixed current slots and zero global-head reads in selected two-node evidence
 FS-05,planned,S0B-03,,
-FS-06,planned,S0B-03,S1-04;S2-03;S4-01,
+FS-06,planned,S0B-03,S1-04;S2-03;S4-01,S1-04 authoritative current/base bound component PASS; physical orphan reclamation remains later GC work
 FS-07,passed,S1-03,S1-00,Reader validates complete identity schema dtype shape byte count checksum payload and base identity
 FS-08,planned,S0B-01,,
 FS-09,planned,S2-03,S3-03;S4-01,
-FS-10,planned,S1-04,S3-02,
-GLOBAL-01,planned,S1-04,,
+FS-10,passed,S1-04,S3-02,Exactly F fixed-slot reads before and after 10000 unrelated payload objects
+GLOBAL-01,passed,S1-04,,Ordered independently loaded fragment state set and version-vector digest
 GLOBAL-02,planned,S1-11,S3-02;S3-03,
-GLOBAL-03,planned,S1-04,S1-11,
+GLOBAL-03,passed,S1-04,S1-11,Successor API derives version and outer-update count as previous plus one and rejects record/base mismatch
 GLOBAL-04,planned,S1-08,,
 GLOBAL-05,planned,S1-12,,
-GLOBAL-06,planned,S1-04,,
+GLOBAL-06,passed,S1-04,,Partial bootstrap rejected then resumed idempotently to complete all-zero version vector
 INV-01,planned,S1-13,S3-04,
 INV-02,planned,S1-09,,
 INV-03,planned,S1-11,S3-03,
@@ -113,7 +113,7 @@ STALE-09,planned,S0A-01,S1-09;S4-03,
 STALE-10,planned,S4-02,S4-04,
 STOR-01,passed,S1-03,S0B-01;S0B-02,Production interface depends only on atomic visibility publication and eventual payload readability
 SYNC-01,planned,S1-09,,
-SYNC-02,planned,S1-04,S1-09;S3-02;S4-01,
+SYNC-02,planned,S1-04,S1-09;S3-02;S4-01,S1-04 current/version/outer/base component PASS; consumed and readiness/grace state remains S1-09
 SYNC-03,planned,S1-09,S4-03,
 SYNC-04,planned,S1-09,,
 SYNC-05,planned,S1-09,S3-04,

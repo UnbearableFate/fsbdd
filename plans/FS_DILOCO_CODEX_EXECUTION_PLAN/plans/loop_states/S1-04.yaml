@@ -2,7 +2,7 @@ schema_version: 2
 loop_id: S1-04
 title: Bootstrap per-fragment current and bounded global state
 stage: stage1
-status: in_progress
+status: pass
 source_hashes:
   research_plan: 2c0db3148110da10ea62f445c189d2d53b405527d8da264b9af9817f5ca9d835
   stage0_4_spec: 1ea71fb6e34fef0d7b5558d8e7999dfdedeb82957f4331afcf6f80279d1f5a7d
@@ -10,7 +10,7 @@ git:
   integration_branch: master
   branch: codex/S1-04-bootstrap-state
   base_commit: 629aa6ffc92de2d3b7740571ca97898b0558827f
-  result_commit: null
+  result_commit: 071e5c1cd6728be9fae8b8d69084ca79905e4e4e
   dirty_at_start: true
 dependencies: [S1-02, S1-03]
 requirements: [SYNC-02, GLOBAL-01, GLOBAL-03, GLOBAL-06, FS-03, FS-04, FS-06, FS-10]
@@ -55,7 +55,7 @@ checker:
   context_id: /root/s1_04_checker
   maker_chat_inherited: false
   phase_a_verdict: ADMISSIBLE after authority-parser module-order and state-identity corrections
-  verdict: null
+  verdict: PASS
   report_path: reports/checkers/S1-04.md
   cycles:
   - cycle: 1
@@ -77,10 +77,15 @@ checker:
     phase: A-recheck
     checked_candidate: 1ff459f3b4fa500ccd9adf2ee850f39a5e4cd818
     verdict: ADMISSIBLE
+  - cycle: 5
+    phase: B
+    checked_candidate: 1ff459f3b4fa500ccd9adf2ee850f39a5e4cd818
+    verdict: PASS
+    report_sha256: 1dd6ee4d2a61953e78b51643edf43a98b690199699f56e50c1a644d80dc04919
 persist:
   evidence_index: evidence/indexes/S1-04.md
   raw_evidence_root: runtime_runs/S1-04
-  acceptance_traceability_updated: false
+  acceptance_traceability_updated: true
   next_gap: S1-05 must define proposal schema latest-wins discovery and general eligibility over this independently authoritative global state.
   handoff:
     proven_facts:
@@ -92,12 +97,12 @@ persist:
     - The finalized package is checksum-valid and validator-admissible with all stderr logs empty.
     checked_commit: 1ff459f3b4fa500ccd9adf2ee850f39a5e4cd818
     selected_evidence: [runtime_runs/S1-04/formal-l2]
-    next_command: independent Checker Phase B final review of the checked candidate and selected L2 package
+    next_command: create the S1-05 branch from the S1-04 closure commit and begin its ORIENT phase
   cost:
     attempts_by_level: {L0: 3, L1: 5, L2: 1}
     queue_seconds: 3
     active_seconds: 32
-    checker_cycles: 4
+    checker_cycles: 5
     goal_tokens_end: null
     agent_tokens_used: null
     phase_token_deltas: {}

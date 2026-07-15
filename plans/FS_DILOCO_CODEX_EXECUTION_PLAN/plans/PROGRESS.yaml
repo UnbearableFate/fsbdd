@@ -19,7 +19,7 @@ capabilities:
     status: inactive
     established_by: S1-13
     baseline_9n_run_id: null
-current_loop: S1-04
+current_loop: S1-05
 loops:
 - id: S0C-01
   stage: stage0
@@ -197,15 +197,15 @@ loops:
   depends_on:
   - S1-02
   - S1-03
-  status: in_progress
+  status: pass
   nine_node_gate_required: false
   acceptance_ids:
   - A-GLOBAL-02
   branch: codex/S1-04-bootstrap-state
   base_commit: 629aa6ffc92de2d3b7740571ca97898b0558827f
-  result_commit: null
-  evidence_index: null
-  checker_verdict: null
+  result_commit: 071e5c1cd6728be9fae8b8d69084ca79905e4e4e
+  evidence_index: evidence/indexes/S1-04.md
+  checker_verdict: PASS
   blocker: null
 - id: S1-05
   stage: stage1

@@ -14,7 +14,7 @@ stage,acceptance_id,primary_loop,supporting_loops,required_evidence,status,evide
 1,A-PROP-02,S1-05,S1-09,同learner一次最多一个contribution,not_started,,,
 1,A-PROP-03,S1-11,S1-05;S1-09,重复polling不重复消费,not_started,,,
 1,A-GLOBAL-01,S1-11,S1-03,params/outer/frontier共同可见,not_started,evidence/indexes/S1-03.md,COMPONENT PASS,component atomic compound-payload evidence: old/old/old/complete-new crash matrix; business closure remains S1-11
-1,A-GLOBAL-02,S1-11,S1-04,per-fragment version单调+1,not_started,,,
+1,A-GLOBAL-02,S1-11,S1-04,per-fragment version单调+1,not_started,evidence/indexes/S1-04.md,COMPONENT PASS,S1-04 proves version-zero bootstrap and caller-independent exact plus-one successor schema; atomic consumed-frontier closure remains S1-11
 1,A-LEARN-01,S1-12,S1-13,单learner×0.5，其余吞吐变化≤2%,not_started,,,
 1,A-LEARN-02,S1-08,,adoption只覆盖目标fragment,not_started,,,
 1,A-LEARN-03,S1-12,S1-08,mixed-version持续训练,not_started,,,
