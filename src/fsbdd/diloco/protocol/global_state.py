@@ -187,6 +187,8 @@ class FragmentGlobalState:
         self._validate_structure()
         if hashlib.sha256(self.outer_state).hexdigest() != self.outer_state_sha256:
             raise GlobalStateError("outer-state checksum mismatch")
+        if canonical_digest(_semantic_header(self)) != self.content_identity:
+            raise GlobalStateError("global-state content identity mismatch")
 
     def _validate_structure(self) -> None:
         if not isinstance(self.identities, GlobalStateIdentities):
@@ -895,6 +897,25 @@ class GlobalStateStore:
         if current.identities != self.identities or current.descriptor != descriptor:
             raise GlobalStateError(
                 "current state differs from the frozen store authority"
+            )
+        if canonical_digest(_semantic_header(current)) != current.content_identity:
+            raise GlobalStateError("current state content identity is invalid")
+        expected_record_values = {
+            "run_identity": self.identities.run_identity,
+            "fragment_map_identity": self.identities.fragment_map_identity,
+            "fragment_identity": descriptor.identity,
+            "version": current.version,
+            "sequence": current.version,
+            "dtype": descriptor.dtype,
+            "shape": descriptor.shape,
+            "base_content_identity": current.base_content_identity,
+        }
+        if any(
+            getattr(expected_record, field) != expected
+            for field, expected in expected_record_values.items()
+        ):
+            raise GlobalStateError(
+                "expected record is not bound to the supplied current state"
             )
         visible = self.peek_fragment_record(index, timeout_seconds=0)
         if visible != expected_record:
