@@ -329,19 +329,6 @@ def _speed_trial(
     import torch
 
     speed = config["real_fs"]["speed_injection"]
-    for phase in ("control", "injected"):
-        intervals = {
-            (
-                item["speed"][phase]["start_unix_ns"],
-                item["speed"][phase]["end_unix_ns"],
-                item["speed"][phase]["common_interval_seconds"],
-            )
-            for item in learners
-        }
-        if len(intervals) != 1 or next(iter(intervals))[2] != float(
-            speed["common_interval_seconds"]
-        ):
-            raise ProfileAStressError("speed trial common interval differs across ranks")
     training = config["real_fs"]["training"]
     interval = float(speed["common_interval_seconds"])
     unaffected_period = float(speed["unaffected_period_seconds"])
@@ -1340,6 +1327,19 @@ def analyze(
         ):
             raise ProfileAStressError("real learner identity or topology contract failed")
     speed = config["real_fs"]["speed_injection"]
+    for phase_name in ("control", "injected"):
+        intervals = {
+            (
+                item["speed"][phase_name]["start_unix_ns"],
+                item["speed"][phase_name]["end_unix_ns"],
+                item["speed"][phase_name]["common_interval_seconds"],
+            )
+            for item in learners
+        }
+        if len(intervals) != 1 or next(iter(intervals))[2] != float(
+            speed["common_interval_seconds"]
+        ):
+            raise ProfileAStressError("speed trial common interval differs across ranks")
     control_rates = [
         float(item["speed"]["control"]["common_interval_input_tokens_per_second"])
         for item in learners

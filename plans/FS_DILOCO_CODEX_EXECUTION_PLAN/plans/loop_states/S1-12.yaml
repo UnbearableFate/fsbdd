@@ -2,7 +2,7 @@ schema_version: 2
 loop_id: S1-12
 title: Profile A numeric end-to-end and frozen evaluation snapshot
 stage: stage1
-status: red_complete
+status: implementation
 source_hashes:
   research_plan: 2c0db3148110da10ea62f445c189d2d53b405527d8da264b9af9817f5ca9d835
   stage0_4_spec: 1ea71fb6e34fef0d7b5558d8e7999dfdedeb82957f4331afcf6f80279d1f5a7d
@@ -29,7 +29,7 @@ orient:
   raw_evidence_on_demand: [runtime_runs/S1-07, runtime_runs/S1-08, runtime_runs/S1-09, runtime_runs/S1-11]
   resource_level: L2
   available_resources: Miyabi debug-g up to four compute nodes with one local GPU per learner and shared POSIX runtime root
-  recent_failure: null
+  recent_failure: Targeted job 2387668.opbs failed before the first speed trial because a common-interval analyzer assertion was accidentally placed in the role-local speed function and referenced the analyzer-only learners collection; preserved at runtime_runs/S1-12/targeted-2387668.opbs and corrected before retry.
   attempt_budget: {red: 1, targeted: 3, l1_compute: 2, formal_l2_batch: 1}
   failure_ladder: preserve the first L2 failure then reproduce the failing role or analyzer on one compute node before resubmission
   nine_node_gate_required: false
