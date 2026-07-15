@@ -331,6 +331,8 @@ def decode_proposal(payload: bytes) -> Proposal:
             parameters_sha256=payload_value["sha256"],
             content_identity=header["content_identity"],
         )
+    except ProposalError as error:
+        raise ProposalError("proposal parameter payload integrity mismatch") from error
     except (TypeError, ValueError) as error:
         raise ProposalError("proposal fields are malformed") from error
 
