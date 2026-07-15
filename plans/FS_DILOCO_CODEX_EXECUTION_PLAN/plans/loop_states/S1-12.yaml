@@ -2,7 +2,7 @@ schema_version: 2
 loop_id: S1-12
 title: Profile A numeric end-to-end and frozen evaluation snapshot
 stage: stage1
-status: implementation
+status: pass
 source_hashes:
   research_plan: 2c0db3148110da10ea62f445c189d2d53b405527d8da264b9af9817f5ca9d835
   stage0_4_spec: 1ea71fb6e34fef0d7b5558d8e7999dfdedeb82957f4331afcf6f80279d1f5a7d
@@ -54,10 +54,44 @@ green:
   evidence_path: runtime_runs/S1-12/targeted-2388832.opbs/pytest.log
   result: 21 passed and the corrected role producer emitted actual distributed state false through the complete integrated one-node diagnostic
 harden:
-  commands: [qsub -v EXPECTED_COMMIT=d5c409cddb3b219847200473c8a443f26981c297 pbs/stage1_s1_12_targeted.pbs]
-  evidence_paths: [runtime_runs/S1-12/targeted-2387668.opbs, runtime_runs/S1-12/targeted-2387680.opbs, runtime_runs/S1-12/targeted-2387700.opbs, runtime_runs/S1-12/targeted-2388610.opbs, runtime_runs/S1-12/targeted-2388627.opbs, runtime_runs/S1-12/targeted-2388641.opbs, runtime_runs/S1-12/targeted-2388765.opbs, runtime_runs/S1-12/targeted-2388775.opbs, runtime_runs/S1-12/formal-l2, runtime_runs/S1-12/analyzer-repro-2388820.opbs, runtime_runs/S1-12/targeted-2388832.opbs]
-  formal_result: job 2388799.opbs failed analyzer-only after the four-node runtime and 288 tests; preserved at runtime_runs/S1-12/formal-l2
+  commands:
+  - qsub -v EXPECTED_COMMIT=d5c409cddb3b219847200473c8a443f26981c297 pbs/stage1_s1_12_targeted.pbs
+  - qsub -v EXPECTED_COMMIT=33fc1d8c5773273ec203b7ceb722a204978bff4a pbs/stage1_s1_12_profile_a.pbs
+  evidence_paths: [runtime_runs/S1-12/targeted-2387668.opbs, runtime_runs/S1-12/targeted-2387680.opbs, runtime_runs/S1-12/targeted-2387700.opbs, runtime_runs/S1-12/targeted-2388610.opbs, runtime_runs/S1-12/targeted-2388627.opbs, runtime_runs/S1-12/targeted-2388641.opbs, runtime_runs/S1-12/targeted-2388765.opbs, runtime_runs/S1-12/targeted-2388775.opbs, runtime_runs/S1-12/formal-l2, runtime_runs/S1-12/analyzer-repro-2388820.opbs, runtime_runs/S1-12/targeted-2388832.opbs, runtime_runs/S1-12/preflight-validator-33fc1d8, runtime_runs/S1-12/formal-l2-retry1, runtime_runs/S1-12/scheduler-2388867.opbs]
+  formal_result: job 2388867.opbs passed on four distinct GPU hosts; 288 Stage 1 tests; 100 encoded numeric updates; integrated half-speed isolation; frozen evaluation audit; package admissible 1671/1671
 nine_node_gate: {required: false, run_id: null, topology_gate: null, loss_gate: null, runtime_gate: null}
-checker: {context_id: s1_12_checker, maker_chat_inherited: false, phase_a_verdict: ADMISSIBLE_BEFORE_ANALYZER_ONLY_FORMAL_FAILURE, verdict: null, report_path: reports/checkers/S1-12.md, cycles: [phase_a_blocked_integrated_timing_raw_numeric_and_evaluation_access_audit, phase_a_admissible_candidate_395ff04, formal_2388799_analyzer_only_failure, analyzer_repro_2388820_rejected_immutable_old_record, role_producer_repro_2388832_pass_pending_readmission]}
-persist: {evidence_index: evidence/indexes/S1-12.md, raw_evidence_root: runtime_runs/S1-12, acceptance_traceability_updated: false, next_gap: S1-13 baseline training and one-billion-token run, handoff: null}
+checker:
+  context_id: /root/s1_12_checker
+  maker_chat_inherited: false
+  phase_a_verdict: BLOCKED_PRECHECK on cbf182c followed by ADMISSIBLE on 395ff04; after the analyzer-only first formal failure and corrected role-producer reproduction the same Checker returned ADMISSIBLE_RETRY on 33fc1d8
+  verdict: PASS
+  report_path: reports/checkers/S1-12.md
+  cycles:
+  - cycle: 1
+    phase: A
+    checked_candidate: cbf182c
+    verdict: BLOCKED_PRECHECK
+    correction: integrate the production speed path and raw counters; decode encoded numeric authorities and gate momentum; measure every evaluation restart read
+  - cycle: 2
+    phase: A
+    checked_candidate: 395ff04
+    verdict: ADMISSIBLE
+    correction: all precheck blockers corrected with 21 targeted tests and exact-candidate admissible preflight evidence
+  - cycle: 3
+    phase: A
+    checked_candidate: 33fc1d8c5773273ec203b7ceb722a204978bff4a
+    verdict: ADMISSIBLE_RETRY
+    correction: producer serialization corrected and complete one-node role producer reproduction passed before the only formal retry
+  - cycle: 4
+    phase: B
+    checked_candidate: 33fc1d8c5773273ec203b7ceb722a204978bff4a
+    verdict: PASS
+    report_sha256: a78e2e2818592c8840000a5e93b8b335064d1dc1d882379d6cbd8fe03cb431ed
+    independent_recomputation: fragment zero cycle thirty-seven parameters and outer momentum both reproduced at relative L2 zero from encoded pre-state four proposals and compound successor
+persist:
+  evidence_index: evidence/indexes/S1-12.md
+  raw_evidence_root: runtime_runs/S1-12
+  acceptance_traceability_updated: true
+  next_gap: S1-13 baseline training and one-billion-token run
+  handoff: S1-12 passes at checked candidate 33fc1d8 with formal job 2388867.opbs on mg0010 mg0012 mg0013 and mg0014; selected package formal-l2-retry1 is admissible 1671/1671 and Checker PASS; start S1-13 from the S1-12 closure commit and preserve failed formal-l2 as immutable analyzer-failure evidence
 blocker: null

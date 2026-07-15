@@ -29,7 +29,7 @@ GLOBAL-01,passed,S1-04,,Ordered independently loaded fragment state set and vers
 GLOBAL-02,passed,S1-11,S3-02;S3-03,All four publication boundaries and 3141 concurrent reads expose only complete old or new parameter outer frontier policy authorities
 GLOBAL-03,passed,S1-04,S1-11,Two fragments advance contiguously from version zero through twenty with exact duplicate retry and fail-closed skip rollback and same-version conflicts
 GLOBAL-04,passed,S1-08,,Fragment zero directly adopts version three from version zero without applying the two intermediate global states
-GLOBAL-05,planned,S1-12,,
+GLOBAL-05,passed,S1-12,,Immutable evaluation manifest freezes ordered version content and authority identities before exact named-payload loading while concurrent current authorities advance
 GLOBAL-06,passed,S1-04,,Partial bootstrap rejected then resumed idempotently to complete all-zero version vector
 INV-01,planned,S1-13,S3-04,
 INV-02,passed,S1-09,,One logical syncer owns all four fragments and concurrent claims leave exactly one active lease
@@ -76,10 +76,10 @@ PERF-04,planned,S2-05,,
 PERF-05,planned,S2-01,S2-02;S2-03;S2-05,
 PERF-06,planned,S2-05,,
 PERF-07,planned,S2-05,,
-PROG-01,planned,S1-12,,
-PROG-02,planned,S1-12,S1-13,
-PROG-03,planned,S1-00,S1-12,S1-00 typed component evidence; runtime enforcement continues in S1-12
-PROG-04,passed,S1-00,S1-06;S1-12,S1-00 typed schema plus S1-06 runtime events separately reconcile optimizer steps input and target tokens and per-fragment counters; system integration continues S1-12
+PROG-01,passed,S1-12,,Each fragment owns an independently reconciled outer-update count through 50 contiguous Profile A publications
+PROG-02,passed,S1-12,S1-13,Every trace derives global_cycle as the minimum per-fragment outer-update count and stops at [50;50]
+PROG-03,passed,S1-00,S1-12,Frozen stop policy is evaluated against global cycle wallclock compute tokens or FLOPs and cannot stop on one fastest learner local-step count
+PROG-04,passed,S1-00,S1-06;S1-12,Formal Profile A reports separately reconcile learner optimizer steps input and target tokens and fragment outer counts accepted tokens fresh or stale contributions and global cycle
 PROG-05,passed,S1-06,,Constant scheduler advances exactly once per complete learner optimizer step across accumulation and resume
 PROG-06,passed,S1-07,,Formal traffic independently reconciles to 90432 divided by H=4 and the API reports exact sum_f fragment_bytes_f divided by H_f for nonuniform intervals
 PROP-01,passed,S1-00,S1-05,Complete canonical proposal schema binds run config model map learner fragment base progress tensor bytes checksum and content identities
@@ -95,7 +95,7 @@ REC-03,planned,S3-03,,
 REC-04,planned,S3-04,,
 REC-05,planned,S3-01,,
 REPORT-01,planned,S2-04,S4-05;S4-06,
-REPORT-02,planned,S1-12,S2-04;S4-06,
+REPORT-02,passed,S1-12,S2-04;S4-06,Formal acceptance explicitly makes only protocol and runtime claims with matched communication compute and token flags all false
 SIM-01,planned,S0A-01,,
 SIM-02,planned,S0A-01,,
 SIM-03,planned,S0A-02,,
