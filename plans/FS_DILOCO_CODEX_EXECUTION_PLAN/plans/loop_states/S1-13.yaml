@@ -90,7 +90,7 @@ orient:
     diagnostic_result: old/current registry digests 27b639fb/57fc39e7 and fragment-map digests 58dc07dc/9a7da067 differ while model parameter identity matches exactly
     expected_solution: use an ERR-trap-immune if/else status capture, preserve fatal handling for any status other than the exact validated mismatch, add a static regression, pass login static gates, amend the exhausted asset budget, and return to the same Checker before any compute job
     correction_commit: 04f05e6713205005d252926f7464993d71adb6cb
-  attempt_budget: {asset_stage: 3, red: 1, targeted: 4, reproduction_preflight: 2, l1_real: 2, l2_real: 3, formal_l3_9n: 2, formal_l4_long: 2}
+  attempt_budget: {asset_stage: 3, red: 1, targeted: 4, reproduction_preflight: 3, l1_real: 2, l2_real: 4, formal_l3_9n: 2, formal_l4_long: 2}
   attempt_budget_amendments:
     - recorded_at_utc: 2026-07-15T20:42:48Z
       budget_class: asset_stage
@@ -121,7 +121,7 @@ orient:
       run_id: s1-13-asset-rebuild-final-20260715T210125Z-240084d
       output_root: runtime_runs/S1-13/assets-rebuild-final-20260715T210125Z-240084d
       log_root: runtime_runs/S1-13/asset-stage-rebuild-final-20260715T210125Z-240084d
-      final_attempt_result: pass; scheduler exit 0; no abnormal node; producer-bound bundle complete; both workload validators compatible; all four dataset trees hard-link reused; immutable evidence awaits same-Checker Phase B
+      final_attempt_result: pass; scheduler exit 0; no abnormal node; producer-bound bundle complete; both workload validators compatible; all four dataset trees hard-link reused; same-Checker Phase B PASS
     - amended_at_utc: 2026-07-15T19:18:02Z
       prior_targeted_budget: 3
       amended_targeted_budget: 4
@@ -157,6 +157,22 @@ orient:
       authorization_gate: The same Checker must review the immutable failed evidence, reviewed failure ledger, fixture/structured-blocked-result correction, static checks, and this amendment and explicitly authorize the second preflight at an exact clean commit.
       final_attempt: 2392830.opbs
       final_attempt_result: pass; all 10 selected tests passed and frozen package validator returned admissible
+    - amended_at_utc: 2026-07-15T21:13:52Z
+      prior_reproduction_preflight_budget: 2
+      amended_reproduction_preflight_budget: 3
+      consumed_before_amendment: 2
+      consumed_attempts: [2392798.opbs, 2392830.opbs]
+      reason: Both prior preflights were bound to the old resolved config and asset marker. The subsequent Checker-authorized L2 run proved that asset incompatible with the current real-model registry and fragment map. Job 2392989 replaced it with a producer-bound package and same-Checker Phase B passed, so the refrozen config, marker, and reproduction-contract identities have never passed the focused frozen-package preflight.
+      scope: Add exactly one one-node reproduction_preflight attempt for the refrozen nine-node config, replacement asset marker, gate contract, reproduction contract, existing reproduction tests, and package validator. It runs no learner or syncer and changes no L2, 9N, long-smoke, or formal-run budget.
+      authorization_gate: The same S1-13 Checker must review asset job 2392989 Phase B, the overlay-preserving config refreeze, dependent identities, static gates, and this amendment and explicitly authorize one exact-clean preflight candidate. No L2 or larger run is authorized by this amendment.
+    - amended_at_utc: 2026-07-15T21:13:52Z
+      prior_l2_real_budget: 3
+      amended_l2_real_budget: 4
+      consumed_before_amendment: 3
+      consumed_attempts: [2389739.opbs, 2389813.opbs, 2392852.opbs]
+      reason: The third L2 attempt reached the corrected real-model learner initialization but was rejected before readiness or training solely because its old immutable asset registry and fragment map were incompatible and lacked a producer identity. The replacement bundle has exact current registry/map identities, an internally complete producer chain, compatible workload validation, and same-Checker asset Phase B PASS. The corrected 1+1 learner/syncer path therefore still lacks one post-rebuild dynamic execution.
+      scope: Add exactly one two-node 1+1 shared-filesystem L2 attempt using the refrozen nine-node config and replacement asset, only after the new one-node reproduction preflight passes same-Checker Phase B. Do not change or authorize any 9N, long-smoke, or formal budget.
+      authorization_gate: The same S1-13 Checker must first pass the new preflight package in Phase B, then separately review and authorize an exact-clean L2 commit. Recording this amendment does not itself authorize L2.
   failure_ladder: preserve the first expensive failure then reproduce its failing role or analyzer at the smallest one-node or two-node topology before an authorized retry
   nine_node_gate_required: true
   goal_tokens_start: 5924432
@@ -170,14 +186,14 @@ preflight:
   package_validator_command: fsbdd evidence validate runtime_runs/S1-13/formal-9n and runtime_runs/S1-13/formal-long
   package_validator_result: pending
   reduced_reproduction_contract: reports/stage1/S1-13-reproduction-contract.json
-  reduced_reproduction_contract_sha256: 701d67f57a6964e583272a674e08f8dd2ee44f05b199bc16cba135b9da3707ee
+  reduced_reproduction_contract_sha256: 6145e231aae2db438b4397df293feb8d6992ec58d707ddbee7ef512a0c121c0e
   historical_l2_reproduction_contract_sha256: bc6b8479bdc9a61e813f571fdefe839d7856dc41ef14a5475499a31231948fb7
   reduced_reproduction_preflight_command: pending refreeze against the rebuilt asset marker and resolved config; both prior preflight attempts are consumed and any new preflight requires a reasoned budget amendment plus same-Checker exact-commit authorization
   reduced_reproduction_preflight_result: historical job 2392830 passed all 10 selected tests and its frozen package validator, then same-Checker Phase B passed and authorized job 2392852; the package is not reusable because the real-model run proved the old asset incompatible
   reduced_reproduction_validator_command: python -m fsbdd.auxiliary.stage1.reproduction validate --result-root <result-root> --reproduction-contract reports/stage1/S1-13-reproduction-contract.json
   reduced_reproduction_validator_result: job 2392852 stopped at learner initialization before the analyzer or package validator; no correction-reproduction gate result exists
   checker_phase_a: required
-  asset_freeze: old bundle 2389469 is rejected by current real-model compatibility and lacks producer identity; exact-clean offline diagnosis and visibility-last rebuild are pending same-Checker authorization
+  asset_freeze: exact-clean offline job 2392989 passed at producer commit 240084d17e9e609104715c9073aac395034fd9d1 and same-Checker Phase B passed; tracked nine-node identity is f956cd698f14d52788ac54a7a5c20615f57a4a18b5a7a5053499583fb714a7ff and tracked long identity is 3c0990fb05f639dbfef3792434010e2bdb261410e727d08f103e163841fbe355 with the accepted aligned-zero overlay preserved
   runtime_budget: nine-node 1200 active seconds absolute ceiling pending tighter compatible value from real smokes; long-run 21600 active seconds
 red:
   command: PYTHONPATH=src .venv/bin/python tests/red_cases/s1_13_naive_gate_analyzer.py
@@ -186,14 +202,16 @@ red:
 green:
   command: .venv/bin/python -m compileall -q src tests && uvx --offline ruff check src/fsbdd tests && uvx --offline pyright --pythonpath .venv/bin/python src/fsbdd
   evidence_path: reports/stage1/S1-13-experiment-failures.json
+  latest_result: pass at 2026-07-15T21:13:52Z; Ruff clean; Pyright zero errors and warnings
 harden:
   commands: [bash -n every active S1-13 PBS script and failure helper, jq empty failure and evidence contracts, git diff --check]
   evidence_paths: [runtime_runs/S1-13/targeted-f0bb4fb-20260715T180720Z, runtime_runs/S1-13/targeted-681e013-20260715T182501Z, runtime_runs/S1-13/targeted-focus-a026505-20260715T191211Z, runtime_runs/S1-13/targeted-bac11ae-20260715T192015Z, runtime_runs/S1-13/reproduction-preflight-d9c3f01-20260715T201400Z, runtime_runs/S1-13/reproduction-preflight-6a4e465-20260715T201715Z, runtime_runs/S1-13/reproduction-2n-s1-13-corrected-2n-20260715T202343Z-6a4e465, evidence/indexes/S1-13.md]
+  latest_result: pass at 2026-07-15T21:13:52Z; active PBS Bash, JSON, YAML, and diff checks clean
 nine_node_gate: {required: true, run_id: null, topology_gate: null, loss_gate: null, runtime_gate: null}
 checker:
   context_id: s1_13_checker
   maker_chat_inherited: false
-  phase_a_verdict: same-Checker Phase B passed job 2392959 failure attribution and admitted the reasoned asset_stage amendment 2 to 3; exactly one third-and-final asset job is authorized at 240084d17e9e609104715c9073aac395034fd9d1 using only pbs/stage1_s1_13_assets.pbs; no other compute run authorized
+  phase_a_verdict: no compute run authorized; same-Checker asset Phase B passed job 2392989; refrozen config/contract candidate and reasoned reproduction_preflight 2-to-3 plus conditional L2 3-to-4 amendments require review
   verdict: null
   report_path: reports/checkers/S1-13.md
   cycles:
@@ -232,13 +250,13 @@ checker:
       verdict: Phase B PASS for job 2392852 failure attribution; Phase A ADMISSIBLE for exactly one second-and-final asset_stage job using only pbs/stage1_s1_13_assets.pbs; no reproduction-preflight, L2, 9N, long-smoke, or formal run authorized
       result: job 2392959 passed three focused tests and emitted the exact old/current registry and fragment-map mismatch, then failed before materialization because its expected status 1 activated the inherited ERR trap; scheduler exit 1
     - candidate: 240084d17e9e609104715c9073aac395034fd9d1
-      verdict: Phase B PASS for job 2392959 failure attribution and asset_stage budget amendment 2 to 3; Phase A ADMISSIBLE for exactly one third-and-final asset_stage job using only pbs/stage1_s1_13_assets.pbs; no other compute run authorized
-      result: asset-stage job 2392989 passed from the exact-clean authorized commit with scheduler exit 0, no abnormal node, a complete producer-bound bundle, compatible nine-node and long-run validators, three focused tests passed, all four dataset trees hard-link reused, and a checksum-verified retained package; same-Checker Phase B review pending
+      verdict: Phase B PASS for job 2392959 failure attribution and asset_stage budget amendment 2 to 3; Phase A ADMISSIBLE for exactly one third-and-final asset_stage job using only pbs/stage1_s1_13_assets.pbs; after job 2392989, Phase B PASS for the complete immutable asset package; no compute run authorized
+      result: asset-stage job 2392989 passed from the exact-clean authorized commit with scheduler exit 0, no abnormal node, a complete producer-bound bundle, compatible nine-node and long-run validators, three focused tests passed, all four dataset trees hard-link reused, and a checksum-verified retained package; tracked config/contract refreeze may proceed only with the accepted long-run aligned-zero overlay preserved
 persist:
   evidence_index: evidence/indexes/S1-13.md
   raw_evidence_root: runtime_runs/S1-13
   acceptance_traceability_updated: false
   next_gap: Stage 2 asynchronous GPU to CPU to filesystem publication pipeline
   handoff: >-
-    Asset-stage job 2392989 passed from exact-clean authorized commit 240084d17e9e609104715c9073aac395034fd9d1. The retained package proves the expected old-asset mismatch, complete producer-bound replacement assets, compatible nine-node and long-run identities, exact hard-link reuse of all four frozen dataset trees, scheduler exit 0, and three focused tests passed. Return this immutable package to the same Checker for Phase B before refreezing tracked configs. No preflight, L2, 9N, long-smoke, or formal run is authorized.
-blocker: Job 2392989 passed, but its immutable asset evidence requires same-Checker Phase B review before tracked config refreeze or any further compute authorization. No other compute run is authorized.
+    Same-Checker Phase B passed asset-stage job 2392989. The tracked nine-node and long-run configs now bind the producer-complete replacement asset; the long config intentionally preserves the accepted aligned-zero schedule overlay instead of copying the asset-local default rotations. The reproduction contract binds the new nine-node config and marker, and all login static gates pass. Reasoned preflight 2-to-3 and conditional L2 3-to-4 amendments are recorded. Return the exact-clean refreeze candidate to the same Checker and request only one preflight authorization; L2 remains conditional on preflight Phase B and separate authorization. No preflight, L2, 9N, long-smoke, or formal run is currently authorized.
+blocker: Asset Phase B, config refreeze, dependent identities, and login static gates pass; the reasoned preflight and conditional L2 amendments now require same-Checker review and exact-commit preflight authorization. No compute run is authorized.

@@ -43,8 +43,9 @@
     "torch_distributed": false
   },
   "resolved_runtime_fields": {
-    "asset_bundle_root": "/work/xg24i002/x10041/fsbdd/runtime_runs/S1-13/assets-2389469.opbs",
-    "asset_marker_sha256": "6d13e621bb912495ba9e983a305991bf716f9307d24fe241d34a39e5f0b62c7f",
+    "asset_bundle_root": "/work/xg24i002/x10041/fsbdd/runtime_runs/S1-13/assets-rebuild-final-20260715T210125Z-240084d",
+    "asset_marker_sha256": "7fce5e39feae9b93ebd442b6e1de47e3f82e6e322c9ddbd7ebed689e3f0fd3e3",
+    "asset_producer_code_commit": "240084d17e9e609104715c9073aac395034fd9d1",
     "fragment_bytes": [
       154389504,
       116551680,
@@ -54,10 +55,10 @@
     "fragment_descriptors": [
       {
         "dtype": "float32",
-        "identity": "976a6625ac6f54d33e9832ef00a81b91a775efa0902b9726c477832e037a6145",
+        "identity": "5425e99a464c8d13112392acc0c856eb4d21d279c9e6bdcbff78f2a5e44fce84",
         "index": 0,
         "parameter_identities": [
-          "485f2a1c0512cc0c84b1331b032092abc31d0e638c1a39df5d37384a1d02b24d"
+          "9247d4f361efdaa4977af3bf8b3fc202d323d572ad235d212abfca369cb81847"
         ],
         "shape": [
           38597376
@@ -65,7 +66,7 @@
       },
       {
         "dtype": "float32",
-        "identity": "f97240017cb58c7d09cbd7166f50d192b367b54d95ae93ba4e7fdb03e0b4d009",
+        "identity": "c4fedb2c0aeda1cd5cd0925bc506b62faea85f978960e50e1e0e4249aafb8156",
         "index": 1,
         "parameter_identities": [
           "946c7eb7bb4ed385a95f10356030c0a448cb8e91786cf071743d3aa50e98f592",
@@ -124,7 +125,7 @@
       },
       {
         "dtype": "float32",
-        "identity": "e0433c903f60ccc9fbb5d43fd2fc99b393e1f56567fda736aa30ae53fec888b3",
+        "identity": "0d264c373606bc92667f0fed736a51172d25d76b4accc3e660032661943887c8",
         "index": 2,
         "parameter_identities": [
           "4390f7115d37513e9d8d8b07a50a4be0431e1402deb131dedaef1cccd45dbad6",
@@ -182,7 +183,7 @@
       },
       {
         "dtype": "float32",
-        "identity": "0d67ce2755ef5c321618d889479fd2e78613ac74614a8bdf511c03eaa8cf6895",
+        "identity": "2df714093b4ff6f0ed4ffb7193a418d7b42f8f202fa963713fd103b748afacb3",
         "index": 3,
         "parameter_identities": [
           "e8c1a0a14576bfccdc6af8deaaadf8ef3a7a9a5c7bed9ff5fe1baa99d5e73602",
@@ -297,7 +298,7 @@
         37
       ]
     ],
-    "workload_bootstrap_identity": "488c0ef8b8fa8e48a4f79fe23d393c663365f0170a6861edf5e543b0a589ba0b"
+    "workload_bootstrap_identity": "d33ea37c047d34f23ba360e8a2d3ac6d073f771b18d4060059254d5a910676e2"
   },
   "schema_version": 1,
   "selected_workload": "nine_node",

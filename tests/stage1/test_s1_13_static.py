@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 
@@ -245,8 +246,12 @@ def test_frozen_gate_contract_covers_heartbeat_stalls_and_long_capacity_smoke() 
 
 
 def test_resolved_configs_bind_the_complete_immutable_asset_bundle() -> None:
-    expected_marker = "6d13e621bb912495ba9e983a305991bf716f9307d24fe241d34a39e5f0b62c7f"
-    asset_root = "/work/xg24i002/x10041/fsbdd/runtime_runs/S1-13/assets-2389469.opbs"
+    expected_marker = "7fce5e39feae9b93ebd442b6e1de47e3f82e6e322c9ddbd7ebed689e3f0fd3e3"
+    expected_producer = "240084d17e9e609104715c9073aac395034fd9d1"
+    asset_root = (
+        "/work/xg24i002/x10041/fsbdd/runtime_runs/S1-13/"
+        "assets-rebuild-final-20260715T210125Z-240084d"
+    )
     for workload, learners in (("nine_node", 8), ("long_run", 4)):
         path = ROOT / "configs" / "stage1" / f"s1_13_{workload}_resolved.json"
         text = path.read_text(encoding="utf-8")
@@ -256,6 +261,7 @@ def test_resolved_configs_bind_the_complete_immutable_asset_bundle() -> None:
         assert config["selected_workload"] == workload
         assert resolved["asset_bundle_root"] == asset_root
         assert resolved["asset_marker_sha256"] == expected_marker
+        assert resolved["asset_producer_code_commit"] == expected_producer
         assert len(resolved["fragment_descriptors"]) == 4
         assert len(resolved["fragment_bytes"]) == 4
         assert len(resolved["per_learner_offsets"]) == learners
@@ -273,3 +279,16 @@ def test_resolved_configs_bind_the_complete_immutable_asset_bundle() -> None:
         )
     )["resolved_runtime_fields"]
     assert resolved["per_learner_offsets"] == [resolved["fragment_offsets"]] * 4
+    reproduction = json.loads(
+        (ROOT / "reports/stage1/S1-13-reproduction-contract.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    identities = reproduction["identities"]
+    nine_path = ROOT / "configs/stage1/s1_13_nine_node_resolved.json"
+    gate_path = ROOT / "reports/stage1/S1-13-gate-contract.json"
+    assert identities == {
+        "resolved_config_sha256": hashlib.sha256(nine_path.read_bytes()).hexdigest(),
+        "asset_marker_sha256": expected_marker,
+        "gate_contract_sha256": hashlib.sha256(gate_path.read_bytes()).hexdigest(),
+    }

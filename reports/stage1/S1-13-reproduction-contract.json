@@ -4,8 +4,8 @@
   "kind": "corrected_two_node_filesystem_reproduction",
   "formal_evidence": false,
   "identities": {
-    "resolved_config_sha256": "a466e534ea1a897e38d22aae872b5f41a242e32c29c71dd26c08dcf649aacfc2",
-    "asset_marker_sha256": "6d13e621bb912495ba9e983a305991bf716f9307d24fe241d34a39e5f0b62c7f",
+    "resolved_config_sha256": "f956cd698f14d52788ac54a7a5c20615f57a4a18b5a7a5053499583fb714a7ff",
+    "asset_marker_sha256": "7fce5e39feae9b93ebd442b6e1de47e3f82e6e322c9ddbd7ebed689e3f0fd3e3",
     "gate_contract_sha256": "8fb3734eaaad876b8ceaa3dc8124b32f752ac9ba1611944e16c31c2e4f1a3f84"
   },
   "topology": {

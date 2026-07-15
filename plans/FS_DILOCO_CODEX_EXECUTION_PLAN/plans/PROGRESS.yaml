@@ -365,7 +365,7 @@ loops:
   result_commit: null
   evidence_index: evidence/indexes/S1-13.md
   checker_verdict: null
-  blocker: Exact-clean third-and-final asset-stage job 2392989 passed at authorized commit 240084d17e9e609104715c9073aac395034fd9d1 with scheduler exit 0, complete producer-bound assets, both workload validators compatible, and all dataset shards hard-link reused. Its immutable evidence awaits same-Checker Phase B review; no other compute run is authorized.
+  blocker: Same-Checker Phase B passed exact-clean asset-stage job 2392989. The tracked nine-node config is refrozen to f956cd698f14d52788ac54a7a5c20615f57a4a18b5a7a5053499583fb714a7ff; the tracked long config is refrozen to 3c0990fb05f639dbfef3792434010e2bdb261410e727d08f103e163841fbe355 while preserving the accepted aligned-zero overlay; the dependent reproduction contract is refrozen to 6145e231aae2db438b4397df293feb8d6992ec58d707ddbee7ef512a0c121c0e. All login static gates pass and reasoned preflight 2-to-3 plus conditional L2 3-to-4 amendments are recorded; same-Checker exact-commit preflight authorization remains required and no compute run is authorized.
 - id: S2-01
   stage: stage2
   title: 异步 GPU→CPU→FS Publication Pipeline

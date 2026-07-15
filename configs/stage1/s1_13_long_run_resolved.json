@@ -43,8 +43,9 @@
     "torch_distributed": false
   },
   "resolved_runtime_fields": {
-    "asset_bundle_root": "/work/xg24i002/x10041/fsbdd/runtime_runs/S1-13/assets-2389469.opbs",
-    "asset_marker_sha256": "6d13e621bb912495ba9e983a305991bf716f9307d24fe241d34a39e5f0b62c7f",
+    "asset_bundle_root": "/work/xg24i002/x10041/fsbdd/runtime_runs/S1-13/assets-rebuild-final-20260715T210125Z-240084d",
+    "asset_marker_sha256": "7fce5e39feae9b93ebd442b6e1de47e3f82e6e322c9ddbd7ebed689e3f0fd3e3",
+    "asset_producer_code_commit": "240084d17e9e609104715c9073aac395034fd9d1",
     "fragment_bytes": [
       154533888,
       170108928,
@@ -273,7 +274,7 @@
         44
       ]
     ],
-    "workload_bootstrap_identity": "d930c348a9aa2f7bcf9b8555568330ceb51482a0d41561e96723a120b3c5cd47"
+    "workload_bootstrap_identity": "bae4298851b594b075b993a07f5c8cd10303f0a1f2f0e0a278dac8ca95d5f435"
   },
   "schema_version": 1,
   "selected_workload": "long_run",
