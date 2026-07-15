@@ -249,7 +249,7 @@
     },
     {
       "experiment_id": "fsbdd-s1-13-repro-preflight-2392798.opbs",
-      "analysis_status": "reviewed_test_fixture_correction_pending_static_and_checker",
+      "analysis_status": "reviewed_correction_preflight_passed_l2_pending",
       "workload": "one-node identity-bound reproduction analyzer, package-validator, MPI-dispatch, and frozen-preflight tests",
       "pbs_job_id": "2392798.opbs",
       "code_commit": "d9c3f014916666013e3d2348f3bd5d22d4ae486a",
@@ -287,7 +287,7 @@
         "scope": "No learner or syncer workload, L2 run, 9N run, long smoke, or formal run was launched."
       },
       "expected_solution": {
-        "status": "implementation_and_static_review_required_before_any_retry",
+        "status": "validated_by_corrected_preflight",
         "changes": [
           "Materialize and commit a deterministic placeholder analyzer source at src/fsbdd/auxiliary/stage1/reproduction.py inside the positive miniature-repository fixture.",
           "Make the frozen-package preflight record package-surface presence and emit a structured blocked result when a hashed source or selected test file is absent.",
@@ -298,7 +298,29 @@
           "Record an explicit reasoned preflight-budget amendment because job 2392798 consumed the sole reproduction_preflight attempt.",
           "Return the corrected exact clean commit, failed evidence, and amendment to the same Checker for a new authorization.",
           "Do not submit an L2 learner/syncer workload, 9N run, long smoke, or formal run."
-        ]
+        ],
+        "correction_validation": {
+          "experiment_id": "fsbdd-s1-13-repro-preflight-2392830.opbs",
+          "pbs_job_id": "2392830.opbs",
+          "code_commit": "6a4e465ce43830c28a56508ca66304cb43fb62b5",
+          "raw_evidence_root": "runtime_runs/S1-13/reproduction-preflight-6a4e465-20260715T201715Z",
+          "result": "pass",
+          "selected_tests_passed": 10,
+          "selected_tests_failed": 0,
+          "pytest_duration_seconds": 0.33,
+          "frozen_package_preflight_status": "admissible",
+          "scheduler_exit_status": 0,
+          "scheduler_walltime": "00:00:08",
+          "scheduler_peak_resident_kb": 1152704,
+          "abnormal_nodes": "none",
+          "checksum_inventory_sha256": "2aab8e1af39788d4e2ce6160c15288261f2ceee9802c3133eb6608bc9ff7059a",
+          "job_final_checksum_inventory_sha256": "8ffda5134801ee8264db9739d33dff4c077a13b1d6c34c0da6ccd6b62a55d52b",
+          "preflight_validator_sha256": "9e02878f41f8143703692e0899209907681cfe40f3e0e283f1eda26901f2f875",
+          "pytest_log_sha256": "7dc7b8dab63b20dcfaa7e8c28a241bbaee7b1a29c2ca972694fd4176f25fde01",
+          "tracejob_sha256": "546bea1d3214404d82807b3510de4c51d1479d87793c2ee9396cca2408a8b34d",
+          "qstat_final_sha256": "7d89938ace462a3e040fb32c52de6e6e094b7aa29de0292e5e38a4c78be67436",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        }
       },
       "evidence_integrity": {
         "checksum_inventory_sha256": "125331c4c5b2dfda01e8b2f2fb3de9a6586927940e62e9e12d6adc11f06ffb3b",

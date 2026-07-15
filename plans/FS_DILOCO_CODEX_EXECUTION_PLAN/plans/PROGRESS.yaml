@@ -365,7 +365,7 @@ loops:
   result_commit: null
   evidence_index: evidence/indexes/S1-13.md
   checker_verdict: null
-  blocker: Checker authorized exactly one one-node preflight at d9c3f01; job 2392798 failed one positive miniature-repository fixture after nine selected tests passed, and no learner/syncer workload ran. Raw failure, scheduler evidence, reviewed cause, and expected solution are preserved. The fixture and structured missing-surface handling are corrected and login static checks pass. The preflight budget is reasonedly amended from one to two for one corrected attempt, which requires same-Checker authorization; no L2, 9N, long-smoke, or formal run is authorized.
+  blocker: Checker authorized the reasoned second and final one-node preflight at 6a4e465. Job 2392830 passed all 10 selected tests, the exact-clean frozen-package validator returned admissible, and scheduler exit status was 0 with no abnormal node or stderr. Same-Checker Phase B review of the complete evidence is required before any L2 request; no two-node, 9N, long-smoke, or formal run is currently authorized.
 - id: S2-01
   stage: stage2
   title: 异步 GPU→CPU→FS Publication Pipeline
