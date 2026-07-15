@@ -137,6 +137,7 @@ class SafeBoundaryEvent:
     distributed_initialized: bool
     comparison: Mapping[str, Any]
     inactive_metrics: Mapping[str, str]
+    active_metrics: Mapping[str, Any] = dataclasses.field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         value = dataclasses.asdict(self)
@@ -516,6 +517,7 @@ class LearnerRuntime:
         max_grad_norm: float,
         comparison: Mapping[str, Any],
         logger: StructuredLogger | None = None,
+        safe_boundary_observers: Sequence[Any] = (),
         clock_ns: Any = time.monotonic_ns,
     ) -> None:
         import torch
@@ -565,6 +567,9 @@ class LearnerRuntime:
         self.max_grad_norm = float(max_grad_norm)
         self.comparison = dict(comparison)
         self.logger = logger
+        if any(not callable(observer) for observer in safe_boundary_observers):
+            raise LearnerError("safe-boundary observers must be callable")
+        self.safe_boundary_observers = tuple(safe_boundary_observers)
         self.clock_ns = clock_ns
 
     def _autocast(self, torch: Any) -> Any:
@@ -746,6 +751,36 @@ class LearnerRuntime:
             )
             if event.distributed_initialized:
                 raise LearnerError("torch.distributed became initialized during learner execution")
+            active_metrics: dict[str, Any] = {}
+            for observer in self.safe_boundary_observers:
+                observed = observer(event)
+                if observed is None:
+                    continue
+                if not isinstance(observed, Mapping):
+                    raise LearnerError("safe-boundary observer must return a mapping or None")
+                overlap = set(active_metrics) & set(observed)
+                if overlap:
+                    raise LearnerError(
+                        f"safe-boundary observer metric collision: {sorted(overlap)}"
+                    )
+                active_metrics.update(observed)
+            if active_metrics:
+                exercised = {
+                    "gpu_to_cpu_seconds",
+                    "cpu_to_fs_seconds",
+                    "snapshot_skip_count",
+                    "snapshot_replacement_count",
+                    "pending_upload_count",
+                }
+                event = dataclasses.replace(
+                    event,
+                    inactive_metrics={
+                        key: value
+                        for key, value in event.inactive_metrics.items()
+                        if key not in exercised
+                    },
+                    active_metrics=active_metrics,
+                )
             events.append(event)
             if self.logger is not None:
                 self.logger.emit("safe_boundary", **event.to_dict())

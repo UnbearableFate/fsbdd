@@ -28,6 +28,7 @@ from .learner_assets import (
 from .logging import StructuredLogger
 from .manifest import build_manifest
 from .model_registry import build_logical_layer_registry
+from .learner_publish import build_fragment_parameter_groups
 
 
 class LearnerSmokeError(RuntimeError):
@@ -75,19 +76,10 @@ def _parameter_digest(model: Any) -> str:
 def _fragment_parameter_groups(model: Any, fragment_count: int) -> tuple[tuple[Any, ...], ...]:
     registry = build_logical_layer_registry(model)
     fragment_map = build_fragment_map(registry, fragment_count)
-    parameters = dict(model.named_parameters(remove_duplicate=True))
-    records = {record.identity: record for record in registry.parameters}
-    groups: list[tuple[Any, ...]] = []
-    for fragment in fragment_map.fragments:
-        group = []
-        for identity in fragment.parameter_identities:
-            name = records[identity].owner_name
-            try:
-                group.append(parameters[name])
-            except KeyError as error:
-                raise LearnerSmokeError(f"registry parameter is absent from model: {name}") from error
-        groups.append(tuple(group))
-    return tuple(groups)
+    try:
+        return build_fragment_parameter_groups(model, registry, fragment_map)
+    except RuntimeError as error:
+        raise LearnerSmokeError(str(error)) from error
 
 
 def _registry_summary(model: Any, fragment_count: int) -> dict[str, Any]:
