@@ -15,7 +15,7 @@ trap 'echo "[ERROR] line=$LINENO command=$BASH_COMMAND" >&2' ERR
 
 PYTHON="$MAIN_ROOT/.venv/bin/python"
 CONFIG_SOURCE="configs/stage1/s1_12_profile_a_e2e.json"
-CONFIG_SHA256="f2ba4034872fb9cbeb8738d614aecc3c7ed04ab33a7c71753569f047eb63a097"
+CONFIG_SHA256="c51a1be5d39df03bd59f295c8d924e51fc52f53dcac399b84800b05eb7cccf79"
 ROOT="$MAIN_ROOT/runtime_runs/S1-12/targeted-${PBS_JOBID}"
 SHARED="$ROOT/shared"
 ROLES="$ROOT/roles"

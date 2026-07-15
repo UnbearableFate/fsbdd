@@ -58,9 +58,9 @@
       "inner_learning_rate": 0.001
     },
     "speed_injection": {
-      "common_interval_seconds": 3.0,
-      "unaffected_period_seconds": 0.15,
-      "slow_period_seconds": 0.3,
+      "common_interval_seconds": 10.0,
+      "unaffected_period_seconds": 0.5,
+      "slow_period_seconds": 1.0,
       "slow_learner_index": 3,
       "slowdown_target": 0.5,
       "slowdown_absolute_tolerance": 0.05,

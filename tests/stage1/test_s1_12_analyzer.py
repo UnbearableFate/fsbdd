@@ -84,16 +84,16 @@ def _build_fixture(tmp_path: Path) -> tuple[Path, Path, dict, str]:
             "speed": {
                 "control": {
                     "start_unix_ns": 100,
-                    "end_unix_ns": 3_000_000_100,
-                    "common_interval_seconds": 3.0,
+                    "end_unix_ns": 10_000_000_100,
+                    "common_interval_seconds": 10.0,
                     "common_interval_input_tokens_per_second": control_rate,
                     "finite_loss": True,
                     "distributed_initialized": False,
                 },
                 "injected": {
-                    "start_unix_ns": 4_000_000_100,
-                    "end_unix_ns": 7_000_000_100,
-                    "common_interval_seconds": 3.0,
+                    "start_unix_ns": 11_000_000_100,
+                    "end_unix_ns": 21_000_000_100,
+                    "common_interval_seconds": 10.0,
                     "common_interval_input_tokens_per_second": injected_rate,
                     "finite_loss": True,
                     "distributed_initialized": False,

@@ -32,7 +32,7 @@
     "numeric_interval": "each fragment's contiguous update zero through forty-nine",
     "single_update_gate": "first successful production commit per fragment versus independent Stage 0-C oracle",
     "drift_gate": "first-ten and last-ten maxima over exactly fifty contiguous commits per fragment",
-    "speed_common_interval": "the same predeclared monotonic start and three-second end for every rank and both control/injected trials",
+    "speed_common_interval": "the same predeclared monotonic start and ten-second end for every rank and both control/injected trials",
     "speed_formula": "completed local optimizer steps multiplied by fixed input tokens per step divided by the common interval",
     "unaffected_formula": "abs(injected_rate/control_rate - 1) for learners zero through two, each <= 0.02",
     "slow_formula": "learner three injected_rate/control_rate within 0.05 of 0.5"
