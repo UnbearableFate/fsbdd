@@ -50,6 +50,17 @@ def test_formal_topologies_freeze_independent_9n_and_coallocated_4_plus_1() -> N
     assert "uvx --offline ruff check src/fsbdd tests" in targeted
     assert 'uvx --offline pyright --pythonpath "$PYTHON" src/fsbdd' in targeted
     assert 'bash -n "$script"' in targeted
+    focus = (ROOT / "pbs/stage1_s1_13_targeted_focus.pbs").read_text(
+        encoding="utf-8"
+    )
+    assert "#PBS -l select=1" in focus
+    assert "#PBS -l walltime=00:10:00" in focus
+    assert "EXPECTED_COMMIT" in focus
+    assert 'if [[ -e "$OUTPUT_ROOT" ]]' in focus
+    assert "timeout --signal=TERM --kill-after=30s 420s" in focus
+    assert "test_analyzer_accepts_complete_frozen_fixture" in focus
+    assert "test_analyzer_fails_closed_on_mutated_authoritative_fields" in focus
+    assert "test_concurrent_readers_observe_only_complete_committed_authorities" in focus
 
 
 def test_syncer_keeps_update_history_only_in_durable_jsonl() -> None:

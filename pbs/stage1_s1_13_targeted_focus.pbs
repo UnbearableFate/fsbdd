@@ -1,0 +1,48 @@
+#!/bin/bash
+#PBS -q debug-g
+#PBS -l select=1
+#PBS -l walltime=00:10:00
+#PBS -W group_list=xg24i002
+#PBS -N fsbdd-s1-13-targeted-focus
+
+set -eEuo pipefail
+source "${PROJECT_ROOT:-/work/xg24i002/x10041/fsbdd}/pbs/lib/record_experiment_failure.sh"
+install_experiment_failure_traps
+
+: "${PROJECT_ROOT:=/work/xg24i002/x10041/fsbdd}"
+: "${MAIN_ROOT:=/work/xg24i002/x10041/fsbdd}"
+: "${EXPECTED_COMMIT:?EXPECTED_COMMIT is required}"
+: "${OUTPUT_ROOT:=$PROJECT_ROOT/runtime_runs/S1-13/targeted-focus-${PBS_JOBID}}"
+
+PYTHON="$MAIN_ROOT/.venv/bin/python"
+
+module load nv-hpcx/25.9
+if [[ -e "$OUTPUT_ROOT" ]]; then
+  echo "refusing to reuse S1-13 targeted-focus output" >&2
+  exit 73
+fi
+mkdir "$OUTPUT_ROOT"
+FSBDD_FAILURE_OUTPUT_ROOT="$OUTPUT_ROOT"
+cd "$PROJECT_ROOT"
+if [[ "$(git rev-parse HEAD)" != "$EXPECTED_COMMIT" ]] || \
+   [[ -n "$(git status --porcelain --untracked-files=all -- \
+     src pbs tests reports configs plans pyproject.toml uv.lock)" ]]; then
+  echo "targeted-focus code identity mismatch" >&2
+  exit 65
+fi
+export PYTHONPATH="$PROJECT_ROOT/src"
+export OMP_NUM_THREADS=1 TOKENIZERS_PARALLELISM=false
+export HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 HF_DATASETS_OFFLINE=1
+
+hostname > "$OUTPUT_ROOT/hostname.txt"
+git rev-parse HEAD > "$OUTPUT_ROOT/commit.txt"
+qstat -f "$PBS_JOBID" > "$OUTPUT_ROOT/qstat.txt"
+module -t list > "$OUTPUT_ROOT/modules.txt" 2>&1
+bash -n pbs/stage1_s1_13_targeted_focus.pbs \
+  > "$OUTPUT_ROOT/bash-syntax.log" 2> "$OUTPUT_ROOT/bash-syntax.err"
+timeout --signal=TERM --kill-after=30s 420s \
+  "$PYTHON" -m pytest -vv -o faulthandler_timeout=60 --durations=25 \
+  tests/stage1/test_s1_09_readiness_analyzer.py::test_analyzer_accepts_complete_frozen_fixture \
+  tests/stage1/test_s1_09_readiness_analyzer.py::test_analyzer_fails_closed_on_mutated_authoritative_fields \
+  tests/stage1/test_s1_11_global_commit.py::test_concurrent_readers_observe_only_complete_committed_authorities \
+  > "$OUTPUT_ROOT/pytest.log" 2> "$OUTPUT_ROOT/pytest.err"
