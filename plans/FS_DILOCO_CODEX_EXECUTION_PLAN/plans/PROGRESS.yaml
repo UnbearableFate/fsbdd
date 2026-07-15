@@ -365,7 +365,7 @@ loops:
   result_commit: null
   evidence_index: evidence/indexes/S1-13.md
   checker_verdict: null
-  blocker: Same-Checker Phase A admits exact candidate 74dbd164555a49551353f4e4da3229698621a633 for exactly one third-and-final one-node reproduction preflight and admits the L2 3-to-4 amendment only as a conditional future budget. Submit only pbs/stage1_s1_13_reproduction_preflight.pbs from a clean detached worktree with the refrozen identities and a unique absent external output root. No L2, 9N, long-smoke, or formal run is authorized.
+  blocker: Exact-clean Checker-authorized third-and-final reproduction preflight job 2393049 is submitted at 74dbd164555a49551353f4e4da3229698621a633 with unique output root runtime_runs/S1-13/reproduction-preflight-refrozen-20260715T212246Z-74dbd16. It is the sole active compute run. The L2 3-to-4 amendment remains only a conditional future budget; no L2, 9N, long-smoke, or formal run is authorized.
 - id: S2-01
   stage: stage2
   title: 异步 GPU→CPU→FS Publication Pipeline
