@@ -20,9 +20,10 @@ trap 'echo "[ERROR] line=$LINENO command=$BASH_COMMAND" >&2' ERR
 PYTHON="$MAIN_ROOT/.venv/bin/python"
 CONFIG_SOURCE="configs/stage1/s1_12_profile_a_e2e.json"
 CONFIG_SHA256="c51a1be5d39df03bd59f295c8d924e51fc52f53dcac399b84800b05eb7cccf79"
-CONTRACT_SHA256="cc8276625455891e6853b74d6072b04829736eef284bd054563a22701eacc209"
+CONTRACT_SHA256="65bb2a3e6d6ca84d3e529a98578d852b9637c6060be5cdb93807765275a93f00"
 MATRIX_SHA256="5f411fe8bdafacb7390db09cb14e412b3d61bb4da9817917b78676c7ab22e193"
 ORACLE_SHA256="8642ca07b588a9210b333dc62dbbad6b0c8d0827226724f2d3804ce09de8f6e0"
+ESCALATION_SHA256="36b9fbeec62b2b0121779688e50f6760197dab9b47e37b2ed1dc611d7d351b8c"
 RESEARCH_SHA256="2c0db3148110da10ea62f445c189d2d53b405527d8da264b9af9817f5ca9d835"
 SPEC_SHA256="1ea71fb6e34fef0d7b5558d8e7999dfdedeb82957f4331afcf6f80279d1f5a7d"
 SKILL_REPOSITORY="https://github.com/UnbearableFate/miyabi-development"
@@ -64,6 +65,10 @@ if [[ "$(sha256sum "$PROJECT_ROOT/reports/stage1/S1-12-requirement-matrix.csv" |
 fi
 if [[ "$(sha256sum "$PROJECT_ROOT/reports/stage1/S1-12-numeric-oracle-contract.json" | awk '{print $1}')" != "$ORACLE_SHA256" ]]; then
   echo "Profile A numeric oracle contract hash mismatch" >&2
+  exit 65
+fi
+if [[ "$(sha256sum "$PROJECT_ROOT/reports/stage1/S1-12-targeted-attempt-escalation.json" | awk '{print $1}')" != "$ESCALATION_SHA256" ]]; then
+  echo "Profile A targeted attempt decision hash mismatch" >&2
   exit 65
 fi
 
@@ -109,6 +114,7 @@ cp "$CONFIG_SOURCE" "$EVIDENCE_ROOT/configs/profile-a.json"
 cp reports/stage1/S1-12-evidence-contract.json "$EVIDENCE_ROOT/configs/evidence-contract.json"
 cp reports/stage1/S1-12-requirement-matrix.csv "$EVIDENCE_ROOT/configs/requirement-matrix.csv"
 cp reports/stage1/S1-12-numeric-oracle-contract.json "$EVIDENCE_ROOT/configs/numeric-oracle-contract.json"
+cp reports/stage1/S1-12-targeted-attempt-escalation.json "$EVIDENCE_ROOT/configs/targeted-attempt-escalation.json"
 "$PYTHON" -m fsbdd.cli requirements \
   plans/FS_DILOCO_CODEX_EXECUTION_PLAN/loops/stage1/S1-12.md \
   reports/stage1/S1-12-requirement-matrix.csv \

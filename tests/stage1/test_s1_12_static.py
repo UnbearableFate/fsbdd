@@ -1,8 +1,12 @@
 from __future__ import annotations
 
 import csv
+import hashlib
 import json
 from pathlib import Path
+
+from fsbdd.global_state import FragmentStateDescriptor, GlobalStateIdentities
+from fsbdd.profile_a_stress import _catalog_matches_model
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -76,3 +80,30 @@ def test_evaluation_loader_has_no_store_or_latest_argument() -> None:
     assert "AtomicGlobalCommitStore" not in body.split("def ", 2)[1]
     assert ".load_fragment(" not in body
     assert ".load_snapshot(" not in body
+
+
+def test_json_round_trip_catalog_matches_typed_model_identity() -> None:
+    identities = GlobalStateIdentities(
+        run_identity="catalog-test",
+        config_identity=hashlib.sha256(b"config").hexdigest(),
+        model_identity=hashlib.sha256(b"model").hexdigest(),
+        fragment_map_identity=hashlib.sha256(b"map").hexdigest(),
+    )
+    descriptors = (
+        FragmentStateDescriptor(
+            index=0,
+            identity=hashlib.sha256(b"fragment").hexdigest(),
+            dtype="float32",
+            shape=(8,),
+            parameter_identities=("parameter",),
+        ),
+    )
+    catalog = json.loads(
+        json.dumps(
+            {
+                "identities": identities.to_dict(),
+                "descriptors": [item.to_dict() for item in descriptors],
+            }
+        )
+    )
+    assert _catalog_matches_model(catalog, identities, descriptors)

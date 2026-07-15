@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "loop_id": "S1-12",
+  "decision": "extend_only_the_low_cost_targeted_and_one_node_attempt_allowance",
+  "original_budget": {"red": 1, "targeted": 3, "l1_compute": 2, "formal_l2_batch": 1},
+  "revised_budget": {"red": 1, "targeted": 5, "l1_compute": 5, "formal_l2_batch": 1},
+  "preserved_attempts": [
+    {
+      "job_id": "2387668.opbs",
+      "evidence": "runtime_runs/S1-12/targeted-2387668.opbs",
+      "root_cause": "an analyzer-only common-interval assertion was accidentally located inside the role-local speed function",
+      "formal_resources_consumed": false
+    },
+    {
+      "job_id": "2387680.opbs",
+      "evidence": "runtime_runs/S1-12/targeted-2387680.opbs",
+      "root_cause": "four diagnostic ranks intentionally sharing one GPU narrowly exceeded a three-second common interval; the interval was conservatively frozen at ten seconds while preserving the exact slowdown and peer-change gates",
+      "formal_resources_consumed": false
+    },
+    {
+      "job_id": "2387700.opbs",
+      "evidence": "runtime_runs/S1-12/targeted-2387700.opbs",
+      "root_cause": "JSON serialization changed descriptor shape tuples to lists and a raw dictionary comparison rejected all otherwise identical rank catalogs",
+      "formal_resources_consumed": false
+    }
+  ],
+  "rationale": "A further one-node end-to-end diagnostic is cheaper and safer than spending the single four-node formal attempt on an unexercised corrected role path.",
+  "invariants_unchanged": [
+    "Profile A algorithm and numeric thresholds",
+    "M=4 formal topology",
+    "ten-second common observation interval",
+    "0.5 slow-learner ratio",
+    "2-percent unaffected-learner threshold",
+    "one formal L2 batch"
+  ]
+}

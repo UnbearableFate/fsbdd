@@ -226,6 +226,23 @@ def _descriptor_from_dict(value: Mapping[str, Any]) -> FragmentStateDescriptor:
     )
 
 
+def _catalog_matches_model(
+    catalog: Mapping[str, Any],
+    identities: GlobalStateIdentities,
+    descriptors: Sequence[FragmentStateDescriptor],
+) -> bool:
+    try:
+        catalog_descriptors = tuple(
+            _descriptor_from_dict(item) for item in catalog["descriptors"]
+        )
+    except (KeyError, TypeError, ValueError):
+        return False
+    return (
+        catalog.get("identities") == identities.to_dict()
+        and catalog_descriptors == tuple(descriptors)
+    )
+
+
 def _model(config: Mapping[str, Any], device: Any) -> tuple[Any, Any, Any, Any]:
     import torch
     from transformers import GPTNeoXConfig, GPTNeoXForCausalLM
@@ -828,10 +845,7 @@ def _run_real_role(
         )
         _replace_json(coordination / "catalog.json", catalog)
     catalog = _wait_json(coordination / "catalog.json", timeout)
-    if (
-        catalog["identities"] != identities.to_dict()
-        or catalog["descriptors"] != [item.to_dict() for item in descriptors]
-    ):
+    if not _catalog_matches_model(catalog, identities, descriptors):
         raise ProfileAStressError("real learner model or fragment identities differ")
     atomic, proposals = _stores(root / "real", catalog=catalog, policy=policy)
     bootstrap_authorities = atomic.load_snapshot().authorities
