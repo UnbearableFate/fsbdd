@@ -365,7 +365,7 @@ loops:
   result_commit: null
   evidence_index: evidence/indexes/S1-13.md
   checker_verdict: null
-  blocker: Same Checker authorization is required before the corrected one-node targeted retry; no runtime or expensive experiment is admissible yet.
+  blocker: Same Checker review is required after targeted job 2392261 timed out with one failure and an unbounded concurrent-reader test harness; no further test or runtime experiment is admissible yet.
 - id: S2-01
   stage: stage2
   title: 异步 GPU→CPU→FS Publication Pipeline

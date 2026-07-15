@@ -31,13 +31,13 @@ orient:
   resource_level: L4
   available_resources: Miyabi GPU compute debug and regular queues; project limit sixteen concurrent jobs and 256 nodes; one GH200 GPU and 72 CPUs per selected node; shared Lustre work filesystem
   recent_failure:
-    experiment_id: fsbdd-s1-13-targeted-2392180.opbs
-    pbs_job_id: 2392180.opbs
-    code_commit: f0bb4fb5cbe6b2115eaf2b63db66a9732b4d70f6
-    result: 332 passed and 7 failed after compile Ruff Pyright and Bash syntax passed
-    raw_evidence_root: runtime_runs/S1-13/targeted-f0bb4fb-20260715T180720Z
+    experiment_id: fsbdd-s1-13-targeted-2392261.opbs
+    pbs_job_id: 2392261.opbs
+    code_commit: 681e013f55dba602ec9bb91b5c9d6bcc516168d5
+    result: 262 passed and 1 failed markers before the incomplete suite was killed at PBS walltime with exit status -29
+    raw_evidence_root: runtime_runs/S1-13/targeted-681e013-20260715T182501Z
     reviewed_ledger: reports/stage1/S1-13-experiment-failures.json
-    correction_commit: 152f0e2c903a31d67ba7b40bed67bcefc3f9d9c4
+    correction_commit: 5b061cbb1546d5ce6357081009e942ebf61ad469
     retry_submitted: false
   attempt_budget: {asset_stage: 2, red: 1, targeted: 3, l1_real: 2, l2_real: 2, formal_l3_9n: 2, formal_l4_long: 2}
   failure_ladder: preserve the first expensive failure then reproduce its failing role or analyzer at the smallest one-node or two-node topology before an authorized retry
@@ -64,12 +64,12 @@ green:
   evidence_path: reports/stage1/S1-13-experiment-failures.json
 harden:
   commands: [bash -n every active S1-13 PBS script and failure helper, jq empty failure and evidence contracts, git diff --check]
-  evidence_paths: [runtime_runs/S1-13/targeted-f0bb4fb-20260715T180720Z, evidence/indexes/S1-13.md]
+  evidence_paths: [runtime_runs/S1-13/targeted-f0bb4fb-20260715T180720Z, runtime_runs/S1-13/targeted-681e013-20260715T182501Z, evidence/indexes/S1-13.md]
 nine_node_gate: {required: true, run_id: null, topology_gate: null, loss_gate: null, runtime_gate: null}
 checker:
   context_id: s1_13_checker
   maker_chat_inherited: false
-  phase_a_verdict: previous candidate admitted for one targeted run; that run failed and correction commit requires review
+  phase_a_verdict: candidate 681e013 was admitted for one targeted retry; that retry failed and correction commit requires review
   verdict: null
   report_path: reports/checkers/S1-13.md
   cycles:
@@ -77,11 +77,16 @@ checker:
       verdict: ADMISSIBLE for exactly one one-node targeted regression
       result: failed 7 of 339 tests
     - candidate: 152f0e2c903a31d67ba7b40bed67bcefc3f9d9c4
+      verdict: implementation correction included in exact admitted commit 681e013
+    - candidate: 681e013f55dba602ec9bb91b5c9d6bcc516168d5
+      verdict: ADMISSIBLE for exactly one one-node targeted retry
+      result: incomplete after 262 pass markers and one failure; PBS walltime exit -29
+    - candidate: 5b061cbb1546d5ce6357081009e942ebf61ad469
       verdict: pending
 persist:
   evidence_index: evidence/indexes/S1-13.md
   raw_evidence_root: runtime_runs/S1-13
   acceptance_traceability_updated: false
   next_gap: Stage 2 asynchronous GPU to CPU to filesystem publication pipeline
-  handoff: Candidate 152f0e2 fixes all seven targeted regressions and both Checker follow-ups; static checks pass; return exact diff and failure ledger to the same Checker before any retry.
-blocker: Same Checker authorization is required before exactly one corrected targeted retry; no learner/syncer runtime, 9N, long smoke, or formal long submission is allowed.
+  handoff: Candidate 5b061cb fixes the missing readiness fixture identity, bounds and throttles the concurrent-reader evidence harness, and captures future targeted stalls before PBS walltime; static checks pass; return the exact diff and reviewed ledger to the same Checker before any test.
+blocker: Same Checker review is required before any focused verification or targeted retry; no learner/syncer runtime, 9N, long smoke, or formal long submission is allowed.
