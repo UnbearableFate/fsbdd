@@ -177,10 +177,14 @@ def test_successor_derives_exact_plus_one_and_rolls_bounded_base_window(
 ) -> None:
     initial = fragments(2)
     store, _ = store_at(tmp_path, initial=initial, s_max=1)
-    store.bootstrap(initial)
+    initial_content_identity = (
+        store.bootstrap(initial).snapshot.states[0].content_identity
+    )
     first = store.publish_successor(0, parameters=b"v1", outer_state=b"outer-1")
     second = store.publish_successor(0, parameters=b"v2", outer_state=b"outer-2")
     assert first.version == first.outer_update_count == 1
+    assert first.base_content_identity == initial_content_identity
+    assert second.base_content_identity == first.content_identity
     assert tuple(item.version for item in first.base_history) == (0, 1)
     assert second.version == second.outer_update_count == 2
     assert tuple(item.version for item in second.base_history) == (1, 2)
@@ -210,9 +214,14 @@ def test_wrong_frozen_identity_descriptor_and_compound_corruption_fail_closed(
     )
     with pytest.raises(PublicationError, match="shape"):
         wrong_shape.load_fragment(0)
-    visibility = json.loads(
-        (tmp_path / "visibility" / "global-current-000000.json").read_text()
-    )
+    visibility_path = tmp_path / "visibility" / "global-current-000000.json"
+    original_visibility = visibility_path.read_bytes()
+    visibility = json.loads(original_visibility)
+    visibility["base_content_identity"] = "f" * 64
+    visibility_path.write_text(json.dumps(visibility), encoding="utf-8")
+    with pytest.raises(GlobalStateError, match="base identity"):
+        store.load_fragment(0)
+    visibility_path.write_bytes(original_visibility)
     payload_path = tmp_path / visibility["payload_relative_path"]
     payload = bytearray(payload_path.read_bytes())
     payload[-1] ^= 1

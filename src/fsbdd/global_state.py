@@ -149,6 +149,7 @@ class FragmentGlobalState:
     parameters: bytes
     outer_state: bytes
     base_history: tuple[BaseSnapshot, ...]
+    base_content_identity: str
     content_identity: str
 
     def __post_init__(self) -> None:
@@ -168,6 +169,11 @@ class FragmentGlobalState:
         if self.base_history[-1].parameters != self.parameters:
             raise GlobalStateError(
                 "current parameters differ from the newest retained base"
+            )
+        _require_hex(self.base_content_identity, "base_content_identity")
+        if (self.version == 0) != (self.base_content_identity == _ZERO_IDENTITY):
+            raise GlobalStateError(
+                "only version zero may use the zero base-content identity"
             )
         _require_hex(self.content_identity, "content_identity")
 
@@ -232,6 +238,7 @@ def _semantic_header(state: FragmentGlobalState) -> dict[str, object]:
         "fragment": state.descriptor.to_dict(),
         "version": state.version,
         "outer_update_count": state.outer_update_count,
+        "base_content_identity": state.base_content_identity,
         "base_versions": [item.version for item in state.base_history],
         "sections": sections,
     }
@@ -246,6 +253,7 @@ def _make_state(
     parameters: bytes,
     outer_state: bytes,
     base_history: tuple[BaseSnapshot, ...],
+    base_content_identity: str,
 ) -> FragmentGlobalState:
     provisional = FragmentGlobalState(
         identities=identities,
@@ -255,6 +263,7 @@ def _make_state(
         parameters=parameters,
         outer_state=outer_state,
         base_history=base_history,
+        base_content_identity=base_content_identity,
         content_identity=_ZERO_IDENTITY,
     )
     return dataclasses.replace(
@@ -303,6 +312,7 @@ def decode_global_state(payload: bytes) -> FragmentGlobalState:
         "fragment",
         "version",
         "outer_update_count",
+        "base_content_identity",
         "base_versions",
         "sections",
         "content_identity",
@@ -326,6 +336,8 @@ def decode_global_state(payload: bytes) -> FragmentGlobalState:
         "parameter_identities",
     }:
         raise GlobalStateError("global-state fragment schema mismatch")
+    if not isinstance(fragment_value["parameter_identities"], list):
+        raise GlobalStateError("global-state parameter identities must be a list")
     try:
         identities = GlobalStateIdentities(**identities_value)
         descriptor = FragmentStateDescriptor(
@@ -397,6 +409,9 @@ def decode_global_state(payload: bytes) -> FragmentGlobalState:
         parameters=contents[0],
         outer_state=contents[1],
         base_history=bases,
+        base_content_identity=_require_hex(
+            header["base_content_identity"], "base_content_identity"
+        ),
         content_identity=content_identity,
     )
     if canonical_digest(_semantic_header(state)) != state.content_identity:
@@ -499,13 +514,9 @@ class GlobalStateStore:
             raise GlobalStateError(
                 "compound state exceeds the bounded base-retention window"
             )
-        expected_base = _ZERO_IDENTITY if state.version == 0 else None
-        if (
-            expected_base is not None
-            and published.record.base_content_identity != expected_base
-        ):
+        if published.record.base_content_identity != state.base_content_identity:
             raise GlobalStateError(
-                "version-zero compound state has a nonzero base identity"
+                "compound state base identity differs from its visibility record"
             )
         return state
 
@@ -551,6 +562,7 @@ class GlobalStateStore:
             parameters=fragment.parameters,
             outer_state=fragment.outer_state,
             base_history=(base,),
+            base_content_identity=_ZERO_IDENTITY,
         )
 
     def bootstrap(
@@ -659,6 +671,7 @@ class GlobalStateStore:
             parameters=parameters,
             outer_state=outer_state,
             base_history=history,
+            base_content_identity=current.content_identity,
         )
 
         def require_unchanged_base(_slot: str, _record: PublicationRecord) -> None:
@@ -772,6 +785,8 @@ def load_bootstrap_plan(path: Path) -> LoadedBootstrapPlan:
     for item in value["fragments"]:
         if not isinstance(item, dict) or set(item) != expected_fragment_fields:
             raise GlobalStateError("bootstrap plan fragment schema mismatch")
+        if not isinstance(item["parameter_identities"], list):
+            raise GlobalStateError("bootstrap plan parameter identities must be a list")
         descriptor = FragmentStateDescriptor(
             index=item["index"],
             identity=item["identity"],
