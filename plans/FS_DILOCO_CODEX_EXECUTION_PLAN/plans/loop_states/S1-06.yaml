@@ -10,7 +10,7 @@ git:
   integration_branch: master
   branch: codex/S1-06-learner-inner-training
   base_commit: 9388997989bb5b5e698f2e828d2619ec39e5613a
-  result_commit: null
+  result_commit: e06affde5e1b611a046e411f2f1a2207d95ee5f8
   dirty_at_start: true
 dependencies: [S1-00, S1-01]
 requirements: [LEARN-01, LEARN-02, PROG-04, PROG-05, TEL-01, TEL-04]
@@ -100,8 +100,8 @@ persist:
     queue_seconds: 2
     active_seconds: 84
     checker_cycles: 3
-    goal_tokens_end: 1979657
-    agent_tokens_used: 684729
+    goal_tokens_end: 1988556
+    agent_tokens_used: 693628
     phase_token_deltas: {}
     rework_causes:
     - The first formal-manifest CLI dry run wrote its draft then failed by passing a PosixPath to json.dumps; the candidate added a CLI regression and complete L1 PBS provenance before submission.
