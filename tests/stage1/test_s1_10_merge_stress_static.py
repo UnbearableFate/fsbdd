@@ -35,7 +35,9 @@ def test_requirement_matrix_is_derived_complete_and_structural() -> None:
     assert len(rows) == len(_card_ids()) == 9
     for row in rows:
         assert all(row[field].strip() for field in row)
-        assert row["evidence_path"].startswith("runtime_runs/S1-10/formal-l2/")
+        assert row["evidence_path"].startswith(
+            "runtime_runs/S1-10/formal-l2-retry1/"
+        )
 
 
 def test_config_and_contract_freeze_numeric_memory_and_topology_semantics() -> None:

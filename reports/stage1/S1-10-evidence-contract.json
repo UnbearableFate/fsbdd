@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "resource_level": "L2",
-  "selected_evidence_root": "/work/xg24i002/x10041/fsbdd/runtime_runs/S1-10/formal-l2",
+  "selected_evidence_root": "/work/xg24i002/x10041/fsbdd/runtime_runs/S1-10/formal-l2-retry1",
   "target_shared_root": "/work/xg24i002/x10041/fsbdd/runtime_runs",
   "code_identity_contract": {
     "submission_value": "EXPECTED_COMMIT is the full 40-character candidate SHA supplied to qsub",

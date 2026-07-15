@@ -29,7 +29,7 @@ orient:
   raw_evidence_on_demand: [runtime_runs/S1-10]
   resource_level: L2
   available_resources: Miyabi debug-g one or two compute nodes with shared POSIX evidence root and nv-hpcx launcher module
-  recent_failure: null
+  recent_failure: Formal L2 job 2386456.opbs ran the full Stage 1 suite and both two-node roles successfully, then failed during manifest construction because syncer_merge_stress used a removed keyword-style build_manifest API. The incomplete runtime_runs/S1-10/formal-l2 package is preserved; the correction uses the current identity-map API and moves selected evidence to fail-if-exists formal-l2-retry1.
   attempt_budget: {red: 1, targeted: 3, l1_compute: 2, formal_l2_batch: 1}
   failure_ladder: preserve the first L2 failure then reproduce both roles on one compute node before any resubmission
   nine_node_gate_required: false
@@ -40,7 +40,7 @@ preflight:
   requirements_complete: true
   measurement_contract: reports/stage1/S1-10-evidence-contract.json
   package_contract: reports/stage1/S1-10-evidence-contract.json
-  package_validator_command: fsbdd evidence validate runtime_runs/S1-10/formal-l2
+  package_validator_command: fsbdd evidence validate runtime_runs/S1-10/formal-l2-retry1
   package_validator_result: pending
   checker_phase_a: required
   relative_l2_formula: norm(production minus oracle) divided by max(norm(oracle) 1e-12)
@@ -73,6 +73,11 @@ checker:
     checked_candidate: 59bdef32757e731ca3397385b1c475ba907a1e03
     verdict: BLOCKED_PRECHECK
     correction: bind both roles to the expected frozen config digest enforce flat descriptor element count against fp32 payload bytes and replace lifetime VmHWM subtraction with current VmRSS sampled at production allocation checkpoints inside dedicated warmed target-update intervals
+  - cycle: 2
+    phase: A
+    checked_candidate: ffae9ef60e9b408674e882b165ca7df723d8deae
+    verdict: ADMISSIBLE
+    correction: All three prior blockers are corrected with fail-closed regressions; exact candidate targeted evidence frozen hashes nine-requirement matrix package preflight and two-node formal submission contract are coherent.
 persist:
   evidence_index: evidence/indexes/S1-10.md
   raw_evidence_root: runtime_runs/S1-10

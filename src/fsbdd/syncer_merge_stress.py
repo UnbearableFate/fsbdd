@@ -1314,32 +1314,54 @@ def manifest_command(args: argparse.Namespace) -> dict[str, Any]:
         "outer_syncer": [syncer["hostname"]],
     }
     actual = {key: list(value) for key, value in declared.items()}
-    modules = args.modules_file.read_text(encoding="utf-8").splitlines()
+    modules = [
+        line.strip()
+        for line in args.modules_file.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    identities = {
+        "code": {
+            "repository": args.repository,
+            "branch": args.branch,
+            "commit": args.commit,
+            "dirty": False,
+        },
+        "config": {"sha256": args.config_sha256},
+        "source": {
+            "research_plan_sha256": args.research_sha256,
+            "stage0_4_spec_sha256": args.spec_sha256,
+        },
+        "skill": {
+            "repository": args.skill_repository,
+            "commit": args.skill_commit,
+        },
+        "execution": {
+            "identity": args.run_id,
+            "initial_hostname": args.initial_hostname,
+            "compute_hostname": socket.gethostname().split(".")[0],
+            "workflow": "two-node-filesystem-only-streaming-fragment-merge",
+        },
+        "roles": {"declared": declared, "actual": actual},
+        "paths": {
+            "project_root": str(args.project_root),
+            "evidence_root": str(args.evidence_root),
+        },
+    }
+    scheduler = {
+        "job_id": args.job_id,
+        "qtime_utc": args.qtime_utc,
+        "queue": args.queue,
+        "group": args.group,
+        "nodefile_sha256": file_digest(args.nodefile),
+        "modules": modules,
+    }
     manifest = build_manifest(
-        loop_id="S1-10",
-        resource_level="L2",
-        repository=args.repository,
-        branch=args.branch,
-        commit=args.commit,
-        dirty=False,
-        run_id=args.run_id,
-        config_sha256=args.config_sha256,
-        research_sha256=args.research_sha256,
-        spec_sha256=args.spec_sha256,
-        skill_repository=args.skill_repository,
-        skill_commit=args.skill_commit,
-        initial_hostname=args.initial_hostname,
-        project_root=str(args.project_root),
-        evidence_root=str(args.evidence_root),
-        job_id=args.job_id,
-        qtime_utc=args.qtime_utc,
-        queue=args.queue,
-        group=args.group,
-        modules=modules,
-        nodefile_sha256=file_digest(args.nodefile),
-        declared_roles=declared,
-        actual_roles=actual,
-        workflow="two-node-filesystem-only-streaming-fragment-merge",
+        "S1-10",
+        "L2",
+        args.qtime_utc,
+        "pbs_qtime",
+        identities,
+        scheduler=scheduler,
     )
     _write_json_new(args.output, manifest)
     return manifest

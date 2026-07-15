@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import argparse
 import copy
 import hashlib
 import json
@@ -15,6 +16,7 @@ from fsbdd.syncer_merge_stress import (
     execute_mixed_base_workload,
     execute_numeric_workload,
     execute_order_workload,
+    manifest_command,
 )
 
 
@@ -203,3 +205,66 @@ def test_analyzer_rejects_semantic_mutations(analyzer_case, mutation) -> None:
     mutation(writer, syncer, config)
     with pytest.raises((MergeStressError, KeyError)):
         analyze_roles(writer, syncer, config, config_identity)
+
+
+def test_manifest_command_uses_evidence_builder_identity_schema(
+    tmp_path: Path,
+) -> None:
+    result_root = tmp_path / "roles"
+    result_root.mkdir()
+    for role, hostname in (
+        ("proposal_writer", "writer-host"),
+        ("outer_syncer", "syncer-host"),
+    ):
+        (result_root / f"{role}.json").write_text(
+            json.dumps({"hostname": hostname}), encoding="utf-8"
+        )
+    nodefile = tmp_path / "nodefile"
+    nodefile.write_text("writer-host\nsyncer-host\n", encoding="utf-8")
+    modules = tmp_path / "modules"
+    modules.write_text("nv-hpcx/25.9\n", encoding="utf-8")
+    output = tmp_path / "manifest.json"
+    digest = "a" * 64
+    manifest = manifest_command(
+        argparse.Namespace(
+            result_root=result_root,
+            repository="https://example.invalid/fsbdd.git",
+            branch="codex/S1-10-merge-outer",
+            commit="b" * 40,
+            run_id="s1-10-123.opbs",
+            config_sha256=digest,
+            research_sha256="c" * 64,
+            spec_sha256="d" * 64,
+            skill_repository="https://example.invalid/miyabi-development.git",
+            skill_commit="e" * 40,
+            initial_hostname="miyabi-g1",
+            project_root=tmp_path,
+            evidence_root=tmp_path / "evidence",
+            job_id="123.opbs",
+            qtime_utc="2026-07-15T06:08:08Z",
+            queue="debug-g",
+            group="xg24i002",
+            nodefile=nodefile,
+            modules_file=modules,
+            output=output,
+        )
+    )
+
+    assert json.loads(output.read_text(encoding="utf-8")) == manifest
+    assert manifest["loop_id"] == "S1-10"
+    assert manifest["resource_level"] == "L2"
+    assert manifest["run_identity"]["timestamp_utc"] == "2026-07-15T06:08:08Z"
+    assert manifest["run_identity"]["time_source"] == "pbs_qtime"
+    assert manifest["identities"]["code"]["commit"] == "b" * 40
+    assert manifest["identities"]["config"]["sha256"] == digest
+    assert manifest["identities"]["roles"] == {
+        "declared": {
+            "proposal_writer": ["writer-host"],
+            "outer_syncer": ["syncer-host"],
+        },
+        "actual": {
+            "proposal_writer": ["writer-host"],
+            "outer_syncer": ["syncer-host"],
+        },
+    }
+    assert manifest["scheduler"]["modules"] == ["nv-hpcx/25.9"]
