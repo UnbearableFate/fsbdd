@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "loop_id": "S1-13",
+  "nine_node": {
+    "baseline_id": "BASELINE-9N-GPT2-WT2-v1",
+    "scheduler_mode": "nine independent single-node PBS array roles sharing only the protocol filesystem",
+    "learners": 8,
+    "syncers": 1,
+    "distinct_compute_hosts": 9,
+    "learner_gpus": 8,
+    "syncer_cuda": false,
+    "H": 50,
+    "target_global_cycles": 10,
+    "maximum_learner_optimizer_steps": 800,
+    "active_runtime_budget_seconds_absolute_ceiling": 1200,
+    "pbs_walltime_seconds": 1800,
+    "loss": {"minimum_points_per_learner": 200, "warmup_points": 20, "rolling_median_window": 20, "initial_fraction": 0.2, "final_fraction": 0.2, "maximum_final_to_initial_median": 0.99, "maximum_per_learner_final_to_initial": 1.10, "aggregate_robust_slope_must_be_negative": true},
+    "validation": {"all_packed_blocks": true, "shuffle": false, "initial_and_final_frozen_snapshots": true, "blocking_threshold": "finite_only", "test_split_used": false}
+  },
+  "long_run": {
+    "model": "EleutherAI/pythia-160m@50f5173d932e8e61f858120bcb800b97af589f46",
+    "dataset": "HuggingFaceFW/fineweb-edu@87f09149ef4734204d70ed1d046ddc9ca3f2b8f9/sample/10BT",
+    "learners": 4,
+    "syncers": 1,
+    "sequence_length": 512,
+    "batch_size": 4,
+    "processed_input_tokens_per_step": 2048,
+    "optimizer_steps_per_learner": 122071,
+    "minimum_aggregate_processed_input_tokens": 1000000000,
+    "expected_aggregate_processed_input_tokens": 1000005632,
+    "H": 50,
+    "minimum_global_cycles": 2400,
+    "active_runtime_budget_seconds": 21600,
+    "pbs_walltime_seconds": 28800,
+    "loss": {"all_finite": true, "warmup_points": 100, "initial_fraction": 0.05, "final_fraction": 0.05, "maximum_final_to_initial_median": 0.99, "aggregate_robust_slope_must_be_negative": true},
+    "comparison_claim": "training_occurs_and_trend_is_reasonable_only_no_matched_control"
+  },
+  "protocol": {"profile": "A", "Q_equals_M": true, "Q_fresh_equals_M": true, "S_max": 0, "lambda_s": 1.0, "grace_seconds": 0.0, "fragment_count": 4, "outer_merge": "direct_weighted_average", "outer_optimizer": {"learning_rate": 0.1, "momentum": 0.9, "nesterov": true, "accumulation_dtype": "float32"}, "offset_algorithm": "byte_weighted_midpoint_nearest_free_v1", "application_data_plane": "shared_filesystem_only"},
+  "bounded_state": {"proposal_current_slots": "M_times_F", "global_current_slots": 4, "retained_base_versions_per_fragment": 1, "maximum_pending_publications_per_learner_fragment": 1, "minimum_unreferenced_payload_age_seconds": 30, "retained_recent_unreferenced_payloads_per_backend": 64, "history_scan_allowed": false},
+  "failure_policy": "preserve first L3 or L4 failure and reproduce at the smallest real topology before retry"
+}
+

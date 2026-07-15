@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "loop_id": "S1-13",
+  "fail_if_exists": true,
+  "formal_packages": ["runtime_runs/S1-13/formal-9n", "runtime_runs/S1-13/formal-long"],
+  "raw_roots": ["runtime_runs/S1-13/shared-9n-<submission-nonce>", "runtime_runs/S1-13/shared-long-<pbs-job-id>"],
+  "timestamp_sources": {"independent_9n": "submission_utc_plus_per-role-pbs-qtime", "long_run": "pbs_qtime"},
+  "required_identities": ["clean_code_commit", "resolved_config_sha256", "source_hashes", "miyabi_skill_commit", "hf_cli_skill", "immutable_model_tokenizer_dataset_revisions", "asset_marker_sha256", "scheduler_job_ids", "declared_and_actual_role_map", "gpu_uuid_per_learner", "cpu_only_syncer", "shared_filesystem_identity", "evidence_and_raw_paths"],
+  "required_analysis": ["analysis/topology_gate.json", "analysis/loss_gate.json", "analysis/runtime_gate.json", "analysis/protocol_gate.json", "analysis/requirements.json"],
+  "required_raw": ["role records", "loss JSONL", "syncer update JSONL", "frozen initial and final evaluation manifests for 9N", "periodic classified storage inventories", "resolved config", "commands", "environment and scheduler records", "stderr"],
+  "payload_retention": "large tensor payloads remain in the bounded raw protocol root; the finalized package retains identities metadata classified tree snapshots and independently decodable small samples rather than duplicating all tensors",
+  "finalization": {"manifest_visibility": "last", "checksums_cover_every_retained_file": true, "validator_required": true, "stderr_must_be_empty": true, "placeholder_rejection": true}
+}
+

@@ -1,0 +1,68 @@
+schema_version: 2
+loop_id: S1-13
+title: Stage 1 closure and first Miyabi 8+1 baseline
+stage: stage1
+status: implementation
+source_hashes:
+  research_plan: 2c0db3148110da10ea62f445c189d2d53b405527d8da264b9af9817f5ca9d835
+  stage0_4_spec: 1ea71fb6e34fef0d7b5558d8e7999dfdedeb82957f4331afcf6f80279d1f5a7d
+  loop_card: 83f9657599a05902933587fd81495a2217ef516d9ac4c3ffb5027be930843856
+git:
+  integration_branch: master
+  branch: codex/S1-13-stage1-close-9n
+  base_commit: 933661b58e5037773a34bcfa3234e9e7961ad1d5
+  result_commit: null
+  dirty_at_start: true
+  user_owned_dirty_paths: [AGENTS.md]
+dependencies: [S1-12]
+requirements: [INV-01, INV-08, PROG-02, TEL-01, TEL-02, TEL-03, TEL-04]
+acceptance_ids: [A-LEARN-01, A-PERF-01]
+orient:
+  unique_failing_gap: Stage 1 components and small Profile A closure pass independently but no production large-model role harness analyzer bounded-state collector nine-distinct-host baseline or M=4 one-billion-token run closes the integrated capability.
+  non_goals: [stale proposals, S_max one, matched-token quality comparison, Stage 2 goodput threshold, DDP NCCL RPC parameter server, mutable Hub revisions]
+  planned_files: [src/fsbdd/stage1_close.py, src/fsbdd/storage.py, src/fsbdd/proposal.py, src/fsbdd/global_state.py, src/fsbdd/syncer_readiness.py, src/fsbdd/learner.py, configs/stage1/s1_13_stage1_close.json, tests/stage1/test_s1_13_analyzer.py, tests/stage1/test_s1_13_runtime.py, tests/stage1/test_s1_13_static.py, tests/red_cases/s1_13_naive_gate_analyzer.py, pbs/stage1_s1_13_assets.pbs, pbs/stage1_s1_13_smoke.pbs, pbs/stage1_s1_13_9n_role.pbs, pbs/stage1_s1_13_long_run.pbs, reports/stage1/S1-13-requirement-matrix.csv, reports/stage1/S1-13-evidence-contract.json, reports/stage1/S1-13-gate-contract.json]
+  model_data_profile: Immutable pretrained GPT-2 small plus WikiText-2 raw packed-512 for the 8+1 gate and immutable pretrained Pythia-160m plus FineWeb-Edu canonical packed-512 prefix for the M=4 aggregate-at-least-one-billion-input-token long run.
+  miyabi_skill_commit: c3ddfa47cadfd9132edf939d359b90b28ab5f8ed
+  hugging_face_cli_skill: hugging-face:hf-cli 1.0.0
+  initial_hostname: miyabi-g1
+  workflow: login-node static contracts and semantic RED; compute-node immutable asset materialization then one-node and two-node real smokes; same independent Checker Phase A before one independent-PBS-jobs 8+1 gate and one five-node regular-queue long run
+  context_inputs: [plans/PROGRESS.yaml, loops/stage1/S1-13.md, docs/06_8L1S_50X10_GATE.md, reports/stage1/S1-06-model-data-adr.md, evidence/indexes/S1-12.md]
+  raw_evidence_on_demand: [runtime_runs/S1-06, runtime_runs/S1-12]
+  resource_level: L4
+  available_resources: Miyabi GPU compute debug and regular queues; project limit sixteen concurrent jobs and 256 nodes; one GH200 GPU and 72 CPUs per selected node; shared Lustre work filesystem
+  recent_failure: null
+  attempt_budget: {asset_stage: 2, red: 1, targeted: 3, l1_real: 2, l2_real: 2, formal_l3_9n: 2, formal_l4_long: 2}
+  failure_ladder: preserve the first expensive failure then reproduce its failing role or analyzer at the smallest one-node or two-node topology before an authorized retry
+  nine_node_gate_required: true
+  goal_tokens_start: 5924432
+  soft_token_budget: 220000
+preflight:
+  requirement_matrix: reports/stage1/S1-13-requirement-matrix.csv
+  requirements_complete: true
+  measurement_contract: reports/stage1/S1-13-gate-contract.json
+  package_contract: reports/stage1/S1-13-evidence-contract.json
+  model_data_adr: reports/stage1/S1-06-model-data-adr.md
+  package_validator_command: fsbdd evidence validate runtime_runs/S1-13/formal-9n and runtime_runs/S1-13/formal-long
+  package_validator_result: pending
+  checker_phase_a: required
+  asset_freeze: pending visibility-last S1-13 marker binding the S1-06 raw identities plus deterministic GPT-2 train/validation and Pythia one-billion-token materializations
+  runtime_budget: nine-node 1200 active seconds absolute ceiling pending tighter compatible value from real smokes; long-run 21600 active seconds
+red:
+  command: PYTHONPATH=src .venv/bin/python tests/red_cases/s1_13_naive_gate_analyzer.py
+  exit_code: 1
+  evidence_path: runtime_runs/S1-13/red-933661b-semantic
+green:
+  command: null
+  evidence_path: null
+harden:
+  commands: []
+  evidence_paths: []
+nine_node_gate: {required: true, run_id: null, topology_gate: null, loss_gate: null, runtime_gate: null}
+checker: {context_id: null, maker_chat_inherited: false, phase_a_verdict: null, verdict: null, report_path: reports/checkers/S1-13.md, cycles: []}
+persist:
+  evidence_index: evidence/indexes/S1-13.md
+  raw_evidence_root: runtime_runs/S1-13
+  acceptance_traceability_updated: false
+  next_gap: Stage 2 asynchronous GPU to CPU to filesystem publication pipeline
+  handoff: null
+blocker: null

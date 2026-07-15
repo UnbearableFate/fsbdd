@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "profile_id": "s1-13-stage1-close-v1",
+  "workloads": {
+    "nine_node": {
+      "learner_profile": "configs/stage1/s1_06_gpt2_wikitext_smoke.json",
+      "model_revision": "607a30d783dfa663caf39e06633721c8d4cfcd7e",
+      "dataset_revision": "b08601e04326c79dfdd32d625aee71d232d685c3",
+      "learner_count": 8,
+      "syncer_count": 1,
+      "independent_pbs_roles": true,
+      "maximum_optimizer_steps": 800,
+      "minimum_loss_points": 200,
+      "target_global_cycles": 10,
+      "runtime_budget_seconds": 1200,
+      "evaluation": {"initial_and_final": true, "validation_split": "validation", "all_blocks": true, "shuffle": false, "blocking": "finite_only"}
+    },
+    "long_run": {
+      "learner_profile": "configs/stage1/s1_06_pythia160m_fineweb_smoke.json",
+      "model_revision": "50f5173d932e8e61f858120bcb800b97af589f46",
+      "dataset_revision": "87f09149ef4734204d70ed1d046ddc9ca3f2b8f9",
+      "learner_count": 4,
+      "syncer_count": 1,
+      "optimizer_steps_per_learner": 122071,
+      "minimum_aggregate_processed_input_tokens": 1000000000,
+      "expected_aggregate_processed_input_tokens": 1000005632,
+      "minimum_global_cycles": 2400,
+      "runtime_budget_seconds": 21600
+    }
+  },
+  "protocol": {
+    "fragment_count": 4,
+    "H": 50,
+    "offset_algorithm": "byte_weighted_midpoint_nearest_free_v1",
+    "learner_phase_offset_algorithm": "floor_learner_index_times_H_over_M",
+    "Q": "M",
+    "Q_fresh": "M",
+    "S_max": 0,
+    "lambda_s": 1.0,
+    "grace_seconds": 0.0,
+    "outer_optimizer": {"merge": "direct_weighted_average", "learning_rate": 0.1, "momentum": 0.9, "nesterov": true, "accumulation_dtype": "float32"},
+    "application_coordination": "shared_filesystem_only",
+    "torch_distributed": false
+  },
+  "training": {"sequence_length": 512, "batch_size": 4, "gradient_accumulation_steps": 1, "precision": "bf16", "inner_optimizer": {"class": "AdamW", "learning_rate": 0.00005, "betas": [0.9, 0.999], "epsilon": 1e-8, "weight_decay": 0.01, "gradient_clip_norm": 1.0}, "scheduler": {"class": "constant", "basis": "local_optimizer_steps"}},
+  "loss_gate": {"all_finite": true, "warmup_points": 20, "rolling_median_window": 20, "initial_fraction": 0.2, "final_fraction": 0.2, "maximum_final_to_initial_median": 0.99, "maximum_per_learner_final_to_initial": 1.10, "aggregate_robust_slope_must_be_negative": true},
+  "bounded_state": {"minimum_unreferenced_payload_age_seconds": 30, "retained_recent_unreferenced_payloads": 64, "inventory_every_global_cycles": 10, "history_scan_allowed": false},
+  "resolved_runtime_fields": {"fragment_descriptors": "asset_stage", "fragment_bytes": "asset_stage", "fragment_offsets": "asset_stage", "per_learner_offsets": "asset_stage", "asset_marker_sha256": "asset_stage"},
+  "comparison": {"matched_tokens": false, "matched_compute": false, "matched_communication": false, "claim": "stage1_runtime_and_training_occurrence_only"}
+}
+
