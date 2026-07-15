@@ -365,7 +365,7 @@ loops:
   result_commit: null
   evidence_index: evidence/indexes/S1-13.md
   checker_verdict: null
-  blocker: Same-Checker Phase B passed preflight job 2393049 and Phase A authorizes exactly one fourth-and-final L2 1+1 reproduction at 74dbd164555a49551353f4e4da3229698621a633 using only pbs/stage1_s1_13_smoke_2n.pbs with unique absent shared/result roots and run ID. No retry, 9N, long-smoke, formal run, or other compute is authorized.
+  blocker: Exact-clean Checker-authorized fourth-and-final L2 1+1 reproduction job 2393059 is submitted at 74dbd164555a49551353f4e4da3229698621a633 with run ID s1-13-refrozen-2n-20260715T212830Z-74dbd16 and unique shared/result roots. It is the sole active compute run. No retry, 9N, long-smoke, formal run, or other compute is authorized.
 - id: S2-01
   stage: stage2
   title: 异步 GPU→CPU→FS Publication Pipeline

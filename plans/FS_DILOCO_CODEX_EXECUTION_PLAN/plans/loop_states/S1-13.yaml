@@ -180,6 +180,11 @@ orient:
       authorization_gate: The same S1-13 Checker must first pass the new preflight package in Phase B, then separately review and authorize an exact-clean L2 commit. Recording this amendment does not itself authorize L2.
       authorization_commit: 74dbd164555a49551353f4e4da3229698621a633
       checker_verdict: preflight job 2393049 Phase B PASS; ADMISSIBLE for exactly one fourth-and-final L2 1+1 reproduction; no retry or larger run authorized
+      final_attempt: 2393059.opbs
+      run_id: s1-13-refrozen-2n-20260715T212830Z-74dbd16
+      shared_root: runtime_runs/S1-13/shared-2n-s1-13-refrozen-2n-20260715T212830Z-74dbd16
+      result_root: runtime_runs/S1-13/reproduction-2n-s1-13-refrozen-2n-20260715T212830Z-74dbd16
+      final_attempt_result: submitted; sole active compute run; no retry or larger run authorized
   failure_ladder: preserve the first expensive failure then reproduce its failing role or analyzer at the smallest one-node or two-node topology before an authorized retry
   nine_node_gate_required: true
   goal_tokens_start: 5924432
@@ -261,12 +266,12 @@ checker:
       result: asset-stage job 2392989 passed from the exact-clean authorized commit with scheduler exit 0, no abnormal node, a complete producer-bound bundle, compatible nine-node and long-run validators, three focused tests passed, all four dataset trees hard-link reused, and a checksum-verified retained package; tracked config/contract refreeze may proceed only with the accepted long-run aligned-zero overlay preserved
     - candidate: 74dbd164555a49551353f4e4da3229698621a633
       verdict: Phase A ADMISSIBLE for exactly one third-and-final one-node reproduction_preflight; after job 2393049, Phase B PASS and Phase A ADMISSIBLE for exactly one fourth-and-final L2 1+1 reproduction using only pbs/stage1_s1_13_smoke_2n.pbs; no retry or larger run authorized
-      result: exact-clean preflight job 2393049 passed with scheduler exit 0, no abnormal node, 11 focused tests passed, frozen-package validator admissible with all 14 checks true, empty stderr, and a checksum-verified retained inventory; L2 submission pending
+      result: exact-clean preflight job 2393049 passed with scheduler exit 0, no abnormal node, 11 focused tests passed, frozen-package validator admissible with all 14 checks true, empty stderr, and a checksum-verified retained inventory; authorized L2 job 2393059 submitted with unique roots and run ID s1-13-refrozen-2n-20260715T212830Z-74dbd16
 persist:
   evidence_index: evidence/indexes/S1-13.md
   raw_evidence_root: runtime_runs/S1-13
   acceptance_traceability_updated: false
   next_gap: Stage 2 asynchronous GPU to CPU to filesystem publication pipeline
   handoff: >-
-    Same-Checker Phase B passed exact-clean preflight job 2393049 and Phase A authorizes exactly one fourth-and-final L2 1+1 reproduction at commit 74dbd164555a49551353f4e4da3229698621a633. Use only pbs/stage1_s1_13_smoke_2n.pbs from the clean detached worktree with verified refrozen identities and unique absent SHARED_ROOT, RESULT_ROOT, and RUN_ID. Return the immutable package for Phase B. No retry, 9N, long-smoke, formal run, or other compute is authorized.
-blocker: Exactly one fourth-and-final L2 1+1 reproduction is authorized at 74dbd164555a49551353f4e4da3229698621a633 and not yet submitted. No retry or larger compute run is authorized.
+    Exact-clean L2 job 2393059 is submitted at Checker-authorized commit 74dbd164555a49551353f4e4da3229698621a633 with run ID s1-13-refrozen-2n-20260715T212830Z-74dbd16 and unique shared/result roots. Monitor it to terminal state, preserve immutable scheduler/checksum evidence, and return the package to the same Checker for Phase B. On failure stop for review before any next experiment. No retry, 9N, long-smoke, formal run, or other compute is authorized.
+blocker: L2 job 2393059 is the sole active authorized compute run. Await terminal evidence; no retry or larger run is authorized.
