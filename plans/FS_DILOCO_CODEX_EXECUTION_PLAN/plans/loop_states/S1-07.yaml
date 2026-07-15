@@ -2,7 +2,7 @@ schema_version: 2
 loop_id: S1-07
 title: H/offset fragment snapshot and proposal publish
 stage: stage1
-status: in_progress
+status: pass
 source_hashes:
   research_plan: 2c0db3148110da10ea62f445c189d2d53b405527d8da264b9af9817f5ca9d835
   stage0_4_spec: 1ea71fb6e34fef0d7b5558d8e7999dfdedeb82957f4331afcf6f80279d1f5a7d
@@ -34,7 +34,7 @@ preflight:
   measurement_contract: reports/stage1/S1-07-evidence-contract.json
   package_contract: reports/stage1/S1-07-evidence-contract.json
   package_validator_command: fsbdd evidence validate runtime_runs/S1-07/formal-l2
-  package_validator_result: pending candidate package precheck
+  package_validator_result: admissible at runtime_runs/S1-07/formal-l2 (28/28 payload files; manifest 5cf0f93c9ba99cb59dd0107d13b389b3020a0bffb3d3eabfb63be2556c141af8)
   checker_phase_a: required
   frozen_schedule: byte_weighted_midpoint_nearest_free_v1 with unified H=4 learner phase zero and exact sum fragment_bytes over H accounting
 red:
@@ -43,22 +43,69 @@ red:
   evidence_path: runtime_runs/S1-07/red-e092af4
 green:
   command: PYTHONPATH=src .venv/bin/python -m pytest -q tests/stage1
-  evidence_path: null
+  evidence_path: runtime_runs/S1-07/formal-l2/stdout/pytest.log
 harden:
-  commands: []
-  evidence_paths: []
+  commands:
+  - PYTHONPATH=src .venv/bin/python -m pytest -q tests/stage1
+  - one-worker-per-fragment slow gate with latest-wins replacement and fixed resident-state assertions across 1001 captures
+  - gradient-time rejection bytewise immutable capture old/new-base coexistence restart reservation skip replacement and injected failure/abandonment fixtures
+  - two-node MPI-launcher-only GPU writer and remote filesystem reader with independent fail-closed analyzer and S1-00 evidence finalization
+  - uv ruff py_compile bash -n JSON YAML checksum and exact clean-worktree validation
+  evidence_paths:
+  - runtime_runs/S1-07/l1-targeted-d267052
+  - runtime_runs/S1-07/formal-l2
 nine_node_gate: {required: false, run_id: null, topology_gate: null, loss_gate: null, runtime_gate: null}
 checker:
-  context_id: null
+  context_id: /root/s1_07_checker
   maker_chat_inherited: false
-  phase_a_verdict: null
-  verdict: null
+  phase_a_verdict: BLOCKED on 5554d6e then ADMISSIBLE on d267052d after bounded-state counterexample analyzer and package-preflight corrections
+  verdict: PASS
   report_path: reports/checkers/S1-07.md
-  cycles: []
+  cycles:
+  - cycle: 1
+    phase: A
+    checked_candidate: 5554d6eaf316964590035f90e6c976840ef58002
+    verdict: BLOCKED_PRECHECK
+    correction: replace unbounded trace history with fixed 3F state complete mutation base failure fixtures make the analyzer fail closed and bind scheduler scratch and role identities
+  - cycle: 2
+    phase: A-recheck
+    checked_candidate: d267052d08d4e88537e7cd8c5e9a14a13a8d5ae4
+    verdict: ADMISSIBLE
+  - cycle: 3
+    phase: B
+    checked_candidate: d267052d08d4e88537e7cd8c5e9a14a13a8d5ae4
+    verdict: PASS
+    report_sha256: b9b3601f8ca338085bea8c486da9b75e56490dec6c7ea0a6455637dd4748049a
 persist:
   evidence_index: evidence/indexes/S1-07.md
   raw_evidence_root: runtime_runs/S1-07
-  acceptance_traceability_updated: false
-  next_gap: null
-  handoff: null
+  acceptance_traceability_updated: true
+  next_gap: S1-08 must poll per-fragment current slots at safe boundaries adopt latest-only fragment values without resetting inner optimizer moments and prove sustained mixed-version training.
+  handoff:
+    proven_facts:
+    - The byte-weighted midpoint scheduler deterministically derives one due offset per fragment under unified H and exposes exact rational sum_f fragment_bytes_f over H_f accounting for future nonuniform intervals.
+    - LearnerRuntime invokes snapshot observers only after optimizer scheduler and zero-grad completion and active-gradient capture fails before sequence reservation.
+    - Each immutable proposal contains only one complete target fragment in little-endian fp32 and binds actual bootstrapped FragmentGlobalState content identity local steps processed tokens snapshot step sequence and payload checksum.
+    - One worker per fragment permits one in-flight plus one latest-wins pending snapshot and keeps resident telemetry bounded by 3F independent of publication history.
+    - Old-base in-flight and new-base pending proposals coexist without metadata rewriting and restart restores the highest reserved sequence without reuse.
+    - Injected writer failure clears in-flight and pending states marks the pending snapshot abandoned and reaches drain and close without deadlock.
+    - Formal job 2385625.opbs exits zero in 41 seconds on distinct hosts mg0017 and mg0018 with only the writer allocating GPU memory and no application MPI communication.
+    - The slow fragment-zero publication begins before learner training returns remains gated until after return and therefore proves the learner does not wait for filesystem publication reader syncer or quorum.
+    - Twenty safe-boundary captures yield seventeen publications and three replacements with one pending and one in-flight maximum for every fragment and final resident trace state 4 of 12.
+    - The remote reader performs 273 fixed-slot polls with no partial data or sequence regression and all four final parameter base token step and checksum chains match capture and writer records.
+    - The full 150-test Stage 1 suite passes the 28-file package is validator-admissible all packaged and PBS stderr files are empty and the independent Checker returns PASS.
+    checked_commit: d267052d08d4e88537e7cd8c5e9a14a13a8d5ae4
+    selected_evidence: [runtime_runs/S1-07/formal-l2, runtime_runs/S1-07/scheduler-2385625]
+    next_command: create the S1-08 branch from the S1-07 closure commit and begin its ORIENT phase
+  cost:
+    attempts_by_level: {L0: 5, L1: 3, L2: 1}
+    queue_seconds: 4
+    active_seconds: 97
+    checker_cycles: 3
+    goal_tokens_end: 2360240
+    agent_tokens_used: 337076
+    phase_token_deltas: {}
+    rework_causes:
+    - Checker Phase A found unbounded production trace history incomplete base failure and byte-immutability counterexamples analyzer predicates that did not fail closed and incomplete scheduler role preflight.
+    - The first corrected L1 run exposed one test-only restored-progress variable typo; the preserved failure led to a one-line fix before the final L1 and sole L2 submissions.
 blocker: null
