@@ -2,7 +2,7 @@ schema_version: 2
 loop_id: S1-05
 title: Proposal schema latest-wins discovery and generic eligibility
 stage: stage1
-status: in_progress
+status: pass
 source_hashes:
   research_plan: 2c0db3148110da10ea62f445c189d2d53b405527d8da264b9af9817f5ca9d835
   stage0_4_spec: 1ea71fb6e34fef0d7b5558d8e7999dfdedeb82957f4331afcf6f80279d1f5a7d
@@ -34,60 +34,72 @@ preflight:
   measurement_contract: reports/stage1/S1-05-evidence-contract.json
   package_contract: reports/stage1/S1-05-evidence-contract.json
   package_validator_command: fsbdd evidence validate runtime_runs/S1-05/formal-l2
-  package_validator_result: pending
+  package_validator_result: admissible at runtime_runs/S1-05/formal-l2 (29/29 files; manifest 79f82aa846d4240491bf15d57d2700b6dee7739258250a7edc35b850bfdaa16f)
   checker_phase_a: required
 red:
   command: .venv/bin/python tests/red_cases/s1_05_naive_proposal_surrogate.py
   exit_code: 1
   evidence_path: runtime_runs/S1-05/red-66964ff
 green:
-  command: PYTHONPATH=src .venv/bin/python -m pytest -q tests/stage1/test_s1_05_proposal.py
-  evidence_path: runtime_runs/S1-05/targeted-2
+  command: PYTHONPATH=src .venv/bin/python -m pytest -q tests/stage1
+  evidence_path: runtime_runs/S1-05/formal-l2/stdout/pytest.log
 harden:
   commands:
   - PYTHONPATH=src .venv/bin/python -m pytest -q tests/stage1
   - two concurrent one-node proposal_stress roles over 32 fixed slots with partial publication monotonic reorder shared selection and bounded frontiers
   - uvx ruff check plus py_compile and bash -n for the S1-05 production module stress driver tests and PBS script
   evidence_paths:
-  - runtime_runs/S1-05/l1-1
-  - runtime_runs/S1-05/l1-role-2
-  - runtime_runs/S1-05/l1-3
+  - runtime_runs/S1-05/preflight-clean-cf5e0fe
+  - runtime_runs/S1-05/formal-l2
 nine_node_gate: {required: false, run_id: null, topology_gate: null, loss_gate: null, runtime_gate: null}
 checker:
   context_id: /root/s1_05_checker
   maker_chat_inherited: false
-  phase_a_verdict: BLOCKED_PRECHECK on candidate 0ebaad20002f205a4079a7fa1f5aaf296bc80ec1
-  verdict: null
-  report_path: null
+  phase_a_verdict: ADMISSIBLE after storage-lock fragment-frontier code-identity and component-evidence corrections
+  verdict: PASS
+  report_path: reports/checkers/S1-05.md
   cycles:
   - cycle: 1
     phase: A
     checked_candidate: 0ebaad20002f205a4079a7fa1f5aaf296bc80ec1
     verdict: BLOCKED_PRECHECK
     correction: remove the forbidden storage-lock dependency bind frontiers to run/map/fragment freeze code identity and expose decoded-schema plus S1-04 bounded-base component evidence
+  - cycle: 2
+    phase: A-recheck
+    checked_candidate: cf5e0fe036dda0743aa92a15ab3064628bb58df4
+    verdict: ADMISSIBLE
+  - cycle: 3
+    phase: B
+    checked_candidate: cf5e0fe036dda0743aa92a15ab3064628bb58df4
+    verdict: PASS
+    report_sha256: 7b36aabfc62f56eef959afdb39026d42c819cfad0335652ec210d6ded8d63728
 persist:
-  evidence_index: null
+  evidence_index: evidence/indexes/S1-05.md
   raw_evidence_root: runtime_runs/S1-05
-  acceptance_traceability_updated: false
-  next_gap: null
+  acceptance_traceability_updated: true
+  next_gap: S1-06 must implement the Torch/HF learner inner-training core with deterministic progress and telemetry semantics.
   handoff:
     proven_facts:
     - S1-03 supplies payload-first visibility-last fixed-slot publication and S1-04 supplies frozen per-fragment identities and bounded base content identities.
     - S0C-02 supplies the shared one-per-learner consumption and stale-aware selection decision vectors.
     - The production proposal codec binds complete local bytes to run config model map learner fragment base progress dtype shape checksum and content identities.
-    - Fixed-slot discovery performs exactly M times F reads and the monotonic visibility lock prevents a delayed lower sequence from replacing a newer proposal.
+    - Fixed-slot discovery performs exactly M times F reads and a latest-authority recheck prevents a delayed lower sequence from replacing a newer proposal under the one-writer/one-in-flight invariant without filesystem locks.
     - All shared Stage 0 decision-vector permutations match and successful consumption preserves exactly one sequence/base frontier pair per frozen learner and fragment.
-    - The hardened one-node role exercise populated 32 slots proved payload-only invisibility and history-independent discovery and selected eight distinct fresh learners per fragment.
-    checked_commit: 0ebaad20002f205a4079a7fa1f5aaf296bc80ec1
-    selected_evidence: [evidence/indexes/S0C-02.md, evidence/indexes/S1-04.md, runtime_runs/S1-05/checker-fix-1, runtime_runs/S1-05/checker-fix-role]
-    next_command: commit the Checker corrections and request Phase A recheck from the same independent context before the single formal L2 batch
+    - Selected L2 job 2385040.opbs exits zero on writer mg0009 and discoverer mg0015 with identical frozen run config model map code and skill identities.
+    - The remote discoverer proves payload-only invisibility complete retry visibility 32 fixed reads before and after 10000 unrelated objects and no normal-path scan.
+    - Same-sequence replay is idempotent conflicting content and delayed sequence regression fail without new authoritative state and the final latest sequence is three.
+    - Every one of four fragments selects eight distinct fresh learners then a fragment-bound fixed frontier rejects every contribution on repeated polling.
+    - All 119 Stage 1 tests pass the package is checksum-valid and validator-admissible and all PBS and packaged stderr logs are empty.
+    checked_commit: cf5e0fe036dda0743aa92a15ab3064628bb58df4
+    selected_evidence: [runtime_runs/S1-05/formal-l2, runtime_runs/S1-05/scheduler-2385040]
+    next_command: create the S1-06 branch from the S1-05 closure commit and begin its ORIENT phase
   cost:
-    attempts_by_level: {L0: 5, L1: 9, L2: 0}
-    queue_seconds: null
-    active_seconds: null
-    checker_cycles: 0
-    goal_tokens_end: null
-    agent_tokens_used: null
+    attempts_by_level: {L0: 6, L1: 10, L2: 1}
+    queue_seconds: 2
+    active_seconds: 30
+    checker_cycles: 3
+    goal_tokens_end: 1235089
+    agent_tokens_used: 793122
     phase_token_deltas: {}
     rework_causes:
     - The first surrogate invocation stopped at a TemporaryDirectory mkdir precondition before semantic assertions; the surrogate commit was amended and the single semantic RED attempt then produced all seven expected failures.
