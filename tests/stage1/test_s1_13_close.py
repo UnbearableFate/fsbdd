@@ -325,6 +325,11 @@ def _runtime_fixture(tmp_path: Path) -> tuple[list[dict[str, object]], dict[str,
         "active": {"active_start_unix_ns": 1},
         "completion": {"active_end_unix_ns": 9_000_000_000},
         "updates": updates,
+        "logging": {
+            "jsonl_fsync_every_events": 40,
+            "final_fsync_complete": True,
+            "role_json_is_written_after_final_fsync": True,
+        },
         "readiness": {
             "active_fragment": None,
             "resident_selected_proposals": 0,

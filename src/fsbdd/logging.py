@@ -10,10 +10,21 @@ from typing import Any
 
 
 class StructuredLogger:
-    def __init__(self, path: Path, *, role: str, run_id: str) -> None:
+    def __init__(
+        self,
+        path: Path,
+        *,
+        role: str,
+        run_id: str,
+        fsync_every: int = 1,
+    ) -> None:
+        if not isinstance(fsync_every, int) or isinstance(fsync_every, bool) or fsync_every <= 0:
+            raise ValueError("fsync_every must be a positive integer")
         self.path = path
         self.role = role
         self.run_id = run_id
+        self.fsync_every = fsync_every
+        self._emits = 0
         self._lock = threading.Lock()
         path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -38,5 +49,15 @@ class StructuredLogger:
             with self.path.open("a", encoding="utf-8") as stream:
                 stream.write(json.dumps(record, sort_keys=True, separators=(",", ":")) + "\n")
                 stream.flush()
-                os.fsync(stream.fileno())
+                self._emits += 1
+                if self._emits % self.fsync_every == 0:
+                    os.fsync(stream.fileno())
         return record
+
+    def sync(self) -> None:
+        with self._lock:
+            if not self.path.exists():
+                return
+            with self.path.open("a", encoding="utf-8") as stream:
+                stream.flush()
+                os.fsync(stream.fileno())

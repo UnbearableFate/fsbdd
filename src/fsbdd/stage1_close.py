@@ -743,7 +743,12 @@ def run_syncer(
         progress=tracker,
         merge_backend="numpy",
     )
-    logger = StructuredLogger(result_root / "logs" / "syncer.jsonl", role="syncer", run_id=run_id)
+    logger = StructuredLogger(
+        result_root / "logs" / "syncer.jsonl",
+        role="syncer",
+        run_id=run_id,
+        fsync_every=40,
+    )
     updates: list[dict[str, Any]] = []
     inventories: list[dict[str, Any]] = []
     last_inventory_cycle = -1
@@ -852,6 +857,7 @@ def run_syncer(
             loss_bearing_target_tokens=int(progress["loss_bearing_target_tokens"]),
         )
     final_report = tracker.report()
+    logger.sync()
     readiness = dataclasses.asdict(executor.readiness.snapshot())
     final_inventory = {
         "global_cycle": final_report.global_cycle,
@@ -881,6 +887,11 @@ def run_syncer(
         "progress": final_report.to_dict(),
         "update_count": len(updates),
         "updates": updates,
+        "logging": {
+            "jsonl_fsync_every_events": 40,
+            "final_fsync_complete": True,
+            "role_json_is_written_after_final_fsync": True,
+        },
         "readiness": readiness,
         "inventories": inventories,
         "final_roles": [

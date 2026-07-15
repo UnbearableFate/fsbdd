@@ -400,6 +400,11 @@ def _runtime_gate(
     pending_stall_pass = (
         all(item["pass"] for item in learner_pending_rows) and syncer_pending_pass
     )
+    logging_pass = syncer.get("logging") == {
+        "jsonl_fsync_every_events": 40,
+        "final_fsync_complete": True,
+        "role_json_is_written_after_final_fsync": True,
+    }
     passed = (
         0 < active_seconds <= budget
         and active_seconds / walltime < walltime_limit
@@ -409,6 +414,7 @@ def _runtime_gate(
         and all(math.isfinite(item) and item > 0 for item in update_latencies)
         and heartbeat_pass
         and pending_stall_pass
+        and logging_pass
     )
     return {
         "schema_version": 1,
@@ -474,6 +480,10 @@ def _runtime_gate(
                 "pass": syncer_pending_pass,
             },
             "pass": pending_stall_pass,
+        },
+        "syncer_logging_durability": {
+            "policy": syncer.get("logging"),
+            "pass": logging_pass,
         },
         "queue_time_excluded": True,
     }
