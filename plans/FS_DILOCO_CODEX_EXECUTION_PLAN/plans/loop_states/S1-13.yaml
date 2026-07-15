@@ -20,7 +20,7 @@ acceptance_ids: [A-LEARN-01, A-PERF-01]
 orient:
   unique_failing_gap: Stage 1 components and small Profile A closure pass independently but no production large-model role harness analyzer bounded-state collector nine-distinct-host baseline or M=4 one-billion-token run closes the integrated capability.
   non_goals: [stale proposals, S_max one, matched-token quality comparison, Stage 2 goodput threshold, DDP NCCL RPC parameter server, mutable Hub revisions]
-  planned_files: [src/fsbdd/diloco/, src/fsbdd/auxiliary/stage1/, src/fsbdd/auxiliary/stress/, configs/stage1/s1_13_stage1_close.json, tests/stage1/test_s1_13_close.py, tests/stage1/test_s1_13_static.py, tests/stage1/test_source_architecture.py, tests/red_cases/s1_13_naive_gate_analyzer.py, pbs/stage1_s1_13_assets.pbs, pbs/stage1_s1_13_targeted.pbs, pbs/stage1_s1_13_smoke_1n.pbs, pbs/stage1_s1_13_smoke_2n.pbs, pbs/stage1_s1_13_formal_9n.pbs, pbs/stage1_s1_13_long_smoke.pbs, pbs/stage1_s1_13_formal_long.pbs, reports/stage1/S1-13-requirement-matrix.csv, reports/stage1/S1-13-evidence-contract.json, reports/stage1/S1-13-gate-contract.json, reports/stage1/S1-13-experiment-failures.json]
+  planned_files: [src/fsbdd/diloco/, src/fsbdd/auxiliary/stage1/, src/fsbdd/auxiliary/stress/, configs/stage1/s1_13_stage1_close.json, tests/stage1/test_s1_13_close.py, tests/stage1/test_s1_13_static.py, tests/stage1/test_source_architecture.py, tests/red_cases/s1_13_naive_gate_analyzer.py, pbs/stage1_s1_13_assets.pbs, pbs/stage1_s1_13_targeted.pbs, pbs/stage1_s1_13_targeted_focus.pbs, pbs/stage1_s1_13_smoke_1n.pbs, pbs/stage1_s1_13_smoke_2n.pbs, pbs/stage1_s1_13_formal_9n.pbs, pbs/stage1_s1_13_long_smoke.pbs, pbs/stage1_s1_13_formal_long.pbs, reports/stage1/S1-13-requirement-matrix.csv, reports/stage1/S1-13-evidence-contract.json, reports/stage1/S1-13-gate-contract.json, reports/stage1/S1-13-experiment-failures.json]
   model_data_profile: Immutable pretrained GPT-2 small plus WikiText-2 raw packed-512 for the 8+1 gate and immutable pretrained Pythia-160m plus FineWeb-Edu canonical packed-512 prefix for the M=4 aggregate-at-least-one-billion-input-token long run.
   miyabi_skill_commit: c3ddfa47cadfd9132edf939d359b90b28ab5f8ed
   hugging_face_cli_skill: hugging-face:hf-cli 1.0.0
@@ -39,6 +39,12 @@ orient:
     reviewed_ledger: reports/stage1/S1-13-experiment-failures.json
     correction_commit: 5b061cbb1546d5ce6357081009e942ebf61ad469
     retry_submitted: false
+    focused_validation:
+      experiment_id: fsbdd-s1-13-targeted-focus-2392542.opbs
+      pbs_job_id: 2392542.opbs
+      code_commit: a02650506593803584a060cb6f839eff14ebbe78
+      result: 21 selected tests passed in 0.42 seconds; scheduler exit status 0
+      raw_evidence_root: runtime_runs/S1-13/targeted-focus-a026505-20260715T191211Z
   attempt_budget: {asset_stage: 2, red: 1, targeted: 3, l1_real: 2, l2_real: 2, formal_l3_9n: 2, formal_l4_long: 2}
   failure_ladder: preserve the first expensive failure then reproduce its failing role or analyzer at the smallest one-node or two-node topology before an authorized retry
   nine_node_gate_required: true
@@ -64,12 +70,12 @@ green:
   evidence_path: reports/stage1/S1-13-experiment-failures.json
 harden:
   commands: [bash -n every active S1-13 PBS script and failure helper, jq empty failure and evidence contracts, git diff --check]
-  evidence_paths: [runtime_runs/S1-13/targeted-f0bb4fb-20260715T180720Z, runtime_runs/S1-13/targeted-681e013-20260715T182501Z, evidence/indexes/S1-13.md]
+  evidence_paths: [runtime_runs/S1-13/targeted-f0bb4fb-20260715T180720Z, runtime_runs/S1-13/targeted-681e013-20260715T182501Z, runtime_runs/S1-13/targeted-focus-a026505-20260715T191211Z, evidence/indexes/S1-13.md]
 nine_node_gate: {required: true, run_id: null, topology_gate: null, loss_gate: null, runtime_gate: null}
 checker:
   context_id: s1_13_checker
   maker_chat_inherited: false
-  phase_a_verdict: candidate 681e013 was admitted for one targeted retry; that retry failed and correction commit requires review
+  phase_a_verdict: candidate a026505 was admitted for exactly one focused reproduction; job 2392542 passed all 21 selected tests; no complete targeted or runtime run is yet authorized
   verdict: null
   report_path: reports/checkers/S1-13.md
   cycles:
@@ -82,11 +88,14 @@ checker:
       verdict: ADMISSIBLE for exactly one one-node targeted retry
       result: incomplete after 262 pass markers and one failure; PBS walltime exit -29
     - candidate: 5b061cbb1546d5ce6357081009e942ebf61ad469
-      verdict: pending
+      verdict: correction included in exact focused candidate a026505
+    - candidate: a02650506593803584a060cb6f839eff14ebbe78
+      verdict: ADMISSIBLE for exactly one one-node focused reproduction
+      result: 21 selected tests passed; scheduler exit status 0
 persist:
   evidence_index: evidence/indexes/S1-13.md
   raw_evidence_root: runtime_runs/S1-13
   acceptance_traceability_updated: false
   next_gap: Stage 2 asynchronous GPU to CPU to filesystem publication pipeline
-  handoff: Candidate 5b061cb fixes the missing readiness fixture identity, bounds and throttles the concurrent-reader evidence harness, and captures future targeted stalls before PBS walltime; static checks pass; return the exact diff and reviewed ledger to the same Checker before any test.
-blocker: Same Checker review is required before any focused verification or targeted retry; no learner/syncer runtime, 9N, long smoke, or formal long submission is allowed.
+  handoff: Candidate a026505 passed the Checker-authorized focused reproduction for the readiness identity and bounded concurrent-reader corrections; return job 2392542 evidence to the same Checker before one complete targeted retry; no runtime experiment is authorized.
+blocker: Same Checker review of focused job 2392542 is required before exactly one complete targeted retry; no learner/syncer runtime, 9N, long smoke, or formal long submission is allowed.

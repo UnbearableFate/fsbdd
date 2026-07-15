@@ -144,7 +144,7 @@
     },
     {
       "experiment_id": "fsbdd-s1-13-targeted-2392261.opbs",
-      "analysis_status": "reviewed_corrections_implemented_static_validation_pending",
+      "analysis_status": "reviewed_corrections_focused_validation_pass_complete_targeted_pending",
       "workload": "one-node identity-bound static and complete Stage 1 targeted regression retry",
       "pbs_job_id": "2392261.opbs",
       "code_commit": "681e013f55dba602ec9bb91b5c9d6bcc516168d5",
@@ -185,17 +185,36 @@
         "scope": "No learner/syncer runtime reproduction, 9N run, long smoke, or formal long run was launched."
       },
       "expected_solution": {
-        "status": "implemented_pending_static_and_checker_validation",
+        "status": "implemented_focused_validation_pass_complete_targeted_pending",
         "changes": [
           "Add logical_syncer_id to the readiness analyzer's positive frozen-selection fixture and add a negative mutation proving mismatched syncer identity is rejected.",
           "Replace the concurrent-reader test's append-only observation lists with bounded distinct-observation sets plus scalar counts, and yield briefly between polls so the writer cannot be starved by a synthetic zero-delay loop.",
           "Add catchable scheduler signal capture to the shared failure helper.",
           "Run targeted pytest under a pre-walltime timeout with verbose node IDs, a faulthandler timeout, and slow-test durations so future stalls are attributable and recorded before PBS termination."
         ],
+        "focused_validation": {
+          "experiment_id": "fsbdd-s1-13-targeted-focus-2392542.opbs",
+          "pbs_job_id": "2392542.opbs",
+          "code_commit": "a02650506593803584a060cb6f839eff14ebbe78",
+          "raw_evidence_root": "runtime_runs/S1-13/targeted-focus-a026505-20260715T191211Z",
+          "result": "pass",
+          "stage1_tests_passed": 21,
+          "stage1_tests_failed": 0,
+          "pytest_duration_seconds": 0.42,
+          "concurrent_reader_test_duration_seconds": 0.18,
+          "scheduler_exit_status": 0,
+          "scheduler_walltime": "00:00:03",
+          "scheduler_peak_resident_kb": 271616,
+          "abnormal_nodes": "none",
+          "checksum_inventory_sha256": "1bea86e54941e1e66b2d3e242f10daaf1b04f597ddccabd39eb9c55ece701110",
+          "tracejob_sha256": "3970698faa26e5f1d0df4c544e8971adc3cbb8c92ddcc517449e5fb7418526bb",
+          "pytest_log_sha256": "6cb1e43432ed70f6f94160b15fa7d588abb15a26d51ed5fbce3554e76c59559e",
+          "pbs_stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
         "validation_before_next_experiment": [
-          "Pass compileall, Ruff, Pyright, JSON/YAML/diff integrity, and every active S1-13 Bash syntax check.",
-          "Return the reviewed failure, correction diff, bounded-reader reasoning, and exact evidence hashes to the same Checker.",
-          "Do not submit another test until the same Checker authorizes the smallest focused verification or targeted retry at an exact clean commit."
+          "Return the focused reproduction evidence and exact candidate identity to the same Checker.",
+          "Do not submit the complete targeted suite until that Checker authorizes exactly one identity-bound retry.",
+          "Do not submit a learner/syncer runtime reproduction, 9N run, long smoke, or formal run until the complete targeted suite passes and the Checker authorizes the next smallest runtime validation."
         ]
       },
       "evidence_integrity": {
