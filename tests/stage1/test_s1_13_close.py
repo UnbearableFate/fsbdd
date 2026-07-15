@@ -54,6 +54,7 @@ def _spec(sequence: int) -> PublicationSpec:
 def test_metadata_only_read_and_bounded_payload_reclamation(tmp_path: Path, monkeypatch) -> None:
     backend = PosixStorageBackend(tmp_path)
     records = [backend.publish("current", bytes([index]) * 16, _spec(index)) for index in range(5)]
+    assert backend.read_bound_record(records[0]).payload == bytes([0]) * 16
     for path in (tmp_path / "payloads").iterdir():
         os.utime(path, ns=(1, 1))
     original = Path.read_bytes

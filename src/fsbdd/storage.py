@@ -633,3 +633,30 @@ class PosixStorageBackend:
                     "payload did not become complete and readable before timeout"
                 )
             time.sleep(float(poll_interval_seconds))
+
+    def read_bound_record(self, record: PublicationRecord) -> PublishedPayload:
+        """Read the immutable payload named by one already-validated record."""
+
+        if not isinstance(record, PublicationRecord):
+            raise PublicationError("bound read requires a PublicationRecord")
+        relative = Path(record.payload_relative_path)
+        if (
+            relative.is_absolute()
+            or len(relative.parts) != 2
+            or relative.parts[0] != "payloads"
+            or ".." in relative.parts
+        ):
+            raise PublicationError("bound record payload path is unsafe")
+        path = self._root / relative
+        try:
+            payload = path.read_bytes()
+        except FileNotFoundError as error:
+            raise PublicationNotReady("bound payload is no longer readable") from error
+        except OSError as error:
+            raise PublicationError(f"bound payload read failed: {error}") from error
+        if (
+            len(payload) != record.payload_bytes
+            or hashlib.sha256(payload).hexdigest() != record.payload_sha256
+        ):
+            raise PublicationNotReady("bound payload failed its immutable checksum")
+        return PublishedPayload(record=record, payload=payload)

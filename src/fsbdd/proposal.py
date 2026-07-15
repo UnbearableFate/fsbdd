@@ -386,6 +386,10 @@ class ProposalStore:
             tuple(threading.Lock() for _ in descriptors) for _ in learner_ids
         )
 
+    @property
+    def supports_bound_record_reads(self) -> bool:
+        return callable(getattr(self._backend, "read_bound_record", None))
+
     def _descriptor(self, index: int) -> FragmentStateDescriptor:
         index = _require_ordinal(index, "fragment_index")
         try:
@@ -468,6 +472,19 @@ class ProposalStore:
             self._expectation(descriptor),
             timeout_seconds=timeout_seconds,
         ).record
+
+    def load_bound_record(
+        self,
+        learner_id: str,
+        fragment_index: int,
+        record: PublicationRecord,
+    ) -> Proposal:
+        descriptor = self._validate_address(learner_id, fragment_index)
+        read_bound = getattr(self._backend, "read_bound_record", None)
+        if not callable(read_bound):
+            raise ProposalError("storage backend has no bound-record read")
+        published = read_bound(record)
+        return self._validate_published(published, learner_id, descriptor)
 
     def load_latest_if_changed(
         self,

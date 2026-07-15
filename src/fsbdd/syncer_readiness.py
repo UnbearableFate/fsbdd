@@ -21,7 +21,7 @@ from .proposal import (
     compute_candidate_weights,
     select_candidates,
 )
-from .storage import PublicationNotFound, PublicationNotReady
+from .storage import PublicationNotFound, PublicationNotReady, PublicationRecord
 
 
 class ReadinessError(ProposalError):
@@ -520,7 +520,44 @@ class SyncerReadinessMachine:
         missing = 0
         transient = 0
         reads = 0
-        changed: list[tuple[str, int, str | None]] = []
+        if not self.store.supports_bound_record_reads:
+            for learner_id in self.store.learner_ids:
+                for descriptor in self.store.descriptors:
+                    reads += 1
+                    key = (learner_id, descriptor.index)
+                    try:
+                        record, proposal = self.store.load_latest_if_changed(
+                            learner_id,
+                            descriptor.index,
+                            known_payload_identity=self._proposal_payload_identities.get(
+                                key
+                            ),
+                            timeout_seconds=0,
+                        )
+                    except PublicationNotFound:
+                        missing += 1
+                        continue
+                    except PublicationNotReady:
+                        transient += 1
+                        continue
+                    if proposal is None:
+                        self._payload_cache_hits += 1
+                        continue
+                    self._proposal_cache[key] = proposal
+                    self._proposal_payload_identities[key] = record.payload_identity
+                    self._payload_cache_misses += 1
+            with self._lock:
+                report = self.observe(
+                    tuple(self._proposal_cache.values()), observed_ns=observed_ns
+                )
+                self._fixed_slot_reads += reads
+                return dataclasses.replace(
+                    report,
+                    fixed_slot_reads=reads,
+                    missing_slots=missing,
+                    transient_unavailable_slots=transient,
+                )
+        changed: list[tuple[str, int, PublicationRecord]] = []
         for learner_id in self.store.learner_ids:
             for descriptor in self.store.descriptors:
                 reads += 1
@@ -541,7 +578,7 @@ class SyncerReadinessMachine:
                 if record.payload_identity == known:
                     self._payload_cache_hits += 1
                     continue
-                changed.append((learner_id, descriptor.index, known))
+                changed.append((learner_id, descriptor.index, record))
         if changed:
             # Payload decoding includes two large SHA-256 authorities.  Changed
             # fixed slots are independent, so decode them concurrently while
@@ -549,27 +586,23 @@ class SyncerReadinessMachine:
             with ThreadPoolExecutor(max_workers=len(changed)) as workers:
                 futures = [
                     workers.submit(
-                        self.store.load_latest_if_changed,
+                        self.store.load_bound_record,
                         learner_id,
                         fragment_index,
-                        known_payload_identity=known,
-                        timeout_seconds=0,
+                        record,
                     )
-                    for learner_id, fragment_index, known in changed
+                    for learner_id, fragment_index, record in changed
                 ]
-                for (learner_id, fragment_index, _known), future in zip(
+                for (learner_id, fragment_index, record), future in zip(
                     changed, futures, strict=True
                 ):
                     try:
-                        record, proposal = future.result()
+                        proposal = future.result()
                     except PublicationNotFound:
                         missing += 1
                         continue
                     except PublicationNotReady:
                         transient += 1
-                        continue
-                    if proposal is None:
-                        self._payload_cache_hits += 1
                         continue
                     key = (learner_id, fragment_index)
                     self._proposal_cache[key] = proposal
