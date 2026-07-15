@@ -117,6 +117,11 @@ orient:
       authorization_gate: The same S1-13 Checker must review job 2392959's immutable evidence, reviewed failure entry, minimal control-flow correction, static gates, and this amendment and explicitly authorize an exact clean commit before submission.
       authorization_commit: 240084d17e9e609104715c9073aac395034fd9d1
       checker_verdict: ADMISSIBLE for exactly one third-and-final asset_stage job; no other compute run authorized
+      final_attempt: 2392989.opbs
+      run_id: s1-13-asset-rebuild-final-20260715T210125Z-240084d
+      output_root: runtime_runs/S1-13/assets-rebuild-final-20260715T210125Z-240084d
+      log_root: runtime_runs/S1-13/asset-stage-rebuild-final-20260715T210125Z-240084d
+      final_attempt_result: pass; scheduler exit 0; no abnormal node; producer-bound bundle complete; both workload validators compatible; all four dataset trees hard-link reused; immutable evidence awaits same-Checker Phase B
     - amended_at_utc: 2026-07-15T19:18:02Z
       prior_targeted_budget: 3
       amended_targeted_budget: 4
@@ -228,12 +233,12 @@ checker:
       result: job 2392959 passed three focused tests and emitted the exact old/current registry and fragment-map mismatch, then failed before materialization because its expected status 1 activated the inherited ERR trap; scheduler exit 1
     - candidate: 240084d17e9e609104715c9073aac395034fd9d1
       verdict: Phase B PASS for job 2392959 failure attribution and asset_stage budget amendment 2 to 3; Phase A ADMISSIBLE for exactly one third-and-final asset_stage job using only pbs/stage1_s1_13_assets.pbs; no other compute run authorized
-      result: pending exact-clean offline producer-bound asset rebuild
+      result: asset-stage job 2392989 passed from the exact-clean authorized commit with scheduler exit 0, no abnormal node, a complete producer-bound bundle, compatible nine-node and long-run validators, three focused tests passed, all four dataset trees hard-link reused, and a checksum-verified retained package; same-Checker Phase B review pending
 persist:
   evidence_index: evidence/indexes/S1-13.md
   raw_evidence_root: runtime_runs/S1-13
   acceptance_traceability_updated: false
   next_gap: Stage 2 asynchronous GPU to CPU to filesystem publication pipeline
   handoff: >-
-    Same-Checker Phase B passed job 2392959 failure attribution, admitted the reasoned asset budget amendment, and authorized exactly one third-and-final asset_stage job at 240084d17e9e609104715c9073aac395034fd9d1. Use only pbs/stage1_s1_13_assets.pbs from an exact-clean detached worktree with the frozen old identities, fully offline cache, all four dataset hard links, and unique absent roots. It must re-prove the mismatch, materialize producer-bound bootstraps, and post-validate both workloads. No preflight, L2, 9N, long-smoke, or formal run is authorized.
-blocker: Exactly one third-and-final asset_stage job is authorized at 240084d17e9e609104715c9073aac395034fd9d1 and not yet submitted. No other compute run is authorized.
+    Asset-stage job 2392989 passed from exact-clean authorized commit 240084d17e9e609104715c9073aac395034fd9d1. The retained package proves the expected old-asset mismatch, complete producer-bound replacement assets, compatible nine-node and long-run identities, exact hard-link reuse of all four frozen dataset trees, scheduler exit 0, and three focused tests passed. Return this immutable package to the same Checker for Phase B before refreezing tracked configs. No preflight, L2, 9N, long-smoke, or formal run is authorized.
+blocker: Job 2392989 passed, but its immutable asset evidence requires same-Checker Phase B review before tracked config refreeze or any further compute authorization. No other compute run is authorized.
