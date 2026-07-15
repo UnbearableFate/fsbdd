@@ -10,7 +10,7 @@ git:
   integration_branch: master
   branch: codex/S1-08-latest-adoption
   base_commit: 36487f874c97039c98ab7c18d5f75b8c284cf847
-  result_commit: null
+  result_commit: fc7b792fdaf9480490138075c9a261a92fc64e52
   dirty_at_start: true
 dependencies: [S1-04, S1-06, S1-03, S1-02]
 requirements: [LEARN-08, LEARN-09, LEARN-10, LEARN-11, GLOBAL-04, INV-09]
