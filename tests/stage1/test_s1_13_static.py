@@ -180,6 +180,11 @@ def test_asset_rebuild_is_identity_bound_offline_and_reuses_frozen_datasets() ->
     ):
         assert token in script
     assert "hf download" not in script
+    assert (
+        'if "$PYTHON" -m fsbdd.auxiliary.stage1.assets validate-compatibility'
+        in script
+    )
+    assert "set +e" not in script
 
 
 def test_formal_package_retains_current_protocol_samples_and_rejects_placeholders() -> (

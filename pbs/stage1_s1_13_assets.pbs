@@ -60,8 +60,7 @@ timeout --signal=TERM --kill-after=30s 420s \
   tests/stage1/test_s1_13_static.py::test_asset_rebuild_is_identity_bound_offline_and_reuses_frozen_datasets \
   > "$LOG_ROOT/pytest.log" 2> "$LOG_ROOT/pytest.err"
 
-set +e
-"$PYTHON" -m fsbdd.auxiliary.stage1.assets validate-compatibility \
+if "$PYTHON" -m fsbdd.auxiliary.stage1.assets validate-compatibility \
   --project-root "$PROJECT_ROOT" \
   --config "$OLD_RESOLVED_CONFIG" \
   --expected-config-sha256 "$OLD_CONFIG_SHA256" \
@@ -69,9 +68,11 @@ set +e
   --expected-producer-commit "$EXPECTED_COMMIT" \
   --hub-cache "$HUB_CACHE" --output "$LOG_ROOT/prior-compatibility.json" \
   > "$LOG_ROOT/prior-compatibility.stdout" \
-  2> "$LOG_ROOT/prior-compatibility.stderr"
-COMPATIBILITY_EXIT="$?"
-set -e
+  2> "$LOG_ROOT/prior-compatibility.stderr"; then
+  COMPATIBILITY_EXIT=0
+else
+  COMPATIBILITY_EXIT="$?"
+fi
 if [[ "$COMPATIBILITY_EXIT" -ne 1 ]] || \
    [[ "$(jq -r '.status' "$LOG_ROOT/prior-compatibility.json" 2>/dev/null)" != "mismatch" ]] || \
    [[ "$(jq -r '(.checks.registry_identity == false) or (.checks.fragment_map_identity == false)' "$LOG_ROOT/prior-compatibility.json" 2>/dev/null)" != "true" ]]; then

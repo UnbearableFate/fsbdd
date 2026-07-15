@@ -404,6 +404,81 @@
         "asset_job_qstat_sha256": "e7c9e87a91b4f8aa18d1aa419904ee2d51ee0824d3d988f55bb765f78c070891",
         "asset_job_tracejob_sha256": "2493493fd7a54bcfec1744657efd6d78c912ff7ad773a0505ce2bf6a3e64ac94"
       }
+    },
+    {
+      "experiment_id": "s1-13-asset-rebuild-20260715T205306Z-6a5adf9",
+      "analysis_status": "reviewed_expected_nonzero_err_trap_correction_required",
+      "workload": "single-node offline real-model compatibility diagnosis and producer-bound immutable asset rebuild",
+      "pbs_job_id": "2392959.opbs",
+      "code_commit": "6a5adf91028759ff9608de219c59f27cdc5d409d",
+      "queued_at_utc": "2026-07-15T20:53:06Z",
+      "failed_at_utc": "2026-07-15T20:53:50Z",
+      "raw_evidence_root": "runtime_runs/S1-13/asset-stage-rebuild-20260715T205306Z-6a5adf9",
+      "intended_output_root": "runtime_runs/S1-13/assets-rebuild-20260715T205306Z-6a5adf9",
+      "failure": {
+        "summary": "The compatibility validator successfully emitted the frozen expected/actual mismatch and intentionally returned 1, but the inherited ERR trap treated that expected diagnostic status as an experiment failure before the script could inspect it.",
+        "exit_code": 1,
+        "failed_command": "python -m fsbdd.auxiliary.stage1.assets validate-compatibility against the old nine-node resolved config and asset bundle",
+        "observed_progress": {
+          "focused_tests_passed": 3,
+          "focused_tests_failed": 0,
+          "compatibility_report_status": "mismatch",
+          "old_registry_digest": "27b639fb857a7a9fb7112f78920aa753c8949f4e403ee626e3c892aa0d84552a",
+          "current_registry_digest": "57fc39e7462da97b09f0aa92769b77e000f8fe6f8f12e830dcfb237cf951d933",
+          "old_fragment_map_digest": "58dc07dc880ea13b582edcd1ca6316fa03ac3b574d44c73184b10500f398de75",
+          "current_fragment_map_digest": "9a7da06767ebd2cfd2ce0a0ec4f585d375f91350674c2cf62bc414f6f4b66200",
+          "model_parameter_identity_match": true,
+          "producer_identity_match": false,
+          "asset_output_root_created": false,
+          "scheduler_exit_status": 1,
+          "scheduler_walltime": "00:00:30",
+          "scheduler_peak_resident_kb": 2382272,
+          "compute_host": "mg1031",
+          "abnormal_nodes": "none"
+        },
+        "automatic_capture": "The ERR trap wrote failures/raw-2392959.opbs-2460091.json at asset-script line 64."
+      },
+      "cause": {
+        "status": "diagnosed_expected_nonzero_command_was_not_placed_in_err_trap_immune_conditional_context",
+        "summary": "The script used set +e around the validator, assuming that this would suppress the ERR trap. Bash ERR traps still run for a failing simple command outside an immune conditional context, so the trap exited immediately on the validator's contractually expected status 1. The subsequent COMPATIBILITY_EXIT and mismatch assertions were never reached.",
+        "direct_evidence": [
+          "prior-compatibility.json is complete, status mismatch, and records both registry_identity=false and fragment_map_identity=false with exact expected and actual digests.",
+          "The model parameter digest matches exactly, isolating the incompatibility to registry/map identity rather than checkpoint weights.",
+          "PBS stderr identifies line 64 as the expected validate-compatibility command, and the raw failure record contains the same command and exit status 1.",
+          "No prepare.json exists, output-root-created.txt is false, and the intended rebuilt asset root does not exist, proving that materialization never began.",
+          "The three focused tests passed before the diagnostic command, and both pytest and compatibility stderr are empty."
+        ],
+        "scope": "This is an asset-stage control-flow defect. No learner, syncer, proposal, outer update, dataset rewrite, 9N run, long smoke, or formal run occurred."
+      },
+      "expected_solution": {
+        "status": "code_review_static_validation_budget_amendment_and_same_checker_authorization_required",
+        "changes": [
+          "Execute the expected-mismatch validator as the condition of an if/else statement, capture status 0 or 1 inside that ERR-trap-immune conditional context, and keep every unexpected status or malformed report fatal.",
+          "Add a focused static contract assertion that the diagnostic command is conditional and that set +e is not used as ERR-trap suppression.",
+          "Review the entire asset script again for any other expected nonzero commands that can trigger the shared failure trap.",
+          "Preserve this exact compatibility report as the completed diagnosis; do not rerun it merely for confidence, although the rebuild script must still verify the frozen mismatch before materialization."
+        ],
+        "validation_before_next_experiment": [
+          "Pass all permitted login-node compile, Ruff, Pyright, Bash, JSON/YAML, and diff gates without executing project tests or loading models there.",
+          "Record that both original asset_stage attempts are consumed and persist a reasoned amendment before proposing one replacement rebuild attempt.",
+          "Return this immutable failure package, reviewed root cause, minimal control-flow correction, and amended one-job scope to the same Checker for exact-commit authorization.",
+          "Do not submit any asset, reproduction-preflight, L2, 9N, long-smoke, or formal job before that authorization."
+        ]
+      },
+      "evidence_integrity": {
+        "checksum_inventory_sha256": "3962ff56a7d23f1617f00a7e5761e0724e0c5e0ec3986069ce3ecb05a6cf8929",
+        "compatibility_report_sha256": "52255dab9d1db9397ddac38005a00f08a37b46e271b8c298f30a6a1ed420c9e6",
+        "compatibility_stdout_sha256": "934894fe18a4b37d31cd26b593016ea805ec70f8e06dff4e143516e884a327b7",
+        "compatibility_stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "pytest_log_sha256": "5dac7449fa3c7f9727c7d22f1813b51577f378731ae8ea05c6d2e2539e036b08",
+        "pytest_stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "raw_failure_sha256": "b055d947f9e0c5c5455f88aa019aa99b1d95dc2ed7344d86d946225c07daeb9b",
+        "qstat_final_sha256": "1f3f8419d6918b89017241d569c77e5c0926b6aeb3f2b6dd4afcd6d68c93337f",
+        "tracejob_sha256": "6de1f20d5b0341f50f117422202fb1e399e21636ffe2ef47a99a90ca19aec3bf",
+        "pbs_stderr_sha256": "347c5c33ce25da455c484cfb2a26619ab3fdcec666ef90e666304924033f757e",
+        "pbs_stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "output_root_created_sha256": "2ed27c1421e6928dbe13dbfdb5c59e1045b30341fe7ebe05700006bc5ac572c0"
+      }
     }
   ]
 }
