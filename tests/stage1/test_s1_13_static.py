@@ -78,6 +78,35 @@ def test_formal_topologies_freeze_independent_9n_and_coallocated_4_plus_1() -> N
     assert "test_formal_topologies_freeze_independent_9n_and_coallocated_4_plus_1" in focus
 
 
+def test_capacity_preflight_is_identity_bound_exact_size_and_bounded() -> None:
+    script = (ROOT / "pbs/stage1_s1_13_numpy_correction.pbs").read_text(
+        encoding="utf-8"
+    )
+    contract = json.loads(
+        (ROOT / "reports/stage1/S1-13-capacity-preflight-contract.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    for token in (
+        "EXPECTED_COMMIT",
+        "CAPACITY_CONTRACT_SHA256",
+        'if [[ -e "$SHARED_ROOT" || -e "$RESULT_ROOT" ]]',
+        'FSBDD_FAILURE_OUTPUT_ROOT="$RESULT_ROOT"',
+        "timeout --signal=TERM --kill-after=15s 120s",
+        "timeout --signal=TERM --kill-after=15s 300s",
+        "fsbdd.auxiliary.stage1.capacity",
+        "checksums.sha256",
+    ):
+        assert token in script
+    assert "#PBS -l select=1" in script
+    assert "#PBS -l walltime=00:10:00" in script
+    assert contract["payload_bytes"] == [309071808, 340239052]
+    assert contract["repetitions"] == 3
+    assert contract["thresholds"]["maximum_source_to_readback_median_ratio"] <= 0.75
+    assert contract["thresholds"]["minimum_mean_seconds_saved"] >= 0.4
+    assert contract["thresholds"]["maximum_predicted_update_mean_seconds"] <= 1.355
+
+
 def test_syncer_keeps_update_history_only_in_durable_jsonl() -> None:
     close_source = (ROOT / "src/fsbdd/auxiliary/stage1/close.py").read_text(
         encoding="utf-8"

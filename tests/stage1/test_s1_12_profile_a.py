@@ -281,6 +281,8 @@ def test_integrated_single_update_matches_stage0_oracle(tmp_path: Path) -> None:
     )
     assert update.source_metrics.opens == 4
     assert update.source_metrics.maximum_active_payloads == 1
+    assert update.merge_latency_seconds >= 0
+    assert update.commit_latency_seconds >= 0
     assert update.result.byte_accounting.full_model_operations == 0
     assert executor.progress.report().global_cycle == 0
     assert [

@@ -534,7 +534,7 @@ def run_learner(
         raise Stage1CloseError("learner index is outside the role topology")
     role_id = f"learner-{learner_index:02d}"
     policy = _outer_policy(config)
-    atomic, proposals, _global_backend, _proposal_backend = _stores(
+    atomic, proposals, global_backend, proposal_backend = _stores(
         shared_root,
         run_id=run_id,
         config_sha256=config_sha256,
@@ -774,6 +774,10 @@ def run_learner(
         },
         "gate_contract_sha256": gate_contract_sha256,
         "non_formal_long_smoke": non_formal_long_smoke,
+        "storage_publication_verification": {
+            "global": global_backend.publication_verification_mode,
+            "proposals": proposal_backend.publication_verification_mode,
+        },
         "logging": {
             "jsonl_fsync_every_events": 400,
             "final_fsync_complete": True,
@@ -813,6 +817,10 @@ def _update_record(update: Any, global_cycle: int, completed_ns: int) -> dict[st
         "staleness": [item.staleness for item in update.selection.weights],
         "byte_accounting": update.result.byte_accounting.to_dict(),
         "source_metrics": dataclasses.asdict(update.source_metrics),
+        "component_latency_seconds": {
+            "merge": update.merge_latency_seconds,
+            "commit": update.commit_latency_seconds,
+        },
         "successor_authority_identity": update.successor.authority_identity,
         "successor_parameters_sha256": update.successor.state.base_history[
             -1
@@ -1086,6 +1094,10 @@ def run_syncer(
         "run_id": run_id,
         "gate_contract_sha256": gate_contract_sha256,
         "non_formal_long_smoke": non_formal_long_smoke,
+        "storage_publication_verification": {
+            "global": global_backend.publication_verification_mode,
+            "proposals": proposal_backend.publication_verification_mode,
+        },
         "identity": {
             **bootstrap_record,
             "cuda_visible_devices": os.environ.get("CUDA_VISIBLE_DEVICES"),

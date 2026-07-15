@@ -3,6 +3,7 @@ from __future__ import annotations
 import contextlib
 import dataclasses
 import math
+import time
 from collections.abc import Iterator, Sequence
 
 from fsbdd.diloco.protocol.global_commit import (
@@ -459,6 +460,8 @@ class ProfileAUpdate:
     result: FragmentUpdateResult
     selection: FrozenSelection
     source_metrics: SourceMetrics
+    merge_latency_seconds: float
+    commit_latency_seconds: float
 
     def __post_init__(self) -> None:
         if not isinstance(self.selection, FrozenSelection):
@@ -467,6 +470,8 @@ class ProfileAUpdate:
             raise ProfileAError("Profile A update did not advance exactly one")
         if self.result.parameters != self.successor.parameters:
             raise ProfileAError("merge result differs from committed successor")
+        _finite_nonnegative(self.merge_latency_seconds, "merge_latency_seconds")
+        _finite_nonnegative(self.commit_latency_seconds, "commit_latency_seconds")
 
 
 class ProfileAFragmentExecutor:
@@ -590,6 +595,7 @@ class ProfileAFragmentExecutor:
                 if self.merge_backend == "numpy"
                 else execute_streaming_fragment_update
             )
+            merge_started_ns = time.monotonic_ns()
             result = merge(
                 FragmentMergeRequest(
                     descriptor=previous.state.descriptor,
@@ -604,6 +610,10 @@ class ProfileAFragmentExecutor:
                 source,
                 self.outer_policy,
             )
+            merge_latency_seconds = (
+                time.monotonic_ns() - merge_started_ns
+            ) / 1_000_000_000
+            commit_started_ns = time.monotonic_ns()
             committed = self.atomic_store.commit(
                 AtomicCommitRequest(
                     fragment_index=index,
@@ -621,6 +631,9 @@ class ProfileAFragmentExecutor:
                     update_identity=result.update_identity,
                 )
             )
+            commit_latency_seconds = (
+                time.monotonic_ns() - commit_started_ns
+            ) / 1_000_000_000
         except BaseException:
             self.readiness.release(lease)
             raise
@@ -644,4 +657,6 @@ class ProfileAFragmentExecutor:
             result=result,
             selection=selection,
             source_metrics=source.metrics(),
+            merge_latency_seconds=merge_latency_seconds,
+            commit_latency_seconds=commit_latency_seconds,
         )

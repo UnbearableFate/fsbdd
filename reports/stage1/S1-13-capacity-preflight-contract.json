@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "kind": "s1_13_exact_size_publication_capacity_preflight",
+  "failure_experiment_id": "s1-13-long-smoke-replacement-20260715T225509Z-cd8ca08",
+  "failure_job_id": "2393139.opbs",
+  "purpose": "Compare the corrected single-pass production publication mode with the exact former post-write readback control at representative failed-run global-successor sizes before any five-node retry.",
+  "payload_bytes": [
+    309071808,
+    340239052
+  ],
+  "repetitions": 3,
+  "order": "alternate post_write_readback/source_sha256_complete_write by repetition",
+  "validation": {
+    "timed_interval": "PosixStorageBackend.publish only",
+    "after_each_timed_publish": "read_bound_record exact-byte validation outside the timed interval",
+    "shared_filesystem": true,
+    "torch_import_forbidden": true,
+    "cuda_use_forbidden": true
+  },
+  "failed_smoke_baseline": {
+    "fragment_outer_updates": 189,
+    "required_minimum_global_cycle": 59,
+    "observed_minimum_global_cycle": 46,
+    "mean_update_latency_seconds": 1.739070100338624,
+    "p90_update_latency_seconds": 1.833970279,
+    "final_version_vector": [
+      47,
+      46,
+      47,
+      49
+    ]
+  },
+  "thresholds": {
+    "maximum_source_to_readback_median_ratio": 0.75,
+    "minimum_mean_seconds_saved": 0.4,
+    "maximum_predicted_update_mean_seconds": 1.355,
+    "derivation": "The conservative required throughput factor is 59/46. The corresponding update mean is 1.739070100338624/(59/46)=1.35588516298 seconds; the frozen 1.355-second ceiling adds a small margin, and the source mode must also save at least 0.4 seconds and be at least 25 percent faster for every representative size."
+  },
+  "next_gate": "A pass is only lower-level evidence. The same S1-13 Checker must perform Phase B and separately authorize any five-node capacity retry."
+}

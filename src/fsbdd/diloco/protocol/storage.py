@@ -363,8 +363,13 @@ def _validate_expectation(
 
 
 class PosixStorageBackend:
-    def __init__(self, root: Path) -> None:
+    def __init__(
+        self, root: Path, *, verify_payload_readback: bool = False
+    ) -> None:
+        if not isinstance(verify_payload_readback, bool):
+            raise PublicationError("verify_payload_readback must be boolean")
         self._root = root
+        self._verify_payload_readback = verify_payload_readback
         self._payload_root = root / "payloads"
         self._visibility_root = root / "visibility"
         self._record_temp_root = root / ".record-tmp"
@@ -377,6 +382,14 @@ class PosixStorageBackend:
     @property
     def root(self) -> Path:
         return self._root
+
+    @property
+    def publication_verification_mode(self) -> str:
+        return (
+            "post_write_readback"
+            if self._verify_payload_readback
+            else "source_sha256_complete_write"
+        )
 
     def read_record(
         self,
@@ -628,10 +641,34 @@ class PosixStorageBackend:
         unique = uuid.uuid4().hex
         payload_relative = f"payloads/{unique}.bin"
         payload_path = self._root / payload_relative
+        # The production path hashes the immutable source bytes once.  A
+        # successful unbuffered POSIX write plus an exact fstat size check is the
+        # completed-write authority; reopening this same file before visibility
+        # only rereads the page cache and doubles the large-payload data path
+        # without adding a durability guarantee.  Readers still validate the
+        # visible file's exact size and SHA-256 before returning any bytes, so
+        # later corruption fails closed.  The explicit diagnostic mode below
+        # retains the former readback-derived checksum for matched measurement.
+        payload_sha256 = (
+            None
+            if self._verify_payload_readback
+            else hashlib.sha256(payload).hexdigest()
+        )
+        source = memoryview(payload)
         try:
-            with payload_path.open("xb") as stream:
-                written = stream.write(payload)
-                if written != len(payload):
+            with payload_path.open("xb", buffering=0) as stream:
+                offset = 0
+                while offset < len(source):
+                    written = stream.write(source[offset:])
+                    if not isinstance(written, int) or written <= 0:
+                        raise PublicationError(
+                            "unique payload write made no forward progress"
+                        )
+                    offset += written
+                metadata = os.fstat(stream.fileno())
+                if not stat.S_ISREG(metadata.st_mode):
+                    raise PublicationError("unique payload is not a regular file")
+                if offset != len(payload) or metadata.st_size != len(payload):
                     raise PublicationError(
                         "unique payload write did not consume the complete payload"
                     )
@@ -639,33 +676,38 @@ class PosixStorageBackend:
             raise PublicationError(
                 f"failed to write unique payload: {error}"
             ) from error
-        # Verify the immutable file against the caller's exact bytes while
-        # retaining only one bounded read chunk, rather than a second complete
-        # 100+ MiB payload allocation.
-        digest = hashlib.sha256()
-        source = memoryview(payload)
-        offset = 0
-        try:
-            with payload_path.open("rb") as stream:
-                for chunk in iter(lambda: stream.read(8 * 1024 * 1024), b""):
-                    end = offset + len(chunk)
-                    if end > len(source) or chunk != source[offset:end]:
-                        raise PublicationError(
-                            "completed payload failed bytewise verification"
-                        )
-                    digest.update(chunk)
-                    offset = end
-        except OSError as error:
-            raise PublicationError(
-                f"completed payload is not readable: {error}"
-            ) from error
         finally:
             source.release()
-        if offset != len(payload):
-            raise PublicationError(
-                "completed payload failed size/checksum verification"
-            )
-        payload_sha256 = digest.hexdigest()
+        if self._verify_payload_readback:
+            # Retain the former two-pass path as an explicit diagnostic control.
+            # It is not the production default because rereading a just-written
+            # file normally revalidates page-cache bytes rather than durability.
+            digest = hashlib.sha256()
+            source = memoryview(payload)
+            offset = 0
+            try:
+                with payload_path.open("rb") as stream:
+                    for chunk in iter(lambda: stream.read(8 * 1024 * 1024), b""):
+                        end = offset + len(chunk)
+                        if end > len(source) or chunk != source[offset:end]:
+                            raise PublicationError(
+                                "completed payload failed bytewise verification"
+                            )
+                        digest.update(chunk)
+                        offset = end
+            except OSError as error:
+                raise PublicationError(
+                    f"completed payload is not readable: {error}"
+                ) from error
+            finally:
+                source.release()
+            if offset != len(payload):
+                raise PublicationError(
+                    "completed payload failed size/checksum verification"
+                )
+            payload_sha256 = digest.hexdigest()
+        if payload_sha256 is None:
+            raise AssertionError("payload verification produced no SHA-256")
         if crash_at == "after_payload_write":
             raise PublicationInterrupted(crash_at)
 

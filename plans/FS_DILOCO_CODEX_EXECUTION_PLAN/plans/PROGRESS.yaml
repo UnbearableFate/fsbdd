@@ -365,7 +365,7 @@ loops:
   result_commit: null
   evidence_index: evidence/indexes/S1-13.md
   checker_verdict: null
-  blocker: Focused correction job 2393136.opbs passed 23 tests and same-Checker Phase B. Exactly one replacement five-node capacity smoke is authorized at cd8ca08d8711194a0fa3bcef455dcb7d02913562; formal-long, retry, and all other compute remain blocked pending its evidence and same-Checker Phase B.
+  blocker: Replacement capacity smoke 2393139.opbs passed all 358 tests and all four 3000-step learners but timed out at minimum global cycle 46 of 59. The failure ledger, scheduler evidence, corrective publication review, exact-size one-node preflight contract, regressions, and static gates are prepared; the same Checker must review the exact clean candidate before any qsub. No capacity preflight, five-node retry, formal long, or other compute is authorized.
 - id: S2-01
   stage: stage2
   title: 异步 GPU→CPU→FS Publication Pipeline

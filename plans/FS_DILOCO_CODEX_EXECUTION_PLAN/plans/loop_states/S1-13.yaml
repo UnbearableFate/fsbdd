@@ -18,9 +18,9 @@ dependencies: [S1-12]
 requirements: [INV-01, INV-08, PROG-02, TEL-01, TEL-02, TEL-03, TEL-04]
 acceptance_ids: [A-LEARN-01, A-PERF-01]
 orient:
-  unique_failing_gap: Stage 1 components and small Profile A closure pass independently but no production large-model role harness analyzer bounded-state collector nine-distinct-host baseline or M=4 one-billion-token run closes the integrated capability.
+  unique_failing_gap: The formal nine-node gate and all correctness paths pass, but the required M=4 long-profile capacity smoke reaches only global cycle 46 of 59 because the large-payload publisher performs a redundant complete post-write readback; the corrected path still requires one exact-size preflight, one capacity retry, and the formal one-billion-token run.
   non_goals: [stale proposals, S_max one, matched-token quality comparison, Stage 2 goodput threshold, DDP NCCL RPC parameter server, mutable Hub revisions]
-  planned_files: [src/fsbdd/diloco/, src/fsbdd/auxiliary/stage1/, src/fsbdd/auxiliary/stress/, configs/stage1/s1_13_stage1_close.json, tests/stage1/test_s1_13_close.py, tests/stage1/test_s1_13_reproduction.py, tests/stage1/test_s1_13_static.py, tests/stage1/test_source_architecture.py, tests/red_cases/s1_13_naive_gate_analyzer.py, pbs/stage1_s1_13_assets.pbs, pbs/stage1_s1_13_targeted.pbs, pbs/stage1_s1_13_targeted_focus.pbs, pbs/stage1_s1_13_reproduction_preflight.pbs, pbs/stage1_s1_13_smoke_1n.pbs, pbs/stage1_s1_13_smoke_2n.pbs, pbs/stage1_s1_13_formal_9n.pbs, pbs/stage1_s1_13_long_smoke.pbs, pbs/stage1_s1_13_formal_long.pbs, reports/stage1/S1-13-requirement-matrix.csv, reports/stage1/S1-13-evidence-contract.json, reports/stage1/S1-13-gate-contract.json, reports/stage1/S1-13-reproduction-contract.json, reports/stage1/S1-13-experiment-failures.json]
+  planned_files: [src/fsbdd/diloco/, src/fsbdd/auxiliary/stage1/, src/fsbdd/auxiliary/stress/, configs/stage1/s1_13_stage1_close.json, tests/stage1/test_s1_13_close.py, tests/stage1/test_s1_13_reproduction.py, tests/stage1/test_s1_13_static.py, tests/stage1/test_source_architecture.py, tests/red_cases/s1_13_naive_gate_analyzer.py, pbs/stage1_s1_13_assets.pbs, pbs/stage1_s1_13_targeted.pbs, pbs/stage1_s1_13_targeted_focus.pbs, pbs/stage1_s1_13_reproduction_preflight.pbs, pbs/stage1_s1_13_smoke_1n.pbs, pbs/stage1_s1_13_smoke_2n.pbs, pbs/stage1_s1_13_numpy_correction.pbs, pbs/stage1_s1_13_formal_9n.pbs, pbs/stage1_s1_13_long_smoke.pbs, pbs/stage1_s1_13_formal_long.pbs, reports/stage1/S1-13-requirement-matrix.csv, reports/stage1/S1-13-evidence-contract.json, reports/stage1/S1-13-gate-contract.json, reports/stage1/S1-13-reproduction-contract.json, reports/stage1/S1-13-capacity-preflight-contract.json, reports/stage1/S1-13-publication-capacity-code-review.md, reports/stage1/S1-13-experiment-failures.json]
   model_data_profile: Immutable pretrained GPT-2 small plus WikiText-2 raw packed-512 for the 8+1 gate and immutable pretrained Pythia-160m plus FineWeb-Edu canonical packed-512 prefix for the M=4 aggregate-at-least-one-billion-input-token long run.
   miyabi_skill_commit: c3ddfa47cadfd9132edf939d359b90b28ab5f8ed
   hugging_face_cli_skill: hugging-face:hf-cli 1.0.0
@@ -104,23 +104,22 @@ orient:
     expected_solution: preserve and never reuse the rejected roots, add explicit '#PBS -r y' plus a static regression, pass login static gates, and obtain same-Checker replacement authorization before another qsub
     correction_commit: e850f5116a69ed517a4a5772799b4d2554721cc0
   latest_long_smoke_failure:
-    experiment_id: s1-13-long-smoke-20260715T223443Z-729ebbb
-    pbs_job_id: 2393122.opbs
-    code_commit: 729ebbb89d2930ade0e20eda4679cf6fe60f8ae5
-    result: Stage 1 pytest preflight timed out after exactly 264 completions with scheduler exit 124; no learner, syncer, proposal, update, or gate ran
-    raw_evidence_root: runtime_runs/S1-13/long-smoke-20260715T223443Z-729ebbb
-    scheduler_evidence_root: runtime_runs/S1-13/long-smoke-s1-13-long-smoke-20260715T223443Z-729ebbb-scheduler
+    experiment_id: s1-13-long-smoke-replacement-20260715T225509Z-cd8ca08
+    pbs_job_id: 2393139.opbs
+    code_commit: cd8ca08d8711194a0fa3bcef455dcb7d02913562
+    result: all 358 Stage 1 tests and all four 3000-step learners passed with 24,576,000 aggregate input tokens and every proposal sequence at 60, but the syncer exhausted 1200 active seconds at minimum global cycle 46 of the required 59; scheduler exit 1
+    raw_evidence_root: runtime_runs/S1-13/long-smoke-replacement-20260715T225509Z-cd8ca08
+    shared_evidence_root: runtime_runs/S1-13/shared-long-smoke-replacement-20260715T225509Z-cd8ca08
+    scheduler_evidence_root: runtime_runs/S1-13/long-smoke-replacement-20260715T225509Z-cd8ca08-scheduler
     reviewed_ledger: reports/stage1/S1-13-experiment-failures.json
     attempt_consumed: true
-    cause: an unsynchronized AtomicGlobalCommitStore authority cache allowed a concurrent reader to replace the writer's cache binding; the resulting writer exception was hidden because the test did not set its reader stop event in a finally block, so executor shutdown hung until the pre-walltime timeout
-    expected_solution: serialize per-instance cache reads and the complete commit transaction with an RLock, bound and finally-release the regression readers, add verbose/faulthandler smoke pytest diagnostics, pass static gates, then obtain same-Checker authorization for one smallest focused one-node validation before any capacity-smoke retry
-    correction_commit: cd8ca08d8711194a0fa3bcef455dcb7d02913562
-    focused_validation:
-      pbs_job_id: 2393136.opbs
-      result: pass; 23 tests passed in 0.42 seconds including original concurrent readers, deterministic held-writer serialization, readiness cases, and smoke static contract; scheduler exit 0; no abnormal node; same-Checker Phase B PASS
-      raw_evidence_root: runtime_runs/S1-13/targeted-focus-cache-20260715T225155Z-cd8ca08
-      scheduler_evidence_root: runtime_runs/S1-13/targeted-focus-cache-20260715T225155Z-cd8ca08-scheduler
-  attempt_budget: {asset_stage: 3, red: 1, targeted: 5, reproduction_preflight: 3, l1_real: 2, l2_real: 4, formal_l3_9n: 2, formal_l4_long: 3}
+    cause: PosixStorageBackend.publish writes every immutable payload and then rereads and byte-compares the complete file while hashing it before visibility; this redundant pass is paid for every 154-170 MB proposal and 309-340 MB compound successor, and the observed mean syncer update latency is 1.739070100 seconds
+    expected_solution: retain the old readback as a matched diagnostic control, use source SHA-256 plus complete unbuffered write and exact fstat size for production while preserving read-side fail-closed validation, add merge/commit component timing and correctness regressions, then run one same-Checker-authorized exact-size one-node preflight before any five-node retry
+    reviewed_failure: runtime_runs/S1-13/long-smoke-replacement-20260715T225509Z-cd8ca08/reviewed-failure.json
+    raw_checksum_inventory_sha256: de2936397f0acc2c65b71e2a5bfa6a29e50c99aa5da082fa44128ce68f8cb84f
+    scheduler_checksum_inventory_sha256: 505fe28ebfacdb64eaf051f22634d2862869dee6997350d9e62c2281dbe1aed4
+    correction_commit: pending_exact_commit
+  attempt_budget: {asset_stage: 3, red: 1, targeted: 5, reproduction_preflight: 3, capacity_preflight: 1, l1_real: 2, l2_real: 4, formal_l3_9n: 2, formal_l4_long: 4}
   attempt_budget_amendments:
     - recorded_at_utc: 2026-07-15T20:42:48Z
       budget_class: asset_stage
@@ -238,6 +237,28 @@ orient:
       authorization_gate: The same S1-13 Checker must pass the focused job in Phase B and separately authorize an exact-clean smoke candidate before submission; formal-long still requires its own later Phase A.
       authorization_commit: cd8ca08d8711194a0fa3bcef455dcb7d02913562
       checker_verdict: focused job 2393136 Phase B PASS; Phase A PASS for exactly one replacement five-node non-formal capacity smoke using only pbs/stage1_s1_13_long_smoke.pbs SHA 64d550957b13162df05b0bb07a2b3810ca7cd0d5cf13641c294104b30e9c5e6f; no formal-long, retry, or other compute authorized
+      final_attempt: 2393139.opbs
+      final_attempt_result: failed after all learners completed; 189 fragment updates, final vector [47,46,47,49], minimum cycle 46 of required 59, frozen active-runtime timeout, scheduler exit 1
+    - registered_at_utc: 2026-07-15T23:38:23Z
+      budget_class: capacity_preflight
+      registered_budget: 1
+      consumed_before_registration: 0
+      reason: Five-node job 2393139 supplied full real-model evidence that the remaining failure is large-payload publication capacity. The correction changes a production storage primitive, so the smallest attribution is one CPU-only one-node shared-filesystem comparison at the exact failed-run successor sizes before another five-node allocation.
+      scope: Exactly one exact-clean one-node run using only pbs/stage1_s1_13_numpy_correction.pbs and the frozen S1-13 capacity contract. It compares the corrected source-SHA complete-write mode with the former post-write readback control at 309,071,808 and 340,239,052 bytes, validates every payload, imports no Torch, uses no CUDA, and does not execute a learner or multi-node syncer.
+      authorization_gate: The same S1-13 Checker must pass job 2393139 failure attribution, the complete corrective code review, storage correctness regressions, component telemetry, exact-size contract, PBS script, static gates, and an exact clean candidate before qsub. This registration does not authorize compute.
+      authorization_commit: pending_exact_commit
+      checker_verdict: pending
+      final_attempt: pending
+    - amended_at_utc: 2026-07-15T23:38:23Z
+      prior_formal_l4_long_budget: 3
+      amended_formal_l4_long_budget: 4
+      consumed_before_amendment: 2
+      consumed_attempts: [2393122.opbs, 2393139.opbs]
+      reason: Job 2393122 consumed the original capacity-smoke slot before workload launch, and the authorized replacement 2393139 completed all learners but failed the frozen capacity threshold. The only remaining third slot is reserved for the formal one-billion-token run, so one separately authorized post-correction capacity retry is required without reclassifying either failure.
+      scope: Add exactly one five-node non-formal capacity-smoke retry, usable only after the one-node capacity preflight passes same-Checker Phase B. Preserve the still-unused formal-long slot. This amendment itself authorizes neither run.
+      authorization_gate: The same S1-13 Checker must first pass the one-node capacity preflight in Phase B, then separately review the exact long-smoke candidate and authorize one retry. Formal long remains a later independent Phase A decision.
+      authorization_commit: pending_exact_commit
+      checker_verdict: pending
       final_attempt: pending
   failure_ladder: preserve the first expensive failure then reproduce its failing role or analyzer at the smallest one-node or two-node topology before an authorized retry
   nine_node_gate_required: true
@@ -259,6 +280,10 @@ preflight:
   reduced_reproduction_validator_command: python -m fsbdd.auxiliary.stage1.reproduction validate --result-root <result-root> --reproduction-contract reports/stage1/S1-13-reproduction-contract.json
   reduced_reproduction_validator_result: job 2392852 stopped at learner initialization before the analyzer or package validator; no correction-reproduction gate result exists
   checker_phase_a: required
+  capacity_preflight_contract: reports/stage1/S1-13-capacity-preflight-contract.json
+  capacity_preflight_contract_sha256: f2d318a1881140e4fd43ce882d7a0cc8b750f86f3b991a5433afcb474aeadd3f
+  capacity_preflight_command: pending same-Checker Phase A for one exact-clean one-node pbs/stage1_s1_13_numpy_correction.pbs run
+  capacity_preflight_result: pending
   asset_freeze: exact-clean offline job 2392989 passed at producer commit 240084d17e9e609104715c9073aac395034fd9d1 and same-Checker Phase B passed; tracked nine-node identity is f956cd698f14d52788ac54a7a5c20615f57a4a18b5a7a5053499583fb714a7ff and tracked long identity is 3c0990fb05f639dbfef3792434010e2bdb261410e727d08f103e163841fbe355 with the accepted aligned-zero overlay preserved
   runtime_budget: nine-node 1200 active seconds absolute ceiling pending tighter compatible value from real smokes; long-run 21600 active seconds
 red:
@@ -268,11 +293,11 @@ red:
 green:
   command: .venv/bin/python -m compileall -q src tests && uvx --offline ruff check src/fsbdd tests && uvx --offline pyright --pythonpath .venv/bin/python src/fsbdd
   evidence_path: reports/stage1/S1-13-experiment-failures.json
-  latest_result: pass at 2026-07-15T21:13:52Z; Ruff clean; Pyright zero errors and warnings
+  latest_result: pass at 2026-07-15T23:38:23Z for the publication-capacity correction; compileall clean, Ruff clean, Pyright zero errors and warnings
 harden:
   commands: [bash -n every active S1-13 PBS script and failure helper, jq empty failure and evidence contracts, git diff --check]
   evidence_paths: [runtime_runs/S1-13/targeted-f0bb4fb-20260715T180720Z, runtime_runs/S1-13/targeted-681e013-20260715T182501Z, runtime_runs/S1-13/targeted-focus-a026505-20260715T191211Z, runtime_runs/S1-13/targeted-bac11ae-20260715T192015Z, runtime_runs/S1-13/reproduction-preflight-d9c3f01-20260715T201400Z, runtime_runs/S1-13/reproduction-preflight-6a4e465-20260715T201715Z, runtime_runs/S1-13/reproduction-2n-s1-13-corrected-2n-20260715T202343Z-6a4e465, evidence/indexes/S1-13.md]
-  latest_result: pass at 2026-07-15T21:13:52Z; active PBS Bash, JSON, YAML, and diff checks clean
+  latest_result: pass at 2026-07-15T23:38:23Z; every active S1-13 PBS script and failure helper has valid Bash syntax, tracked Stage 1 JSON and current YAML parse, production has no auxiliary import, and diff checks are clean
 nine_node_gate:
   required: true
   run_id: s1-13-formal-9n-20260715T220641Z-e850f51
@@ -292,7 +317,7 @@ nine_node_gate:
 checker:
   context_id: s1_13_checker
   maker_chat_inherited: false
-  phase_a_verdict: focused job 2393136.opbs Phase B PASS; replacement Phase A PASS for exactly one five-node non-formal capacity smoke at cd8ca08d8711194a0fa3bcef455dcb7d02913562 using only pbs/stage1_s1_13_long_smoke.pbs SHA 64d550957b13162df05b0bb07a2b3810ca7cd0d5cf13641c294104b30e9c5e6f; no formal-long, retry, or other compute authorized
+  phase_a_verdict: job 2393139 consumed the prior authorization and failed the frozen capacity threshold; its reviewed failure and corrective one-node preflight candidate are pending the same Checker's Phase B/Phase A review, and no compute is authorized
   verdict: null
   report_path: reports/checkers/S1-13.md
   cycles:
@@ -350,12 +375,15 @@ checker:
       result: job 2393122 consumed the authorization and failed with exit 124 after exactly 264 pytest completions; automatic failure and scheduler evidence retained; no learner or syncer process started; reviewed core-cache race correction awaits same-Checker review
     - candidate: cd8ca08d8711194a0fa3bcef455dcb7d02913562
       verdict: Phase B PASS for job 2393122 failure attribution and Phase A PASS for exactly one fifth-and-final one-node focused correction validation using only pbs/stage1_s1_13_targeted_focus.pbs SHA c75a93b21097447d43a9b9c30a1062b559c1cb43cf90224d01930a7ffc9fa6c6; no smoke retry, formal-long, or other compute authorized
-      result: focused job 2393136 passed 23 tests in 0.42 seconds with scheduler exit 0/no abnormal node; same-Checker Phase B PASS and replacement Phase A PASS for exactly one five-node capacity smoke using only pbs/stage1_s1_13_long_smoke.pbs SHA 64d550957b13162df05b0bb07a2b3810ca7cd0d5cf13641c294104b30e9c5e6f; no formal-long or other compute authorized
+      result: focused job 2393136 passed 23 tests in 0.42 seconds with scheduler exit 0/no abnormal node; replacement job 2393139 then passed all 358 tests and all four learners but timed out at global cycle 46 of 59, preserving complete raw and scheduler evidence
+    - candidate: pending_exact_commit
+      verdict: pending same-Checker Phase B for job 2393139 and Phase A for exactly one one-node capacity preflight; no compute authorized
+      result: reviewed failure ledger entry 9, immutable checksums, complete corrective code review, matched verification modes, component timing, exact-size capacity contract, identity-bound bounded PBS script, and login-node static gates are prepared
 persist:
   evidence_index: evidence/indexes/S1-13.md
   raw_evidence_root: runtime_runs/S1-13
   acceptance_traceability_updated: false
   next_gap: Stage 2 asynchronous GPU to CPU to filesystem publication pipeline
   handoff: >-
-    Focused correction job 2393136.opbs passed 23 tests in 0.42 seconds with scheduler exit 0/no abnormal node, and same-Checker Phase B passed. The same Checker authorized exactly one replacement five-node non-formal capacity smoke at cd8ca08d8711194a0fa3bcef455dcb7d02913562 using only pbs/stage1_s1_13_long_smoke.pbs SHA 64d550957b13162df05b0bb07a2b3810ca7cd0d5cf13641c294104b30e9c5e6f. Use new absent roots and return raw/scheduler/checksum/gate evidence. No formal-long, retry, or other compute is authorized.
-blocker: Exactly one replacement five-node capacity smoke is authorized and pending at cd8ca08d8711194a0fa3bcef455dcb7d02913562; formal-long, retry, and all other compute remain blocked pending smoke evidence and same-Checker Phase B.
+    Replacement capacity smoke 2393139 passed all tests and learner work but failed at global cycle 46 of 59. Its reviewed failure, scheduler evidence, and checksum inventories are immutable. Review found a redundant complete post-write payload readback. The correction preserves that path as a matched control, makes source-SHA plus complete unbuffered write/fstat the production mode, adds read-side corruption regressions and merge/commit timing, and replaces the old NumPy script with an exact-size one-node capacity preflight. Login static gates pass. Commit the exact candidate, move the clean detached worktree, and return it to the same Checker; no qsub is authorized yet.
+blocker: Job 2393139 failure Phase B and the exact-clean one-node capacity-preflight candidate still require the same Checker's review. No capacity preflight, five-node retry, formal long, or other compute is authorized.

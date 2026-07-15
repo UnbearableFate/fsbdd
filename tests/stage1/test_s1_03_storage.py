@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import dataclasses
+import hashlib
 import json
 import math
 import subprocess
@@ -81,6 +82,67 @@ def test_payload_first_visibility_last_and_hook(tmp_path: Path) -> None:
     assert published.record == record
 
 
+def test_publish_uses_source_checksum_without_reopening_payload(
+    tmp_path: Path, monkeypatch
+) -> None:
+    backend = PosixStorageBackend(tmp_path)
+    payload = bytes(range(251)) * 1024
+    original = Path.open
+
+    def observed_open(path: Path, mode: str = "r", *args, **kwargs):
+        if path.parent == tmp_path / "payloads" and mode == "rb":
+            raise AssertionError("publish must not reread its immutable payload")
+        return original(path, mode, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "open", observed_open)
+    record = backend.publish("current", payload, spec(1))
+    assert backend.publication_verification_mode == "source_sha256_complete_write"
+    assert record.payload_bytes == len(payload)
+    assert record.payload_sha256 == hashlib.sha256(payload).hexdigest()
+    assert backend.read("current", expectation()).payload == payload
+
+
+def test_post_write_readback_remains_an_explicit_diagnostic_control(
+    tmp_path: Path, monkeypatch
+) -> None:
+    backend = PosixStorageBackend(tmp_path, verify_payload_readback=True)
+    opened_payloads = 0
+    original = Path.open
+
+    def observed_open(path: Path, mode: str = "r", *args, **kwargs):
+        nonlocal opened_payloads
+        if path.parent == tmp_path / "payloads" and mode == "rb":
+            opened_payloads += 1
+        return original(path, mode, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "open", observed_open)
+    backend.publish("current", b"payload", spec(1))
+    assert backend.publication_verification_mode == "post_write_readback"
+    assert opened_payloads == 1
+
+
+def test_publication_verification_mode_requires_boolean(tmp_path: Path) -> None:
+    with pytest.raises(PublicationError, match="must be boolean"):
+        PosixStorageBackend(tmp_path, verify_payload_readback=1)  # type: ignore[arg-type]
+
+
+def test_publish_rejects_incomplete_fstat_before_visibility(
+    tmp_path: Path, monkeypatch
+) -> None:
+    backend = PosixStorageBackend(tmp_path)
+    original = storage_module.os.fstat
+
+    def incomplete(descriptor: int):
+        values = list(original(descriptor))
+        values[6] -= 1
+        return storage_module.os.stat_result(values)
+
+    monkeypatch.setattr(storage_module.os, "fstat", incomplete)
+    with pytest.raises(PublicationError, match="complete payload"):
+        backend.publish("current", b"payload", spec(1))
+    assert not (tmp_path / "visibility" / "current.json").exists()
+
+
 @pytest.mark.parametrize(
     ("crash_at", "visible_sequence"),
     [
@@ -149,6 +211,10 @@ def test_record_schema_corruption_and_payload_truncation_reject(tmp_path: Path) 
     visibility.write_bytes(original)
     payload = tmp_path / record.payload_relative_path
     payload.write_bytes(b"short")
+    with pytest.raises(PublicationError, match="complete and readable"):
+        backend.read("current", expectation(), timeout_seconds=0)
+
+    payload.write_bytes(b"x" * len(b"0123456789abcdef"))
     with pytest.raises(PublicationError, match="complete and readable"):
         backend.read("current", expectation(), timeout_seconds=0)
 

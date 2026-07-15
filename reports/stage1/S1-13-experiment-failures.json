@@ -617,6 +617,108 @@
         "pbs_stderr_sha256": "100f1aea2cb7e709d2ef545c08b9fa91d98f1f600cac066670dececb510d25da",
         "pbs_stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
       }
+    },
+    {
+      "experiment_id": "s1-13-long-smoke-replacement-20260715T225509Z-cd8ca08",
+      "analysis_status": "reviewed_capacity_failure_corrective_review_required",
+      "workload": "five-node four-Pythia-learner plus CPU-only NumPy syncer FineWeb-Edu capacity smoke",
+      "pbs_job_id": "2393139.opbs",
+      "code_commit": "cd8ca08d8711194a0fa3bcef455dcb7d02913562",
+      "queued_at_utc": "2026-07-15T22:55:09Z",
+      "failed_at_utc": "2026-07-15T23:16:22Z",
+      "raw_evidence_root": "runtime_runs/S1-13/long-smoke-replacement-20260715T225509Z-cd8ca08",
+      "shared_evidence_root": "runtime_runs/S1-13/shared-long-smoke-replacement-20260715T225509Z-cd8ca08",
+      "scheduler_evidence_root": "runtime_runs/S1-13/long-smoke-replacement-20260715T225509Z-cd8ca08-scheduler",
+      "attempt_consumed": true,
+      "failure": {
+        "summary": "All four real-model learners and all 358 Stage 1 tests passed, but the CPU-only syncer exhausted the frozen 1200-second active-runtime budget at minimum global cycle 46 instead of the required 59.",
+        "exit_code": 1,
+        "exception": "TimeoutError: frozen active runtime budget expired",
+        "observed_progress": {
+          "pytest": "358 passed in 33.42 seconds",
+          "learner_roles_passed": 4,
+          "optimizer_steps_per_learner": 3000,
+          "aggregate_optimizer_steps": 12000,
+          "processed_input_tokens_per_learner": 6144000,
+          "aggregate_processed_input_tokens": 24576000,
+          "publication_opportunities_per_fragment_per_learner": 60,
+          "captured_snapshots": 960,
+          "pending_publications": 0,
+          "in_flight_publications": 0,
+          "publication_errors": 0,
+          "fragment_outer_updates": 189,
+          "required_minimum_global_cycle": 59,
+          "observed_minimum_global_cycle": 46,
+          "final_version_vector": [
+            47,
+            46,
+            47,
+            49
+          ],
+          "scheduler_exit_status": 1,
+          "scheduler_walltime": "00:21:09",
+          "scheduler_cpu_time": "00:42:31",
+          "scheduler_peak_resident_kb": 232502272,
+          "abnormal_nodes": "none",
+          "allocated_hosts": [
+            "mg0002",
+            "mg0003",
+            "mg0004",
+            "mg0005",
+            "mg0006"
+          ]
+        },
+        "automatic_capture": "The shared ERR trap retained failures/raw-2393139.opbs-342599.json after mpirun returned nonzero; the traceback and all completed learner roles were preserved before PBS termination."
+      },
+      "cause": {
+        "status": "diagnosed_capacity_bottleneck_in_large_payload_publication_path",
+        "summary": "The frozen learner schedule produced every required proposal, but the sequential syncer could not consume and publish fragment successors at the required rate. PosixStorageBackend.publish writes each immutable payload and then rereads the complete file in 8 MiB chunks for bytewise comparison and SHA-256 before exposing the visibility record. The second complete pass is paid for every 154-170 MB learner proposal and every approximately 309-340 MB compound global successor.",
+        "direct_evidence": [
+          "Every learner role is complete and pass with 3000 optimizer steps, 6,144,000 processed input tokens, proposal sequence 60 on every fragment, zero pending/in-flight publication, and zero publication errors.",
+          "The syncer completed 189 updates with mean update latency 1.739070100 seconds, p90 1.833970279, and maximum 1.872693638 seconds.",
+          "Measured update execution occupied 328.684248964 of the 539.534976768 seconds between first and last update completion, or 60.919914948 percent.",
+          "Learner CPU-to-filesystem publication totals range from 234.777633722 to 244.482352843 seconds for 240 payloads each, independently exposing the same large-publication cost.",
+          "The shared root contains 653 files and 67,481,217,448 bytes; the largest compound successor payload is 340,239,068 bytes.",
+          "Exact-commit source review shows the unconditional post-write full-file byte comparison and SHA-256 pass in PosixStorageBackend.publish before os.replace exposes the record.",
+          "PBS reported no abnormal node; all tests and learners passed and all publication queues drained, excluding topology failure, learner failure, correctness regression, or an unbounded publication backlog as the immediate failure class."
+        ],
+        "scope": "This is a storage/publication capacity failure under the frozen long-smoke schedule. It does not invalidate the passing formal 9-node topology, loss, runtime, protocol, or atomic-commit evidence. One exact-size corrective benchmark remains necessary to separate merge, write, and verification time before another five-node run."
+      },
+      "expected_solution": {
+        "status": "code_review_and_smallest_exact_size_performance_validation_required",
+        "changes": [
+          "Refactor publication so one immutable source pass supplies the recorded SHA-256 and complete-write validation, eliminating the redundant post-write bytewise full-file pass while preserving payload-first/visibility-last, exact byte count, immutable unique payloads, atomic small-record replacement, and read-side size/SHA fail-closed validation.",
+          "Add focused regressions for complete payload visibility, old-or-complete-new crash outcomes, source-derived record checksum, post-publication truncation/corruption rejection, and absence of a publish-time full payload reread.",
+          "Add component timing for large-payload write/verification and syncer merge/commit so the correction is directly attributable.",
+          "Run one smallest one-node exact-size storage and NumPy merge/commit performance preflight before requesting another five-node capacity smoke."
+        ],
+        "validation_before_next_experiment": [
+          "Complete the production-versus-auxiliary architecture and publication-path code review and correct every identified error before any qsub invocation.",
+          "Pass permitted login-node compile, Ruff, Pyright, Bash, JSON/YAML, architecture, and diff checks without importing the project runtime there.",
+          "Return the immutable failure package, reviewed ledger entry, corrective diff, static evidence, exact candidate commit, benchmark contract, and attempt-budget amendment to the same S1-13 Checker.",
+          "Do not submit a performance preflight, five-node retry, or formal long run without the applicable same-Checker Phase A authorization."
+        ]
+      },
+      "evidence_integrity": {
+        "raw_checksum_inventory_sha256": "de2936397f0acc2c65b71e2a5bfa6a29e50c99aa5da082fa44128ce68f8cb84f",
+        "scheduler_checksum_inventory_sha256": "505fe28ebfacdb64eaf051f22634d2862869dee6997350d9e62c2281dbe1aed4",
+        "reviewed_failure_sha256": "ed77d14a81c3b292fbc81414d041d77f3c585dec5eee09a25f8746723ce8f593",
+        "raw_failure_sha256": "b427e242a2f644fb1a35e48bb8ec3f6ba85f5ce5eeba86874c45b5f9f5bac288",
+        "syncer_log_sha256": "4cf1ba60e1a1213313c9f91dfbfaf83587634ff907480cf899533307e50e9378",
+        "pytest_log_sha256": "ef7882e9aa74cd47c07bb29cc6c3da56abce0f65350f06dc84e1fa62e5602d5f",
+        "mpirun_stderr_sha256": "7356c64f30ada20fd2a0975d3dab09176dbb7b7a719245044bd5030559940ad4",
+        "learner_role_sha256": {
+          "learner-00": "d08bea256d03b30fc0ec26f33b29a05d1836330a204c3d464a62b232e216efd8",
+          "learner-01": "1fc3f8995241002e0bdac7f2c66633c9f5d715a48609fbed7af7ad6885b5b3b0",
+          "learner-02": "8f81fbe0c9ee559cba67a76b157d33f22dc8730cf7df5db43a3bef8f5935cc8b",
+          "learner-03": "f321625db315948b89e5f9601aaacaa30a0ddb909293ba586de3bd7306860c12"
+        },
+        "qstat_final_sha256": "7da78e13b6ae63f81bac925a5eb7bde619cadce226dae11f9c8b7a7325932e73",
+        "tracejob_sha256": "989c5b22309b76cfdcbd1fb7ed801f5c51ebbd4b5ddf65fe5b9b357d177cd4c3",
+        "pbs_stderr_sha256": "5fc70d39fedff2fedb4bfb75ad8bb0c468b0b6c702ac30227111ed71da2b6d92",
+        "pbs_stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "shared_file_inventory_sha256": "794121b76cf7b285f5b86d04743a2588682ac4b2daa17d24934cb7869480afbc"
+      }
     }
   ]
 }
