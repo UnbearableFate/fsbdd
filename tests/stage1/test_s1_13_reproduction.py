@@ -361,6 +361,14 @@ def test_frozen_preflight_accepts_exact_clean_package(tmp_path: Path) -> None:
     preflight_script_path = (
         project_root / "pbs" / "stage1_s1_13_reproduction_preflight.pbs"
     )
+    analyzer_source = (
+        project_root
+        / "src"
+        / "fsbdd"
+        / "auxiliary"
+        / "stage1"
+        / "reproduction.py"
+    )
     dynamic_test = project_root / "tests" / "stage1" / "test_s1_13_reproduction.py"
     static_test = project_root / "tests" / "stage1" / "test_s1_13_static.py"
     _dump(asset_root / "complete.json", {"status": "complete"})
@@ -432,6 +440,8 @@ def test_frozen_preflight_accepts_exact_clean_package(tmp_path: Path) -> None:
         encoding="utf-8",
     )
     preflight_script_path.write_text("# frozen preflight\n", encoding="utf-8")
+    analyzer_source.parent.mkdir(parents=True)
+    analyzer_source.write_text("# frozen analyzer\n", encoding="utf-8")
     dynamic_test.parent.mkdir(parents=True)
     dynamic_test.write_text("# frozen dynamic test\n", encoding="utf-8")
     static_test.write_text("# frozen static test\n", encoding="utf-8")
@@ -469,6 +479,24 @@ def test_frozen_preflight_accepts_exact_clean_package(tmp_path: Path) -> None:
         output_path=tmp_path / "preflight.json",
     )
     assert result["status"] == "admissible"
+    analyzer_source.unlink()
+    with pytest.raises(ReproductionError, match="frozen reproduction preflight failed"):
+        validate_preflight(
+            project_root=project_root,
+            config_path=config_path,
+            asset_root=asset_root,
+            gate_contract_path=gate_path,
+            reproduction_contract_path=contract_path,
+            expected_commit=commit,
+            expected_reproduction_contract_sha256=_digest(contract_path),
+            output_path=tmp_path / "blocked-preflight.json",
+        )
+    blocked = json.loads(
+        (tmp_path / "blocked-preflight.json").read_text(encoding="utf-8")
+    )
+    assert blocked["status"] == "blocked"
+    assert blocked["checks"]["frozen_package_surface"] is False
+    assert blocked["identities"]["analyzer_sha256"] is None
 
 
 @pytest.mark.parametrize(

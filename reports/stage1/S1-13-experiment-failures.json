@@ -246,6 +246,70 @@
         "pbs_stderr_sha256": "dac8df6bf9ff17dba50060447b2c11c842b6f1bdcd89a93100574ac3d946c7f1",
         "raw_failure_sha256": "96c396bbde205404fc0eaf446921a6c48a6c4b1370108d11fb1562b6d0dfdd9b"
       }
+    },
+    {
+      "experiment_id": "fsbdd-s1-13-repro-preflight-2392798.opbs",
+      "analysis_status": "reviewed_test_fixture_correction_pending_static_and_checker",
+      "workload": "one-node identity-bound reproduction analyzer, package-validator, MPI-dispatch, and frozen-preflight tests",
+      "pbs_job_id": "2392798.opbs",
+      "code_commit": "d9c3f014916666013e3d2348f3bd5d22d4ae486a",
+      "queued_at_utc": "2026-07-15T20:09:53Z",
+      "failed_at_utc": "2026-07-15T20:10:10Z",
+      "raw_evidence_root": "runtime_runs/S1-13/reproduction-preflight-d9c3f01-20260715T201400Z",
+      "failure": {
+        "summary": "The sole Checker-authorized reproduction preflight failed one positive frozen-package fixture after nine selected tests passed.",
+        "exit_code": 1,
+        "failed_test": "tests/stage1/test_s1_13_reproduction.py::test_frozen_preflight_accepts_exact_clean_package",
+        "observed_progress": {
+          "selected_tests_passed": 9,
+          "selected_tests_failed": 1,
+          "mpi_dispatch_cases_passed": 2,
+          "analyzer_and_final_checksum_lifecycle_test": "pass",
+          "post_manifest_mutation_rejection_test": "pass",
+          "two_node_static_contract_test": "pass",
+          "pytest_duration_seconds": 0.41,
+          "scheduler_exit_status": 1,
+          "scheduler_walltime": "00:00:10",
+          "scheduler_peak_resident_kb": 1065920,
+          "abnormal_nodes": "none",
+          "pytest_stderr": "empty"
+        },
+        "automatic_capture": "The shared ERR trap wrote failures/raw-2392798.opbs-2604102.json before the job exited."
+      },
+      "cause": {
+        "status": "diagnosed_from_complete_pytest_trace_and_fixture_review",
+        "summary": "The positive miniature clean-repository fixture created the PBS scripts and test files but omitted src/fsbdd/auxiliary/stage1/reproduction.py, while the preflight validator intentionally hashes that analyzer source into its identity report.",
+        "root_causes": [
+          "validate_preflight reached its identity-report construction and attempted to hash the analyzer at the frozen repository path; pathlib raised FileNotFoundError because the positive fixture had not materialized that file.",
+          "The production candidate does contain the analyzer at that path; the failure occurred in lower-level fixture construction before the production frozen-package validator command ran.",
+          "The validator should also report an absent frozen package surface as a structured blocked check instead of leaking a raw FileNotFoundError."
+        ],
+        "scope": "No learner or syncer workload, L2 run, 9N run, long smoke, or formal run was launched."
+      },
+      "expected_solution": {
+        "status": "implementation_and_static_review_required_before_any_retry",
+        "changes": [
+          "Materialize and commit a deterministic placeholder analyzer source at src/fsbdd/auxiliary/stage1/reproduction.py inside the positive miniature-repository fixture.",
+          "Make the frozen-package preflight record package-surface presence and emit a structured blocked result when a hashed source or selected test file is absent.",
+          "Re-run only login-node static checks after the correction; do not execute project tests on the login node."
+        ],
+        "validation_before_next_experiment": [
+          "Persist this reviewed failure entry and the exact correction diff.",
+          "Record an explicit reasoned preflight-budget amendment because job 2392798 consumed the sole reproduction_preflight attempt.",
+          "Return the corrected exact clean commit, failed evidence, and amendment to the same Checker for a new authorization.",
+          "Do not submit an L2 learner/syncer workload, 9N run, long smoke, or formal run."
+        ]
+      },
+      "evidence_integrity": {
+        "checksum_inventory_sha256": "125331c4c5b2dfda01e8b2f2fb3de9a6586927940e62e9e12d6adc11f06ffb3b",
+        "tracejob_sha256": "9c434d0472e964c2542881144d837263806bc730633a625a00b499cefb81d409",
+        "qstat_final_sha256": "faba0440afa9d2969ddb1add710c9bf83a8d887c081d2965a9ec2632ab271390",
+        "pytest_log_sha256": "50598d8369858b1daed16271d4c1fbb7edab5b59785242e22752c0241a58a678",
+        "pytest_stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "pbs_stderr_sha256": "5b9d4fd037c3e32bb33fede40a30abec669dbfd43dd700bd67b4ef83d91254be",
+        "pbs_stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "raw_failure_sha256": "a89a449793b0e6c34e85aa6cbc4b59d8ee67810b8e7bcdde080f323cce350408"
+      }
     }
   ]
 }

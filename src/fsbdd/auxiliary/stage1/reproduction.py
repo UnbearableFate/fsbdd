@@ -24,6 +24,10 @@ def _hash_file(path: Path) -> str:
     return digest.hexdigest()
 
 
+def _hash_if_file(path: Path) -> str | None:
+    return _hash_file(path) if path.is_file() else None
+
+
 def _read_object(path: Path) -> dict[str, Any]:
     try:
         value = json.loads(path.read_text(encoding="utf-8"))
@@ -221,7 +225,28 @@ def validate_preflight(
     preflight_script_path = (
         project_root / "pbs" / "stage1_s1_13_reproduction_preflight.pbs"
     )
-    script = script_path.read_text(encoding="utf-8")
+    analyzer_path = (
+        project_root
+        / "src"
+        / "fsbdd"
+        / "auxiliary"
+        / "stage1"
+        / "reproduction.py"
+    )
+    dynamic_test_path = (
+        project_root / "tests" / "stage1" / "test_s1_13_reproduction.py"
+    )
+    static_test_path = project_root / "tests" / "stage1" / "test_s1_13_static.py"
+    package_surface = (
+        script_path,
+        preflight_script_path,
+        analyzer_path,
+        dynamic_test_path,
+        static_test_path,
+    )
+    script = (
+        script_path.read_text(encoding="utf-8") if script_path.is_file() else ""
+    )
     commit = subprocess.run(
         ["git", "-C", str(project_root), "rev-parse", "HEAD"],
         check=True,
@@ -315,11 +340,7 @@ def validate_preflight(
         is True
         and finalization.get("validator_runs_after_preliminary_checksums") is True
         and finalization.get("validator_appended_before_final_checksum_check") is True,
-        "dynamic_tests_present": (
-            project_root / "tests" / "stage1" / "test_s1_13_reproduction.py"
-        ).is_file()
-        and (project_root / "tests" / "stage1" / "test_s1_13_static.py").is_file()
-        and preflight_script_path.is_file(),
+        "frozen_package_surface": all(path.is_file() for path in package_surface),
     }
     passed = all(checks.values())
     result = {
@@ -335,25 +356,11 @@ def validate_preflight(
             "reproduction_contract_sha256": _hash_file(
                 reproduction_contract_path
             ),
-            "pbs_script_sha256": _hash_file(script_path),
-            "preflight_pbs_script_sha256": _hash_file(preflight_script_path),
-            "analyzer_sha256": _hash_file(
-                project_root
-                / "src"
-                / "fsbdd"
-                / "auxiliary"
-                / "stage1"
-                / "reproduction.py"
-            ),
-            "dynamic_tests_sha256": _hash_file(
-                project_root
-                / "tests"
-                / "stage1"
-                / "test_s1_13_reproduction.py"
-            ),
-            "static_tests_sha256": _hash_file(
-                project_root / "tests" / "stage1" / "test_s1_13_static.py"
-            ),
+            "pbs_script_sha256": _hash_if_file(script_path),
+            "preflight_pbs_script_sha256": _hash_if_file(preflight_script_path),
+            "analyzer_sha256": _hash_if_file(analyzer_path),
+            "dynamic_tests_sha256": _hash_if_file(dynamic_test_path),
+            "static_tests_sha256": _hash_if_file(static_test_path),
         },
         "checks": checks,
     }

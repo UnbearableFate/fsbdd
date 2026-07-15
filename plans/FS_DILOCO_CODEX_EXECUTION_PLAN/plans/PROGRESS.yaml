@@ -365,7 +365,7 @@ loops:
   result_commit: null
   evidence_index: evidence/indexes/S1-13.md
   checker_verdict: null
-  blocker: Checker BLOCKED_PRECHECK at 54f224d, so no two-node job was submitted. The candidate now adds frozen-package preflight validation, explicit bind-to-none/report-bindings evidence, post-manifest preliminary checksums followed by validator self-inclusion and final exact coverage, plus one separately registered one-node dynamic-preflight attempt. Same-Checker authorization is required before that preflight; its passing evidence must be reviewed before any L2, 9N, long-smoke, or formal run.
+  blocker: Checker authorized exactly one one-node preflight at d9c3f01; job 2392798 failed one positive miniature-repository fixture after nine selected tests passed, and no learner/syncer workload ran. Raw failure, scheduler evidence, reviewed cause, and expected solution are preserved. The fixture and structured missing-surface handling are corrected and login static checks pass. The preflight budget is reasonedly amended from one to two for one corrected attempt, which requires same-Checker authorization; no L2, 9N, long-smoke, or formal run is authorized.
 - id: S2-01
   stage: stage2
   title: 异步 GPU→CPU→FS Publication Pipeline

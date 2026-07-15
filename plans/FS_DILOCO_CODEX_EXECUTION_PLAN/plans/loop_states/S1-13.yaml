@@ -51,7 +51,16 @@ orient:
       code_commit: bac11aeae6c730fc25712bdef38190a38eb4e8da
       result: all static gates and 342 Stage 1 tests passed in 30.29 seconds; scheduler exit status 0
       raw_evidence_root: runtime_runs/S1-13/targeted-bac11ae-20260715T192015Z
-  attempt_budget: {asset_stage: 2, red: 1, targeted: 4, reproduction_preflight: 1, l1_real: 2, l2_real: 3, formal_l3_9n: 2, formal_l4_long: 2}
+  latest_preflight_failure:
+    experiment_id: fsbdd-s1-13-repro-preflight-2392798.opbs
+    pbs_job_id: 2392798.opbs
+    code_commit: d9c3f014916666013e3d2348f3bd5d22d4ae486a
+    result: one positive miniature-repository fixture failed after nine selected tests passed; scheduler exit status 1
+    raw_evidence_root: runtime_runs/S1-13/reproduction-preflight-d9c3f01-20260715T201400Z
+    reviewed_ledger: reports/stage1/S1-13-experiment-failures.json
+    cause: the positive fixture omitted src/fsbdd/auxiliary/stage1/reproduction.py even though the validator hashes that frozen package surface
+    expected_solution: materialize the analyzer in the fixture, emit a structured blocked result for a missing source surface, pass static review, and obtain same-Checker authorization for the reasoned second preflight attempt
+  attempt_budget: {asset_stage: 2, red: 1, targeted: 4, reproduction_preflight: 2, l1_real: 2, l2_real: 3, formal_l3_9n: 2, formal_l4_long: 2}
   attempt_budget_amendments:
     - amended_at_utc: 2026-07-15T19:18:02Z
       prior_targeted_budget: 3
@@ -78,6 +87,14 @@ orient:
       reason: Checker precheck at 54f224d required lower-level dynamic evidence for the new MPI 1+1 dispatch and reproduction analyzer before the final L2 run. This one-node job executes only the new reproduction tests and frozen-package validator and does not execute a learner or syncer workload.
       scope: Exactly one identity-bound one-node preflight; no learner/syncer runtime, L2, 9N, long-smoke, or formal-run budget is changed.
       authorization_gate: The same Checker must explicitly authorize the exact clean preflight candidate before submission; a passing preflight must return to that Checker before any L2 authorization.
+    - amended_at_utc: 2026-07-15T20:12:30Z
+      prior_reproduction_preflight_budget: 1
+      amended_reproduction_preflight_budget: 2
+      consumed_before_amendment: 1
+      consumed_attempts: [2392798.opbs]
+      reason: The sole Checker-authorized preflight ran only the frozen lower-level tests and failed one positive miniature-repository fixture because that fixture omitted the analyzer file that the validator intentionally hashes. Nine selected tests passed, including both MPI 1+1 dispatch cases, analyzer/final-checksum validation, mutation rejection, and the two-node static contract; no learner or syncer workload ran.
+      scope: Add exactly one corrected one-node reproduction-preflight attempt. Do not change the learner/syncer runtime, L2, 9N, long-smoke, or formal-run budgets.
+      authorization_gate: The same Checker must review the immutable failed evidence, reviewed failure ledger, fixture/structured-blocked-result correction, static checks, and this amendment and explicitly authorize the second preflight at an exact clean commit.
   failure_ladder: preserve the first expensive failure then reproduce its failing role or analyzer at the smallest one-node or two-node topology before an authorized retry
   nine_node_gate_required: true
   goal_tokens_start: 5924432
@@ -93,7 +110,7 @@ preflight:
   reduced_reproduction_contract: reports/stage1/S1-13-reproduction-contract.json
   reduced_reproduction_contract_sha256: bc6b8479bdc9a61e813f571fdefe839d7856dc41ef14a5475499a31231948fb7
   reduced_reproduction_preflight_command: python -m fsbdd.auxiliary.stage1.reproduction preflight --project-root <clean-worktree> --config configs/stage1/s1_13_nine_node_resolved.json --asset-root runtime_runs/S1-13/assets-2389469.opbs --gate-contract reports/stage1/S1-13-gate-contract.json --reproduction-contract reports/stage1/S1-13-reproduction-contract.json --expected-commit <commit> --expected-reproduction-contract-sha256 bc6b8479bdc9a61e813f571fdefe839d7856dc41ef14a5475499a31231948fb7 --output <preflight-output>/preflight-validator.json
-  reduced_reproduction_preflight_result: pending one-node dynamic validation and same-Checker authorization
+  reduced_reproduction_preflight_result: job 2392798 failed one positive fixture after nine selected tests passed; correction and reasoned one-attempt amendment pending same-Checker review
   reduced_reproduction_validator_command: python -m fsbdd.auxiliary.stage1.reproduction validate --result-root <result-root> --reproduction-contract reports/stage1/S1-13-reproduction-contract.json
   reduced_reproduction_validator_result: pending
   checker_phase_a: required
@@ -108,7 +125,7 @@ green:
   evidence_path: reports/stage1/S1-13-experiment-failures.json
 harden:
   commands: [bash -n every active S1-13 PBS script and failure helper, jq empty failure and evidence contracts, git diff --check]
-  evidence_paths: [runtime_runs/S1-13/targeted-f0bb4fb-20260715T180720Z, runtime_runs/S1-13/targeted-681e013-20260715T182501Z, runtime_runs/S1-13/targeted-focus-a026505-20260715T191211Z, runtime_runs/S1-13/targeted-bac11ae-20260715T192015Z, evidence/indexes/S1-13.md]
+  evidence_paths: [runtime_runs/S1-13/targeted-f0bb4fb-20260715T180720Z, runtime_runs/S1-13/targeted-681e013-20260715T182501Z, runtime_runs/S1-13/targeted-focus-a026505-20260715T191211Z, runtime_runs/S1-13/targeted-bac11ae-20260715T192015Z, runtime_runs/S1-13/reproduction-preflight-d9c3f01-20260715T201400Z, evidence/indexes/S1-13.md]
 nine_node_gate: {required: true, run_id: null, topology_gate: null, loss_gate: null, runtime_gate: null}
 checker:
   context_id: s1_13_checker
@@ -142,10 +159,14 @@ checker:
     - candidate: 54f224d9c17746199f20774cacac7df7e86ba31e
       verdict: BLOCKED_PRECHECK; do not submit the two-node reproduction
       result: frozen-package preflight was absent, validation preceded checksum finalization, new MPI/analyzer surfaces lacked lower-level dynamic evidence, and the MPI launcher lacked explicit binding policy and report-bindings evidence
+    - candidate: d9c3f014916666013e3d2348f3bd5d22d4ae486a
+      verdict: ADMISSIBLE for exactly one one-node reproduction_preflight; no L2 or larger run authorized
+      result: job 2392798 failed one positive miniature-repository fixture after nine selected tests passed; automatic raw failure captured, reviewed cause and expected solution recorded, and no learner/syncer workload ran
 persist:
   evidence_index: evidence/indexes/S1-13.md
   raw_evidence_root: runtime_runs/S1-13
   acceptance_traceability_updated: false
   next_gap: Stage 2 asynchronous GPU to CPU to filesystem publication pipeline
-  handoff: Checker blocked candidate 54f224d before submission. The corrected package now adds an exact-clean-commit frozen preflight, a separately registered single one-node dynamic-preflight attempt, explicit MPI bind-to-none and report-bindings evidence, and a validator that runs after the preliminary checksum inventory, appends its own hash, and revalidates exact final coverage. Run only the Checker-authorized one-node preflight first; return its evidence to the same Checker before any two-node submission.
-blocker: Same Checker authorization of the exact one-node reproduction-preflight candidate is required. The two-node reproduction, 9N, long smoke, and formal long submissions remain prohibited until the preflight passes and the same Checker authorizes the next step.
+  handoff: >-
+    Checker authorized exactly one one-node preflight at d9c3f01. Job 2392798 automatically preserved its failure and showed nine selected passes plus one positive fixture failure: the miniature repository omitted the analyzer source that the validator hashes. The reviewed ledger is complete; the fixture now materializes that source and the validator emits a structured blocked result for a missing frozen package surface. Static checks pass. The preflight budget is explicitly amended from one to two for exactly one corrected attempt; return the exact clean correction to the same Checker before submission.
+blocker: Job 2392798 consumed the sole original reproduction-preflight attempt and failed. Same-Checker authorization of the reasoned second-attempt amendment and exact corrected commit is required; L2, 9N, long smoke, and formal long submissions remain prohibited.
