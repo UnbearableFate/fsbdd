@@ -175,8 +175,18 @@ def _topology_gate(
     syncer_host = str(syncer["identity"]["hostname"])
     gpu_uuids = [str(item["identity"]["gpu"]["gpu_uuid"]) for item in roles]
     job_ids = [str(item["identity"]["pbs_job_id"]) for item in roles] + [str(syncer["identity"]["pbs_job_id"])]
+    qtimes = [item["identity"].get("pbs_qtime_utc") for item in roles] + [
+        syncer["identity"].get("pbs_qtime_utc")
+    ]
     hosts = learner_hosts + [syncer_host]
     require_independent = workload == "nine_node"
+    run_ids = {str(item["run_id"]) for item in roles} | {str(syncer["run_id"])}
+    config_identities = {str(item["identity"]["config_sha256"]) for item in roles} | {
+        str(syncer["identity"]["config_sha256"])
+    }
+    asset_identities = {str(item["identity"]["asset_marker_sha256"]) for item in roles} | {
+        str(syncer["identity"]["asset_marker_sha256"])
+    }
     passed = (
         len(roles) == expected_learners
         and len(set(learner_hosts)) == expected_learners
@@ -185,7 +195,9 @@ def _topology_gate(
         and syncer["identity"]["gpu_count"] == 0
         and syncer["identity"]["torch_module_imported"] is False
         and syncer["identity"]["cuda_visible_devices"] in {"", "-1"}
+        and len(run_ids) == len(config_identities) == len(asset_identities) == 1
         and (not require_independent or len(set(job_ids)) == expected_learners + 1)
+        and all(isinstance(value, str) and value.endswith("Z") for value in qtimes)
         and len({int(item["identity"]["shared_device"]) for item in roles} | {int(syncer["identity"]["shared_device"])}) == 1
     )
     return {
@@ -200,6 +212,10 @@ def _topology_gate(
         "gpu_uuids": gpu_uuids,
         "distinct_gpu_uuids": len(set(gpu_uuids)),
         "pbs_job_ids": job_ids,
+        "pbs_qtime_utc": qtimes,
+        "run_ids": sorted(run_ids),
+        "config_sha256": sorted(config_identities),
+        "asset_marker_sha256": sorted(asset_identities),
         "independent_job_ids_required": require_independent,
         "shared_filesystem_device_ids": sorted({int(item["identity"]["shared_device"]) for item in roles} | {int(syncer["identity"]["shared_device"])}),
         "syncer_cpu_only": (
@@ -297,6 +313,13 @@ def _protocol_gate(
         and int(syncer["forbidden_runtime"]["history_scan_operations"]) == 0
         and int(syncer["forbidden_runtime"]["full_model_operations"]) == 0
     )
+    frozen_asset_identity_pass = all(
+        item["identity"]["model_revision"]
+        == config["workloads"][workload]["model_revision"]
+        and item["identity"]["dataset_revision"]
+        == config["workloads"][workload]["dataset_revision"]
+        for item in roles
+    )
     passed = (
         len(per_fragment) == 4
         and contiguous
@@ -305,6 +328,7 @@ def _protocol_gate(
         and byte_pass
         and inventory_pass
         and forbidden_pass
+        and frozen_asset_identity_pass
         and (expected_tokens is None or tokens == expected_tokens)
     )
     return {
@@ -324,6 +348,7 @@ def _protocol_gate(
         "bounded_storage_inventory": inventory,
         "bounded_inventory_pass": inventory_pass,
         "forbidden_runtime_pass": forbidden_pass,
+        "frozen_model_dataset_identity_pass": frozen_asset_identity_pass,
         "readiness": syncer["readiness"],
     }
 

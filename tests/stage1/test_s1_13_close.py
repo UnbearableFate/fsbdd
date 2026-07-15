@@ -133,22 +133,30 @@ def test_readiness_reuses_unchanged_latest_payloads(tmp_path: Path) -> None:
 def test_nine_node_topology_gate_rejects_duplicate_host_and_gpu() -> None:
     roles = [
         {
+            "run_id": "run",
             "identity": {
                 "hostname": f"node-{index}" if index else "node-duplicate",
                 "pbs_job_id": f"job-{index}",
+                "pbs_qtime_utc": "2026-07-15T00:00:00Z",
                 "shared_device": 7,
                 "gpu": {"gpu_uuid": f"GPU-{index}" if index else "GPU-duplicate"},
+                "config_sha256": "a" * 64,
+                "asset_marker_sha256": "b" * 64,
             }
         }
         for index in range(8)
     ]
     syncer = {
+        "run_id": "run",
         "identity": {
             "hostname": "syncer-node",
             "pbs_job_id": "job-8",
+            "pbs_qtime_utc": "2026-07-15T00:00:00Z",
             "shared_device": 7,
             "gpu_count": 0,
             "torch_module_imported": False,
+            "config_sha256": "a" * 64,
+            "asset_marker_sha256": "b" * 64,
             "cuda_visible_devices": "",
         }
     }
