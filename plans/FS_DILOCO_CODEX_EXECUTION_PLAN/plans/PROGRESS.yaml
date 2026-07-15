@@ -365,7 +365,7 @@ loops:
   result_commit: null
   evidence_index: evidence/indexes/S1-13.md
   checker_verdict: null
-  blocker: Exact-clean third-and-final reproduction preflight job 2393049 passed at 74dbd164555a49551353f4e4da3229698621a633 with scheduler exit 0, 11 focused tests passed, frozen validator admissible with all 14 checks true, and a checksum-verified immutable package. Same-Checker Phase B and separate exact-commit L2 authorization remain required. The L2 3-to-4 amendment is only a conditional future budget; no L2, 9N, long-smoke, or formal run is authorized.
+  blocker: Same-Checker Phase B passed preflight job 2393049 and Phase A authorizes exactly one fourth-and-final L2 1+1 reproduction at 74dbd164555a49551353f4e4da3229698621a633 using only pbs/stage1_s1_13_smoke_2n.pbs with unique absent shared/result roots and run ID. No retry, 9N, long-smoke, formal run, or other compute is authorized.
 - id: S2-01
   stage: stage2
   title: 异步 GPU→CPU→FS Publication Pipeline

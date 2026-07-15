@@ -178,6 +178,8 @@ orient:
       reason: The third L2 attempt reached the corrected real-model learner initialization but was rejected before readiness or training solely because its old immutable asset registry and fragment map were incompatible and lacked a producer identity. The replacement bundle has exact current registry/map identities, an internally complete producer chain, compatible workload validation, and same-Checker asset Phase B PASS. The corrected 1+1 learner/syncer path therefore still lacks one post-rebuild dynamic execution.
       scope: Add exactly one two-node 1+1 shared-filesystem L2 attempt using the refrozen nine-node config and replacement asset, only after the new one-node reproduction preflight passes same-Checker Phase B. Do not change or authorize any 9N, long-smoke, or formal budget.
       authorization_gate: The same S1-13 Checker must first pass the new preflight package in Phase B, then separately review and authorize an exact-clean L2 commit. Recording this amendment does not itself authorize L2.
+      authorization_commit: 74dbd164555a49551353f4e4da3229698621a633
+      checker_verdict: preflight job 2393049 Phase B PASS; ADMISSIBLE for exactly one fourth-and-final L2 1+1 reproduction; no retry or larger run authorized
   failure_ladder: preserve the first expensive failure then reproduce its failing role or analyzer at the smallest one-node or two-node topology before an authorized retry
   nine_node_gate_required: true
   goal_tokens_start: 5924432
@@ -216,7 +218,7 @@ nine_node_gate: {required: true, run_id: null, topology_gate: null, loss_gate: n
 checker:
   context_id: s1_13_checker
   maker_chat_inherited: false
-  phase_a_verdict: exact candidate 74dbd164555a49551353f4e4da3229698621a633 is ADMISSIBLE for exactly one third-and-final one-node reproduction_preflight; L2 3-to-4 is admitted only as a conditional future budget and no L2 or larger run is authorized
+  phase_a_verdict: preflight job 2393049 Phase B PASS; exact candidate 74dbd164555a49551353f4e4da3229698621a633 is ADMISSIBLE for exactly one fourth-and-final L2 1+1 reproduction using only pbs/stage1_s1_13_smoke_2n.pbs; no retry or larger run authorized
   verdict: null
   report_path: reports/checkers/S1-13.md
   cycles:
@@ -258,13 +260,13 @@ checker:
       verdict: Phase B PASS for job 2392959 failure attribution and asset_stage budget amendment 2 to 3; Phase A ADMISSIBLE for exactly one third-and-final asset_stage job using only pbs/stage1_s1_13_assets.pbs; after job 2392989, Phase B PASS for the complete immutable asset package; no compute run authorized
       result: asset-stage job 2392989 passed from the exact-clean authorized commit with scheduler exit 0, no abnormal node, a complete producer-bound bundle, compatible nine-node and long-run validators, three focused tests passed, all four dataset trees hard-link reused, and a checksum-verified retained package; tracked config/contract refreeze may proceed only with the accepted long-run aligned-zero overlay preserved
     - candidate: 74dbd164555a49551353f4e4da3229698621a633
-      verdict: Phase A ADMISSIBLE for exactly one third-and-final one-node reproduction_preflight; preflight budget 2 to 3 admitted; L2 budget 3 to 4 admitted only conditionally; no L2 or larger run authorized
-      result: exact-clean preflight job 2393049 passed with scheduler exit 0, no abnormal node, 11 focused tests passed, frozen-package validator admissible with all 14 checks true, empty stderr, and a checksum-verified retained inventory; same-Checker Phase B pending
+      verdict: Phase A ADMISSIBLE for exactly one third-and-final one-node reproduction_preflight; after job 2393049, Phase B PASS and Phase A ADMISSIBLE for exactly one fourth-and-final L2 1+1 reproduction using only pbs/stage1_s1_13_smoke_2n.pbs; no retry or larger run authorized
+      result: exact-clean preflight job 2393049 passed with scheduler exit 0, no abnormal node, 11 focused tests passed, frozen-package validator admissible with all 14 checks true, empty stderr, and a checksum-verified retained inventory; L2 submission pending
 persist:
   evidence_index: evidence/indexes/S1-13.md
   raw_evidence_root: runtime_runs/S1-13
   acceptance_traceability_updated: false
   next_gap: Stage 2 asynchronous GPU to CPU to filesystem publication pipeline
   handoff: >-
-    Exact-clean preflight job 2393049 passed at Checker-authorized commit 74dbd164555a49551353f4e4da3229698621a633. Its immutable package records scheduler exit 0, no abnormal node, 11 focused tests passed, an admissible 14-of-14 frozen validator, empty stderr, and verified checksums. Return it to the same Checker for Phase B. L2 remains conditional on that verdict and separate exact-commit authorization. No L2, 9N, long-smoke, or formal run is authorized.
-blocker: Passing preflight job 2393049 awaits same-Checker Phase B and separate exact-commit L2 authorization. No L2 or larger run is authorized.
+    Same-Checker Phase B passed exact-clean preflight job 2393049 and Phase A authorizes exactly one fourth-and-final L2 1+1 reproduction at commit 74dbd164555a49551353f4e4da3229698621a633. Use only pbs/stage1_s1_13_smoke_2n.pbs from the clean detached worktree with verified refrozen identities and unique absent SHARED_ROOT, RESULT_ROOT, and RUN_ID. Return the immutable package for Phase B. No retry, 9N, long-smoke, formal run, or other compute is authorized.
+blocker: Exactly one fourth-and-final L2 1+1 reproduction is authorized at 74dbd164555a49551353f4e4da3229698621a633 and not yet submitted. No retry or larger compute run is authorized.
