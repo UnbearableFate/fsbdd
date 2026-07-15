@@ -36,7 +36,10 @@ preflight:
   package_validator_command: fsbdd evidence validate runtime_runs/S1-04/formal-l2
   package_validator_result: pending
   checker_phase_a: required
-red: {command: null, exit_code: null, evidence_path: null}
+red:
+  command: PYTHONPATH=src .venv/bin/python tests/red_cases/s1_04_naive_bootstrap_surrogate.py
+  exit_code: 1
+  evidence_path: runtime_runs/S1-04/red-773a1b2
 green: {command: null, evidence_path: null}
 harden: {commands: [], evidence_paths: []}
 nine_node_gate: {required: false, run_id: null, topology_gate: null, loss_gate: null, runtime_gate: null}
@@ -51,7 +54,7 @@ persist:
     - S1-02 supplies a frozen complete fragment map and S1-03 supplies payload-first visibility-last fixed-slot publication.
     checked_commit: 629aa6ffc92de2d3b7740571ca97898b0558827f
     selected_evidence: [evidence/indexes/S1-02.md, evidence/indexes/S1-03.md]
-    next_command: execute the S1-04 semantic RED after committing the frozen matrix and evidence contract
+    next_command: implement the compound per-fragment version-0 global-state bootstrap and targeted tests
   cost:
     attempts_by_level: {L0: 0, L1: 0, L2: 0}
     queue_seconds: null
