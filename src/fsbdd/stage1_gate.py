@@ -327,13 +327,49 @@ def _protocol_gate(
         and int(progress_fragments[index]["stale_accepted_contributions"]) == 0
         for index, versions in per_fragment.items()
     )
-    inventory = syncer["inventories"][-1]
-    inventory_pass = (
-        int(inventory["global"]["visibility_records"]) == 4
-        and int(inventory["proposals"]["visibility_records"]) == learner_count * 4
-        and int(inventory["global"]["record_temp_files"]) == 0
-        and int(inventory["proposals"]["record_temp_files"]) == 0
+    inventories = syncer["inventories"]
+    inventory = inventories[-1]
+    expected_policy = {
+        "minimum_unreferenced_payload_age_seconds": float(
+            config["bounded_state"]["minimum_unreferenced_payload_age_seconds"]
+        ),
+        "retained_recent_unreferenced_payloads": int(
+            config["bounded_state"]["retained_recent_unreferenced_payloads"]
+        ),
+        "inventory_every_global_cycles": int(
+            config["bounded_state"]["inventory_every_global_cycles"]
+        ),
+        "history_scan_allowed": False,
+    }
+    expected_visibility = {"global": 4, "proposals": learner_count * 4}
+    classified_inventory_pass = bool(inventories) and all(
+        item.get("policy") == expected_policy
+        and all(
+            int(item[name]["visibility_records"]) == expected_visibility[name]
+            and int(item[name]["referenced_payloads"]) == expected_visibility[name]
+            and int(item[name]["physical_payloads"])
+            == int(item[name]["referenced_payloads"]) + int(item[name]["orphan_payloads"])
+            and int(item[name]["retirement_markers"]) == int(item[name]["orphan_payloads"])
+            and int(item[name]["record_temp_files"]) == 0
+            and int(item[name]["record_temp_bytes"]) == 0
+            for name in expected_visibility
+        )
+        for item in inventories
     )
+    interval = expected_policy["inventory_every_global_cycles"]
+    periodic_cycles = {
+        int(item["global_cycle"])
+        for item in inventories[:-1]
+        if int(item["global_cycle"]) % interval == 0
+    }
+    inventory_schedule_pass = set(
+        range(interval, global_cycle + 1, interval)
+    ).issubset(periodic_cycles)
+    reclamation_pass = workload == "nine_node" or all(
+        any(int(item[name].get("reclaimed_payload_files", 0)) > 0 for item in inventories)
+        for name in expected_visibility
+    )
+    inventory_pass = classified_inventory_pass and inventory_schedule_pass and reclamation_pass
     forbidden_pass = (
         all(not bool(item["forbidden_runtime"]["torch_distributed_initialized"]) for item in roles)
         and not bool(syncer["forbidden_runtime"]["torch_distributed_initialized"])
@@ -391,6 +427,10 @@ def _protocol_gate(
         "expected_aggregate_processed_input_tokens": expected_tokens,
         "bounded_storage_inventory": inventory,
         "bounded_inventory_pass": inventory_pass,
+        "classified_inventory_pass": classified_inventory_pass,
+        "inventory_schedule_pass": inventory_schedule_pass,
+        "reclamation_observed_pass": reclamation_pass,
+        "inventory_points": len(inventories),
         "forbidden_runtime_pass": forbidden_pass,
         "frozen_model_dataset_identity_pass": frozen_asset_identity_pass,
         "resolved_publication_schedule_pass": schedule_pass,

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import shutil
 from pathlib import Path
@@ -32,9 +33,103 @@ def _copy_file(source: Path, destination: Path) -> None:
     shutil.copy2(source, destination)
 
 
+def _reject_placeholders(value: Any, *, path: str = "config") -> None:
+    if isinstance(value, dict):
+        for key, item in value.items():
+            _reject_placeholders(item, path=f"{path}.{key}")
+    elif isinstance(value, list):
+        for index, item in enumerate(value):
+            _reject_placeholders(item, path=f"{path}[{index}]")
+    elif isinstance(value, str) and (
+        value == "asset_stage" or "<submission-nonce>" in value or "<pbs-job-id>" in value
+    ):
+        raise Stage1PackageError(f"unresolved placeholder in {path}")
+
+
+def _capture_current_protocol_samples(
+    shared_root: Path,
+    evidence: EvidencePackage,
+) -> dict[str, Any]:
+    """Retain fixed-slot metadata plus small, independently readable byte samples."""
+
+    summary: dict[str, Any] = {
+        "schema_version": 1,
+        "sample_bytes_per_edge": 4096,
+        "backends": {},
+    }
+    for backend_name in ("global", "proposals"):
+        backend_root = shared_root / "protocol" / backend_name
+        visibility_root = backend_root / "visibility"
+        payload_root = (backend_root / "payloads").resolve()
+        if not visibility_root.is_dir() or not payload_root.is_dir():
+            raise Stage1PackageError(f"raw protocol backend is incomplete: {backend_root}")
+        rows = []
+        for source in sorted(visibility_root.glob("*.json")):
+            record = _read(source)
+            relative = record.get("payload_relative_path")
+            if (
+                record.get("complete") is not True
+                or not isinstance(relative, str)
+                or not relative.startswith("payloads/")
+            ):
+                raise Stage1PackageError(f"invalid current visibility record: {source}")
+            raw_payload = backend_root / relative
+            payload = raw_payload.resolve()
+            if raw_payload.is_symlink() or payload.parent != payload_root or not payload.is_file():
+                raise Stage1PackageError(f"unsafe or absent current payload: {payload}")
+            payload_bytes = int(record["payload_bytes"])
+            if payload.stat().st_size != payload_bytes:
+                raise Stage1PackageError(f"current payload size mismatch: {payload}")
+            with payload.open("rb") as stream:
+                prefix = stream.read(min(4096, payload_bytes))
+                stream.seek(max(0, payload_bytes - 4096))
+                suffix = stream.read(min(4096, payload_bytes))
+            _copy_file(
+                source,
+                evidence.root / "raw-metadata" / backend_name / "visibility" / source.name,
+            )
+            sample = {
+                "schema_version": 1,
+                "slot": source.stem,
+                "payload_relative_path": relative,
+                "payload_bytes": payload_bytes,
+                "payload_sha256": record["payload_sha256"],
+                "dtype": record["dtype"],
+                "shape": record["shape"],
+                "encoding": "hex",
+                "prefix_offset": 0,
+                "prefix_hex": prefix.hex(),
+                "prefix_sha256": hashlib.sha256(prefix).hexdigest(),
+                "suffix_offset": payload_bytes - len(suffix),
+                "suffix_hex": suffix.hex(),
+                "suffix_sha256": hashlib.sha256(suffix).hexdigest(),
+            }
+            evidence.write_json(
+                f"raw-metadata/{backend_name}/samples/{source.stem}.json",
+                sample,
+            )
+            rows.append(
+                {
+                    "slot": source.stem,
+                    "record_sha256": file_digest(source),
+                    "payload_bytes": payload_bytes,
+                    "payload_sha256": record["payload_sha256"],
+                    "sample_path": f"raw-metadata/{backend_name}/samples/{source.stem}.json",
+                }
+            )
+        summary["backends"][backend_name] = {
+            "current_visibility_records": len(rows),
+            "current_slots": rows,
+        }
+    evidence.write_json("raw-metadata/classified-current-inventory.json", summary)
+    return summary
+
+
 def package(arguments: argparse.Namespace) -> dict[str, Any]:
     evidence = EvidencePackage.create(arguments.evidence_root)
-    workload = _read(arguments.config)["selected_workload"]
+    resolved_config = _read(arguments.config)
+    _reject_placeholders(resolved_config)
+    workload = resolved_config["selected_workload"]
     expected_count = 8 if workload == "nine_node" else 4
     roles = [
         _read(arguments.result_root / "roles" / f"learner-{index:02d}.json")
@@ -76,6 +171,13 @@ def package(arguments: argparse.Namespace) -> dict[str, Any]:
         arguments.result_root / "logs" / "syncer.jsonl",
         arguments.evidence_root / "runtime" / "logs" / "syncer.jsonl",
     )
+    protocol_samples = _capture_current_protocol_samples(arguments.shared_root, evidence)
+    expected_current = {"global": 4, "proposals": expected_count * 4}
+    if any(
+        protocol_samples["backends"][name]["current_visibility_records"] != count
+        for name, count in expected_current.items()
+    ):
+        raise Stage1PackageError("current raw protocol slot inventory is incomplete")
     if workload == "nine_node":
         for phase in ("initial", "final"):
             _copy_file(

@@ -647,6 +647,18 @@ def run_syncer(
     updates: list[dict[str, Any]] = []
     inventories: list[dict[str, Any]] = []
     last_inventory_cycle = -1
+    inventory_policy = {
+        "minimum_unreferenced_payload_age_seconds": float(
+            config["bounded_state"]["minimum_unreferenced_payload_age_seconds"]
+        ),
+        "retained_recent_unreferenced_payloads": int(
+            config["bounded_state"]["retained_recent_unreferenced_payloads"]
+        ),
+        "inventory_every_global_cycles": int(
+            config["bounded_state"]["inventory_every_global_cycles"]
+        ),
+        "history_scan_allowed": False,
+    }
     target = int(
         workload_config["target_global_cycles"]
         if workload == "nine_node"
@@ -673,6 +685,7 @@ def run_syncer(
             inventory = {
                 "global_cycle": cycle,
                 "timestamp_unix_ns": time.time_ns(),
+                "policy": inventory_policy,
                 "global": global_backend.reclaim_unreferenced_payloads(
                     retain_recent=int(config["bounded_state"]["retained_recent_unreferenced_payloads"]),
                     minimum_age_seconds=float(config["bounded_state"]["minimum_unreferenced_payload_age_seconds"]),
@@ -731,6 +744,7 @@ def run_syncer(
     final_inventory = {
         "global_cycle": final_report.global_cycle,
         "timestamp_unix_ns": time.time_ns(),
+        "policy": inventory_policy,
         "global": global_backend.inspect_inventory(),
         "proposals": proposal_backend.inspect_inventory(),
     }

@@ -5,11 +5,15 @@ import json
 import time
 from pathlib import Path
 
+import pytest
+
 from fsbdd.global_state import BootstrapFragment, FragmentStateDescriptor, GlobalStateIdentities, GlobalStateStore
 from fsbdd.proposal import ConsumptionFrontiers, Proposal, ProposalStore
 from fsbdd.storage import PosixStorageBackend, PublicationSpec, ReadExpectation
 from fsbdd.syncer_readiness import FragmentReadinessAuthority, ReadinessConfig, SyncerReadinessMachine
 from fsbdd.stage1_gate import _topology_gate
+from fsbdd.stage1_package import Stage1PackageError, _capture_current_protocol_samples, _reject_placeholders
+from fsbdd.evidence import EvidencePackage
 
 
 IDENTITIES = GlobalStateIdentities(
@@ -187,3 +191,32 @@ def test_nine_node_topology_gate_rejects_duplicate_host_and_gpu() -> None:
     roles[1]["identity"]["hostname"] = "node-duplicate"
     roles[1]["identity"]["gpu"]["gpu_uuid"] = "GPU-duplicate"
     assert _topology_gate(roles, syncer, workload="nine_node", expected_learners=8)["status"] == "fail"
+
+
+def test_protocol_sample_capture_binds_current_metadata_and_edges(tmp_path: Path) -> None:
+    shared = tmp_path / "shared"
+    for backend_name in ("global", "proposals"):
+        backend = PosixStorageBackend(shared / "protocol" / backend_name)
+        backend.publish("slot-0", bytes(range(256)) * 40, _spec(0))
+    evidence = EvidencePackage.create(tmp_path / "evidence")
+    summary = _capture_current_protocol_samples(shared, evidence)
+    assert summary["sample_bytes_per_edge"] == 4096
+    for backend_name in ("global", "proposals"):
+        assert summary["backends"][backend_name]["current_visibility_records"] == 1
+        sample = json.loads(
+            (
+                evidence.root
+                / "raw-metadata"
+                / backend_name
+                / "samples"
+                / "slot-0.json"
+            ).read_text(encoding="utf-8")
+        )
+        assert len(bytes.fromhex(sample["prefix_hex"])) == 4096
+        assert len(bytes.fromhex(sample["suffix_hex"])) == 4096
+        assert sample["suffix_offset"] == 10240 - 4096
+
+
+def test_formal_package_rejects_unresolved_asset_placeholders() -> None:
+    with pytest.raises(Stage1PackageError, match="resolved placeholder"):
+        _reject_placeholders({"resolved_runtime_fields": {"asset_bundle_root": "asset_stage"}})
