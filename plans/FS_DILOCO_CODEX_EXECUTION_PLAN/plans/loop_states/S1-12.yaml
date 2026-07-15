@@ -29,8 +29,8 @@ orient:
   raw_evidence_on_demand: [runtime_runs/S1-07, runtime_runs/S1-08, runtime_runs/S1-09, runtime_runs/S1-11]
   resource_level: L2
   available_resources: Miyabi debug-g up to four compute nodes with one local GPU per learner and shared POSIX runtime root
-  recent_failure: Targeted job 2387668.opbs failed before the first speed trial because an analyzer assertion was misplaced in the role-local function; targeted job 2387680.opbs then reached real GPU training but four diagnostic ranks sharing one GPU narrowly exceeded the three-second window. Both packages are preserved; the frozen observation interval was expanded to ten seconds without changing the 0.5 slowdown or 2-percent peer gate before the final targeted attempt.
-  attempt_budget: {red: 1, targeted: 5, l1_compute: 5, formal_l2_batch: 1}
+  recent_failure: Targeted jobs 2388610.opbs and 2388627.opbs reached progressively deeper real role paths and exposed a nested publication-summary lookup followed by deterministic rejection of a second runtime binding the same owned RNG. Both packages and three earlier failures are preserved; the corrected harness reuses one runtime across its proposal, mixed-version, and final phases and swaps only its safe-boundary observer.
+  attempt_budget: {red: 1, targeted: 6, l1_compute: 6, formal_l2_batch: 1}
   failure_ladder: preserve the first L2 failure then reproduce the failing role or analyzer on one compute node before resubmission
   nine_node_gate_required: false
   goal_tokens_start: 4645261

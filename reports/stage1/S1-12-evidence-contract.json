@@ -52,7 +52,7 @@
     "full_model_exception": "the frozen evaluation snapshot is explicitly classified as evaluation rather than steady state"
   },
   "formal_package": "S1-00 evidence builder/finalizer/validator with code config source skill scheduler role path identities and checksums; fail if evidence root exists",
-  "attempt_budget": {"red": 1, "targeted": 5, "l1_compute": 5, "formal_l2_batch": 1},
-  "attempt_budget_exception": "The original three targeted/two L1 allowance was exhausted by three preserved one-node diagnostic packages before any formal run: a misplaced analyzer assertion, a deliberately overloaded four-rank/one-GPU three-second interval, and JSON tuple/list comparison at the catalog boundary. Two additional cheap one-node attempts are authorized by reports/stage1/S1-12-targeted-attempt-escalation.json; the one-shot four-node formal budget is unchanged.",
+  "attempt_budget": {"red": 1, "targeted": 6, "l1_compute": 6, "formal_l2_batch": 1},
+  "attempt_budget_exception": "Five preserved one-node diagnostic packages exhausted the prior targeted allowance before any formal run. The last two reached progressively deeper role-harness boundaries and exposed a nested-summary lookup followed by deterministic single-owner RNG rebinding. One final cheap one-node attempt is authorized by reports/stage1/S1-12-targeted-attempt-escalation.json after changing the harness to reuse its owned runtime; the one-shot four-node formal budget is unchanged.",
   "failure_ladder": "preserve the first L2 failure, reproduce the failing role or analyzer on one compute node, and do not resubmit four nodes until the reduced case passes"
 }

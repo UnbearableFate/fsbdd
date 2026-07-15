@@ -957,18 +957,8 @@ def _run_real_role(
     )
     adoption.poll_once()
     mixed_steps = int(training["mixed_version_steps"])
-    mixed_runtime, _ = _runtime(
-        model=model,
-        groups=groups,
-        progress=progress,
-        scheduler=scheduler,
-        rng=rng,
-        device=device,
-        learning_rate=float(training["inner_learning_rate"]),
-        optimizer=optimizer,
-        observers=(adoption.on_safe_boundary,),
-    )
-    mixed_run = mixed_runtime.run(
+    runtime.safe_boundary_observers = (adoption.on_safe_boundary,)
+    mixed_run = runtime.run(
         _batches(
             count=mixed_steps + 1,
             rank=rank,
@@ -997,18 +987,7 @@ def _run_real_role(
         )
     _wait_json(coordination / "fragment-one-committed.json", timeout)
     adoption.poll_once()
-    final_runtime, _ = _runtime(
-        model=model,
-        groups=groups,
-        progress=progress,
-        scheduler=scheduler,
-        rng=rng,
-        device=device,
-        learning_rate=float(training["inner_learning_rate"]),
-        optimizer=optimizer,
-        observers=(adoption.on_safe_boundary,),
-    )
-    final_run = final_runtime.run(
+    final_run = runtime.run(
         _batches(
             count=1,
             rank=rank,

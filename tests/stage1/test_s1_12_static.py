@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 import csv
 import hashlib
 import json
@@ -51,6 +52,33 @@ def test_application_source_uses_mpi_only_as_launcher() -> None:
     assert not any(token in source for token in forbidden)
     assert '"application_coordination": "shared_filesystem_only"' in source
     assert '"mpi_usage": "launcher_only"' in source
+
+
+def test_real_role_reuses_its_runtime_owned_rng_across_training_phases() -> None:
+    tree = ast.parse((ROOT / "src/fsbdd/profile_a_stress.py").read_text())
+    role = next(
+        node
+        for node in tree.body
+        if isinstance(node, ast.FunctionDef) and node.name == "_run_real_role"
+    )
+    runtime_factories = [
+        node
+        for node in ast.walk(role)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id == "_runtime"
+    ]
+    runtime_runs = [
+        node
+        for node in ast.walk(role)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and isinstance(node.func.value, ast.Name)
+        and node.func.value.id == "runtime"
+        and node.func.attr == "run"
+    ]
+    assert len(runtime_factories) == 1
+    assert len(runtime_runs) == 3
 
 
 def test_requirement_matrix_has_exact_loop_ids() -> None:
