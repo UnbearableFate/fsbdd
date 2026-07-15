@@ -5,6 +5,7 @@ import hashlib
 import inspect
 import json
 import math
+import time
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -17,6 +18,7 @@ from fsbdd.learner import (  # noqa: E402
     ConstantStepScheduler,
     LearnerError,
     LearnerProgress,
+    LearnerRng,
     LearnerRuntime,
     PackedTokenShard,
 )
@@ -208,9 +210,13 @@ def _runtime(
     gradient_accumulation: int = 2,
     lr: float = 0.01,
     optimizer_type: str = "adamw",
+    rng: LearnerRng | None = None,
+    rng_seed: int = 1606,
+    clock_ns=None,
 ) -> LearnerRuntime:
     progress = progress or LearnerProgress.initialize("learner-a", (2, 5))
     scheduler = scheduler or ConstantStepScheduler(progress.local_optimizer_steps)
+    rng = rng or LearnerRng.initialize(progress.learner_id, rng_seed, torch.device("cpu"))
     optimizer = (
         torch.optim.AdamW(model.parameters(), lr=lr)
         if optimizer_type == "adamw"
@@ -221,6 +227,7 @@ def _runtime(
         optimizer=optimizer,
         scheduler=scheduler,
         progress=progress,
+        rng=rng,
         fragment_parameters=_groups(model),
         device=torch.device("cpu"),
         precision="fp32",
@@ -233,7 +240,7 @@ def _runtime(
             "claim": "test_only",
         },
         logger=logger,
-        clock_ns=_Clock(),
+        clock_ns=clock_ns or _Clock(),
     )
 
 
@@ -328,10 +335,14 @@ def test_asset_identity_and_visibility_last_materialization(
     first = PackedTokenShard(profile, output, learner_index=0)
     second = PackedTokenShard(profile, output, learner_index=1)
     assert first.path != second.path
+    second_initial_state = second.state_dict()
     batch = first.next_batch(2)
     state = first.state_dict()
+    assert state["learner_index"] != second_initial_state["learner_index"]
+    assert second.state_dict() == second_initial_state
     resumed = PackedTokenShard(profile, output, learner_index=0, epoch=state["epoch"], position=state["position"])
     assert torch.equal(first.next_batch(1)["input_ids"], resumed.next_batch(1)["input_ids"])
+    assert second.state_dict() == second_initial_state
     assert batch["input_ids"].shape == (2, 8)
 
     shard = output / manifest["shards"][0]["path"]
@@ -400,6 +411,7 @@ def test_padding_aware_accumulation_matches_one_combined_token_mean_update() -> 
 
 def test_delayed_independent_batch_source_completes_without_peer_or_storage() -> None:
     supplied = iter(_batches(1))
+    delay_seconds = 0.02
 
     class DelayedSource:
         requests = 0
@@ -409,12 +421,18 @@ def test_delayed_independent_batch_source_completes_without_peer_or_storage() ->
 
         def __next__(self):
             self.requests += 1
+            time.sleep(delay_seconds)
             return next(supplied)
 
     source = DelayedSource()
-    result = _runtime(_tiny_model(), gradient_accumulation=1).run(source, optimizer_steps=1)
+    result = _runtime(
+        _tiny_model(),
+        gradient_accumulation=1,
+        clock_ns=time.monotonic_ns,
+    ).run(source, optimizer_steps=1)
     assert source.requests == 1
     assert result.optimizer_steps_completed == 1
+    assert result.events[0].step_latency_seconds >= delay_seconds
 
 
 def test_resume_preserves_progress_versions_and_scheduler_basis() -> None:
@@ -437,16 +455,66 @@ def test_resume_preserves_progress_versions_and_scheduler_basis() -> None:
     assert scheduler.step_count == 6
 
 
-def test_two_learners_have_disjoint_model_optimizer_rng_and_cursor_state() -> None:
-    model_a = _tiny_model(1)
-    model_b = _tiny_model(2)
-    runtime_a = _runtime(model_a)
-    runtime_b = _runtime(model_b)
+class _RandomLossModel(torch.nn.Module):
+    def __init__(self) -> None:
+        super().__init__()
+        self.weight = torch.nn.Parameter(torch.tensor(0.25))
+        self.bias = torch.nn.Parameter(torch.tensor(0.5))
+        self.draws: list[float] = []
+
+    def forward(self, input_ids, **_kwargs):
+        draw = torch.rand((), device=self.weight.device)
+        self.draws.append(float(draw.detach()))
+        prediction = input_ids.float().mean() * self.weight + self.bias
+        return SimpleNamespace(loss=(prediction * draw - 1.0).square())
+
+
+def test_two_learners_have_disjoint_model_optimizer_and_owned_rng_streams() -> None:
+    model_a = _RandomLossModel()
+    model_b = copy.deepcopy(model_a)
+    progress_a = LearnerProgress.initialize("learner-a", (2, 5))
+    progress_b = LearnerProgress.initialize("learner-b", (2, 5))
+    rng_a = LearnerRng.initialize(progress_a.learner_id, 101, torch.device("cpu"))
+    rng_b = LearnerRng.initialize(progress_b.learner_id, 202, torch.device("cpu"))
+    runtime_a = _runtime(
+        model_a,
+        progress=progress_a,
+        rng=rng_a,
+        gradient_accumulation=1,
+    )
+    runtime_b = _runtime(
+        model_b,
+        progress=progress_b,
+        rng=rng_b,
+        gradient_accumulation=1,
+    )
     assert runtime_a.model is not runtime_b.model
     assert runtime_a.optimizer is not runtime_b.optimizer
     assert runtime_a.progress is not runtime_b.progress
     assert not ({id(parameter) for parameter in model_a.parameters()} & {id(parameter) for parameter in model_b.parameters()})
-    assert not torch.equal(next(model_a.parameters()), next(model_b.parameters()))
+    assert rng_a is not rng_b
+    assert rng_a.state_sha256() != rng_b.state_sha256()
+
+    process_rng_before = torch.get_rng_state().clone()
+    result_a = runtime_a.run(_batches(1), optimizer_steps=1)
+    assert torch.equal(torch.get_rng_state(), process_rng_before)
+    result_b = runtime_b.run(_batches(1), optimizer_steps=1)
+    assert torch.equal(torch.get_rng_state(), process_rng_before)
+    assert model_a.draws != model_b.draws
+    assert result_a.rng["seed"] == 101 and result_b.rng["seed"] == 202
+    assert result_a.rng["scope"] == result_b.rng["scope"] == "runtime_owned_forked_torch_rng"
+    assert result_a.rng["process_global_state_restored"] is True
+    assert result_b.rng["process_global_state_restored"] is True
+
+    restored_rng = LearnerRng.from_state_dict(rng_a.state_dict())
+    assert restored_rng.state_dict() == rng_a.state_dict()
+    with pytest.raises(LearnerError, match="already owned"):
+        _runtime(
+            _RandomLossModel(),
+            progress=LearnerProgress.initialize("learner-a", (2, 5)),
+            rng=rng_a,
+            gradient_accumulation=1,
+        )
 
 
 def test_gpt2_registry_covers_position_embedding_static_buffers_and_tied_head() -> None:
@@ -480,11 +548,27 @@ class _NaNLossModel(_MissingLossModel):
         return SimpleNamespace(loss=self.weight * torch.tensor(float("nan")))
 
 
+class _FiniteLossInfiniteGradient(torch.autograd.Function):
+    @staticmethod
+    def forward(_ctx, value):
+        return value.clone()
+
+    @staticmethod
+    def backward(_ctx, gradient):
+        return torch.full_like(gradient, float("inf"))
+
+
+class _OverflowGradientModel(_MissingLossModel):
+    def forward(self, input_ids, **_kwargs):
+        return SimpleNamespace(loss=_FiniteLossInfiniteGradient.apply(self.weight))
+
+
 @pytest.mark.parametrize(
     ("model_factory", "batches", "message"),
     [
         (_MissingLossModel, _batches(1), "scalar loss"),
         (_NaNLossModel, _batches(1), "NaN or Inf"),
+        (_OverflowGradientModel, _batches(1), "gradient norm is NaN Inf or overflowed"),
         (_tiny_model, [{}], "empty batch"),
         (_tiny_model, [], "data source exhausted"),
     ],
@@ -504,6 +588,7 @@ def test_failure_semantics_zero_grad_without_optimizer_boundary(model_factory, b
         optimizer=torch.optim.AdamW(model.parameters(), lr=0.01),
         scheduler=ConstantStepScheduler(),
         progress=progress,
+        rng=LearnerRng.initialize(progress.learner_id, 9, torch.device("cpu")),
         fragment_parameters=groups,
         device=torch.device("cpu"),
         precision="fp32",
@@ -556,6 +641,7 @@ def _run_record(profile_id: str, *, parameter_count: int | None = None) -> dict:
         "status": "pass",
         "profile": {"profile_id": profile_id},
         "runtime": {
+            "learner_id": "tiny-learner" if parameter_count is None else "learner-0",
             "optimizer_steps_completed": 10,
             "events": events,
             "parameters_changed": True,
@@ -566,6 +652,19 @@ def _run_record(profile_id: str, *, parameter_count: int | None = None) -> dict:
             "loss_bearing_target_tokens": 280,
             "token_weighted_loss": 3.95,
             "common_interval_input_tokens_per_second": 32.0,
+            "rng": {
+                "learner_id": "tiny-learner" if parameter_count is None else "learner-0",
+                "seed": 1606 if parameter_count is None else 20260714,
+                "scope": "runtime_owned_forked_torch_rng",
+                "owner_pid": 123,
+                "device_type": "cpu" if parameter_count is None else "cuda",
+                "device_index": None if parameter_count is None else 0,
+                "activation_count_before": 0,
+                "activation_count_after": 1,
+                "state_sha256_before": "a" * 64,
+                "state_sha256_after": "b" * 64,
+                "process_global_state_restored": True,
+            },
         },
         "forbidden_runtime": {
             "torch_distributed_initialized": False,

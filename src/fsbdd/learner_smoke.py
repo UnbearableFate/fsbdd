@@ -12,7 +12,13 @@ from typing import Any
 
 from .fragment_map import build_fragment_map
 from .identity import canonical_digest
-from .learner import ConstantStepScheduler, LearnerProgress, LearnerRuntime, PackedTokenShard
+from .learner import (
+    ConstantStepScheduler,
+    LearnerProgress,
+    LearnerRng,
+    LearnerRuntime,
+    PackedTokenShard,
+)
 from .learner_assets import (
     FrozenLearnerProfile,
     load_learner_profile,
@@ -194,6 +200,11 @@ def run_real_profile(
         str(profile.training["learner_id"]),
         tuple(int(value) for value in profile.training["initial_fragment_versions"]),
     )
+    rng = LearnerRng.initialize(
+        progress.learner_id,
+        int(profile.training["seed"]),
+        device,
+    )
     shard = PackedTokenShard(
         profile,
         materialized_root,
@@ -206,6 +217,7 @@ def run_real_profile(
         optimizer=optimizer,
         scheduler=scheduler,
         progress=progress,
+        rng=rng,
         fragment_parameters=fragment_groups,
         device=device,
         precision=str(profile.training["precision"]),
@@ -314,11 +326,13 @@ def run_tiny(output: Path, *, log_path: Path, device_name: str = "cuda") -> dict
     optimizer = torch.optim.AdamW(model.parameters(), lr=1e-3)
     scheduler = ConstantStepScheduler()
     progress = LearnerProgress.initialize("tiny-learner", (7, 11))
+    rng = LearnerRng.initialize(progress.learner_id, 1606, device)
     runtime = LearnerRuntime(
         model=model,
         optimizer=optimizer,
         scheduler=scheduler,
         progress=progress,
+        rng=rng,
         fragment_parameters=groups,
         device=device,
         precision="fp32",
@@ -396,6 +410,26 @@ def summarize_runs(tiny: Path, gpt2: Path, pythia: Path, output: Path) -> dict[s
             raise LearnerSmokeError(f"{name} loss or fragment norm is missing/nonfinite")
         if not runtime.get("parameters_changed") or runtime.get("parameter_update_norm", 0) <= 0:
             raise LearnerSmokeError(f"{name} did not prove parameter updates")
+        rng = runtime.get("rng", {})
+        expected_seed = 1606 if name == "tiny" else 20260714
+        rng_hashes = (rng.get("state_sha256_before"), rng.get("state_sha256_after"))
+        if (
+            rng.get("learner_id") != runtime.get("learner_id")
+            or rng.get("seed") != expected_seed
+            or rng.get("scope") != "runtime_owned_forked_torch_rng"
+            or not isinstance(rng.get("owner_pid"), int)
+            or rng.get("owner_pid", 0) <= 0
+            or rng.get("activation_count_before") != 0
+            or rng.get("activation_count_after") != 1
+            or rng.get("process_global_state_restored") is not True
+            or any(
+                not isinstance(value, str)
+                or len(value) != 64
+                or any(character not in "0123456789abcdef" for character in value)
+                for value in rng_hashes
+            )
+        ):
+            raise LearnerSmokeError(f"{name} learner RNG ownership evidence is invalid")
         forbidden = row.get("forbidden_runtime", {})
         if forbidden != {
             "torch_distributed_initialized": False,
@@ -456,6 +490,7 @@ def summarize_runs(tiny: Path, gpt2: Path, pythia: Path, output: Path) -> dict[s
             "final_fragment_processed_input_tokens": last["fragment_processed_input_tokens"],
             "inactive_metrics": last["inactive_metrics"],
             "comparison": last["comparison"],
+            "rng": rng,
         }
     summary = {
         "schema_version": 1,

@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import contextlib
 import dataclasses
+import hashlib
 import math
+import os
 import time
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Iterable, Iterator, Mapping, Sequence
 from pathlib import Path
 from typing import Any, Protocol
 
@@ -162,6 +165,7 @@ class LearnerRunSummary:
     parameters_changed: bool
     distributed_initialized: bool
     progress: Mapping[str, Any]
+    rng: Mapping[str, Any]
     events: tuple[SafeBoundaryEvent, ...]
 
     def to_dict(self) -> dict[str, Any]:
@@ -178,6 +182,7 @@ class LearnerRunSummary:
             "parameters_changed": self.parameters_changed,
             "distributed_initialized": self.distributed_initialized,
             "progress": dict(self.progress),
+            "rng": dict(self.rng),
             "events": [event.to_dict() for event in self.events],
         }
 
@@ -202,6 +207,181 @@ class ConstantStepScheduler:
         if set(state) != {"step_count"}:
             raise LearnerError("constant scheduler state schema mismatch")
         self.step_count = _nonnegative_int(state["step_count"], "scheduler.step_count")
+
+
+def _rng_tensor_bytes(value: Any) -> bytes:
+    return value.detach().cpu().contiguous().numpy().tobytes()
+
+
+def _rng_state_tensor(torch: Any, value: bytes) -> Any:
+    return torch.from_numpy(np.frombuffer(value, dtype=np.uint8).copy())
+
+
+@dataclasses.dataclass(slots=True)
+class LearnerRng:
+    learner_id: str
+    seed: int
+    device_type: str
+    device_index: int | None
+    cpu_state: bytes = dataclasses.field(repr=False)
+    device_state: bytes | None = dataclasses.field(repr=False)
+    activation_count: int = 0
+    _bound: bool = dataclasses.field(default=False, init=False, repr=False)
+    _active: bool = dataclasses.field(default=False, init=False, repr=False)
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.learner_id, str) or not self.learner_id:
+            raise LearnerError("RNG learner_id must be a non-empty string")
+        _nonnegative_int(self.seed, "RNG seed")
+        _nonnegative_int(self.activation_count, "RNG activation_count")
+        if self.device_type not in {"cpu", "cuda"}:
+            raise LearnerError("RNG device_type must be cpu or cuda")
+        if not isinstance(self.cpu_state, bytes) or not self.cpu_state:
+            raise LearnerError("RNG CPU state must be non-empty bytes")
+        if self.device_type == "cpu":
+            if self.device_index is not None or self.device_state is not None:
+                raise LearnerError("CPU RNG cannot contain accelerator state")
+        elif (
+            not isinstance(self.device_index, int)
+            or isinstance(self.device_index, bool)
+            or self.device_index < 0
+            or not isinstance(self.device_state, bytes)
+            or not self.device_state
+        ):
+            raise LearnerError("CUDA RNG requires a device index and non-empty device state")
+
+    @classmethod
+    def initialize(cls, learner_id: str, seed: int, device: Any) -> LearnerRng:
+        import torch
+
+        _nonnegative_int(seed, "RNG seed")
+        device_type = getattr(device, "type", str(device))
+        if device_type not in {"cpu", "cuda"}:
+            raise LearnerError(f"unsupported RNG device: {device_type}")
+        device_index = None
+        if device_type == "cuda":
+            if not torch.cuda.is_available():
+                raise LearnerError("CUDA RNG requested without an available CUDA device")
+            device_index = getattr(device, "index", None)
+            if device_index is None:
+                device_index = torch.cuda.current_device()
+        cpu_generator = torch.Generator(device="cpu")
+        cpu_generator.manual_seed(seed)
+        cpu_state = _rng_tensor_bytes(cpu_generator.get_state())
+        if device_type == "cuda":
+            device_generator = torch.Generator(device=f"cuda:{device_index}")
+            device_generator.manual_seed(seed)
+            device_state = _rng_tensor_bytes(device_generator.get_state())
+        else:
+            device_state = None
+        return cls(learner_id, seed, device_type, device_index, cpu_state, device_state)
+
+    @classmethod
+    def from_state_dict(cls, value: Mapping[str, Any]) -> LearnerRng:
+        expected = {
+            "learner_id",
+            "seed",
+            "device_type",
+            "device_index",
+            "cpu_state_hex",
+            "device_state_hex",
+            "activation_count",
+        }
+        if set(value) != expected:
+            raise LearnerError("serialized learner RNG schema mismatch")
+        try:
+            cpu_state = bytes.fromhex(value["cpu_state_hex"])
+            raw_device_state = value["device_state_hex"]
+            device_state = None if raw_device_state is None else bytes.fromhex(raw_device_state)
+        except (TypeError, ValueError) as error:
+            raise LearnerError("serialized learner RNG state is invalid") from error
+        return cls(
+            learner_id=value["learner_id"],
+            seed=value["seed"],
+            device_type=value["device_type"],
+            device_index=value["device_index"],
+            cpu_state=cpu_state,
+            device_state=device_state,
+            activation_count=value["activation_count"],
+        )
+
+    def state_dict(self) -> dict[str, Any]:
+        return {
+            "learner_id": self.learner_id,
+            "seed": self.seed,
+            "device_type": self.device_type,
+            "device_index": self.device_index,
+            "cpu_state_hex": self.cpu_state.hex(),
+            "device_state_hex": None if self.device_state is None else self.device_state.hex(),
+            "activation_count": self.activation_count,
+        }
+
+    def state_sha256(self) -> str:
+        digest = hashlib.sha256()
+        for state in (self.cpu_state, self.device_state):
+            if state is None:
+                digest.update((0).to_bytes(8, "big"))
+            else:
+                digest.update(len(state).to_bytes(8, "big"))
+                digest.update(state)
+        return digest.hexdigest()
+
+    def bind(self, learner_id: str, device: Any) -> None:
+        if self._bound:
+            raise LearnerError("learner RNG is already owned by another runtime")
+        if learner_id != self.learner_id:
+            raise LearnerError("learner RNG identity does not match progress")
+        device_type = getattr(device, "type", str(device))
+        device_index = getattr(device, "index", None)
+        if device_type == "cuda" and device_index is None:
+            import torch
+
+            device_index = torch.cuda.current_device()
+        if device_type != self.device_type or device_index != self.device_index:
+            raise LearnerError("learner RNG device does not match runtime device")
+        self._bound = True
+
+    @contextlib.contextmanager
+    def activate(self) -> Iterator[None]:
+        import torch
+
+        if not self._bound:
+            raise LearnerError("learner RNG must be bound before use")
+        if self._active:
+            raise LearnerError("learner RNG cannot be activated recursively")
+        devices = [self.device_index] if self.device_type == "cuda" else []
+        outer_cpu = _rng_tensor_bytes(torch.get_rng_state())
+        outer_device = (
+            _rng_tensor_bytes(torch.cuda.get_rng_state(self.device_index))
+            if self.device_type == "cuda"
+            else None
+        )
+        self._active = True
+        try:
+            with torch.random.fork_rng(devices=devices):
+                torch.set_rng_state(_rng_state_tensor(torch, self.cpu_state))
+                if self.device_type == "cuda":
+                    assert self.device_state is not None
+                    torch.cuda.set_rng_state(
+                        _rng_state_tensor(torch, self.device_state),
+                        self.device_index,
+                    )
+                try:
+                    yield
+                finally:
+                    self.cpu_state = _rng_tensor_bytes(torch.get_rng_state())
+                    if self.device_type == "cuda":
+                        self.device_state = _rng_tensor_bytes(
+                            torch.cuda.get_rng_state(self.device_index)
+                        )
+                    self.activation_count += 1
+        finally:
+            self._active = False
+        if _rng_tensor_bytes(torch.get_rng_state()) != outer_cpu or (
+            self.device_type == "cuda"
+            and _rng_tensor_bytes(torch.cuda.get_rng_state(self.device_index)) != outer_device
+        ):
+            raise LearnerError("learner RNG escaped its owned stream")
 
 
 class PackedTokenShard:
@@ -328,6 +508,7 @@ class LearnerRuntime:
         optimizer: Any,
         scheduler: StepScheduler,
         progress: LearnerProgress,
+        rng: LearnerRng,
         fragment_parameters: Sequence[Sequence[Any]],
         device: Any,
         precision: str,
@@ -341,6 +522,8 @@ class LearnerRuntime:
 
         if _distributed_initialized(torch):
             raise LearnerError("torch.distributed must remain uninitialized")
+        if not isinstance(rng, LearnerRng):
+            raise LearnerError("learner runtime requires an owned LearnerRng")
         if len(fragment_parameters) != len(progress.fragments):
             raise LearnerError("fragment parameter groups must match fragment progress")
         if any(not group for group in fragment_parameters):
@@ -369,10 +552,12 @@ class LearnerRuntime:
             raise LearnerError("precision must be fp32 or bf16")
         if precision == "bf16" and getattr(device, "type", None) == "cuda" and not torch.cuda.is_bf16_supported():
             raise LearnerError("configured bf16 compute is unsupported; runtime fallback is forbidden")
+        rng.bind(progress.learner_id, device)
         self.model = model
         self.optimizer = optimizer
         self.scheduler = scheduler
         self.progress = progress
+        self.rng = rng
         self.fragment_parameters = tuple(tuple(group) for group in fragment_parameters)
         self.device = device
         self.precision = precision
@@ -404,6 +589,28 @@ class LearnerRuntime:
         return moved
 
     def run(self, batches: Iterable[Mapping[str, Any]], *, optimizer_steps: int) -> LearnerRunSummary:
+        state_before = self.rng.state_sha256()
+        activation_before = self.rng.activation_count
+        with self.rng.activate():
+            result = self._run_owned(batches, optimizer_steps=optimizer_steps)
+        return dataclasses.replace(
+            result,
+            rng={
+                "learner_id": self.rng.learner_id,
+                "seed": self.rng.seed,
+                "scope": "runtime_owned_forked_torch_rng",
+                "owner_pid": os.getpid(),
+                "device_type": self.rng.device_type,
+                "device_index": self.rng.device_index,
+                "activation_count_before": activation_before,
+                "activation_count_after": self.rng.activation_count,
+                "state_sha256_before": state_before,
+                "state_sha256_after": self.rng.state_sha256(),
+                "process_global_state_restored": True,
+            },
+        )
+
+    def _run_owned(self, batches: Iterable[Mapping[str, Any]], *, optimizer_steps: int) -> LearnerRunSummary:
         import torch
 
         if not isinstance(optimizer_steps, int) or isinstance(optimizer_steps, bool) or optimizer_steps <= 0:
@@ -569,5 +776,6 @@ class LearnerRuntime:
             parameters_changed=True,
             distributed_initialized=False,
             progress=self.progress.to_dict(),
+            rng={},
             events=tuple(events),
         )
