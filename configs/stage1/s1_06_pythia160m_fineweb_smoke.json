@@ -1,0 +1,58 @@
+{
+  "schema_version": 1,
+  "profile_id": "s1-06-pythia160m-finewebedu-packed512-v1",
+  "model": {
+    "repository": "EleutherAI/pythia-160m",
+    "revision": "50f5173d932e8e61f858120bcb800b97af589f46",
+    "expected_parameter_count": 162322944,
+    "attention_implementation": "eager",
+    "use_cache": false,
+    "files": [
+      {"path": "config.json", "bytes": 569, "sha256": "76eb275107220e450d31258f792a2efcbee109d8b62ae0088260057dec06362f"},
+      {"path": "model.safetensors", "bytes": 374998696, "sha256": "29d2e457a664e41c12c735f20a36dc0956a665f614a54ce5db21a32e75965270"}
+    ]
+  },
+  "tokenizer": {
+    "repository": "EleutherAI/pythia-160m",
+    "revision": "50f5173d932e8e61f858120bcb800b97af589f46",
+    "eos_token_id": 0,
+    "add_special_tokens": false,
+    "files": [
+      {"path": "special_tokens_map.json", "bytes": 99, "sha256": "6f50ab5a5a509a1c309d6171f339b196a900dc9c99ad0408ff23bb615fdae7ad"},
+      {"path": "tokenizer.json", "bytes": 2113710, "sha256": "c24618a1b3e6a38167beff1c72cffd126c3a66254347304b50547d12c5f25624"},
+      {"path": "tokenizer_config.json", "bytes": 396, "sha256": "70e38394e494931c6f773ba41e19460dd4436526b852207367f04341b4066d3f"}
+    ]
+  },
+  "dataset": {
+    "repository": "HuggingFaceFW/fineweb-edu",
+    "revision": "87f09149ef4734204d70ed1d046ddc9ca3f2b8f9",
+    "config": "sample-10BT",
+    "text_field": "text",
+    "skip_rule": "text_equals_empty_string",
+    "normalization": "none",
+    "append_eos": true,
+    "sequence_length": 512,
+    "shard_count": 4,
+    "shard_rule": "packed_block_index_mod_shard_count",
+    "epoch_seed_base": 20260714,
+    "source_files": [
+      {"split": "train", "path": "sample/10BT/000_00000.parquet", "bytes": 2152819114, "sha256": "b1ba7b2ce4cb5ea6ef42dca40263eabb85f37700d01693a68e9b30a31d78e871"}
+    ],
+    "smoke": {"minimum_blocks_per_shard": 40, "source_policy": "canonical_prefix_until_minimum_then_finish_current_row"},
+    "long_run": {"source_path_pattern": "sample/10BT/*.parquet", "source_order": "bytewise_lexicographic", "minimum_processed_input_tokens": 1000000000, "minimum_packed_blocks": 1953125}
+  },
+  "training": {
+    "learner_id": "learner-0",
+    "learner_index": 0,
+    "fragment_count": 4,
+    "batch_size": 4,
+    "gradient_accumulation_steps": 1,
+    "optimizer_steps": 10,
+    "precision": "bf16",
+    "optimizer": {"class": "AdamW", "lr": 0.00005, "betas": [0.9, 0.999], "eps": 1e-8, "weight_decay": 0.01, "grad_clip_norm": 1.0},
+    "scheduler": {"class": "constant", "basis": "local_optimizer_steps"},
+    "seed": 20260714,
+    "initial_fragment_versions": [0, 0, 0, 0],
+    "comparison": {"matched_tokens": false, "matched_compute": false, "matched_communication": false, "claim": "runtime_smoke_only"}
+  }
+}

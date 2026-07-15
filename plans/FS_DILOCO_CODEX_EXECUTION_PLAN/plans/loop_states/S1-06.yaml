@@ -36,7 +36,7 @@ preflight:
   package_validator_command: fsbdd evidence validate runtime_runs/S1-06/formal-l1
   package_validator_result: pending
   checker_phase_a: required
-  asset_freeze: pending exact raw-file hashes and materialized smoke-manifest digests before RED
+  asset_freeze: immutable GPT-2 WikiText-2 Pythia-160m and FineWeb-Edu raw hashes frozen after job 2385193.opbs; processed smoke-manifest digests required before GREEN
 red: {command: null, exit_code: null, evidence_path: null}
 green: {command: null, evidence_path: null}
 harden: {commands: [], evidence_paths: []}
@@ -57,7 +57,8 @@ persist:
     proven_facts:
     - S1-00 supplies frozen identity progress and evidence schemas and S1-01 supplies complete deterministic HF logical-layer ownership.
     - The regression workload is the immutable GPT-2 small and WikiText-2 profile from docs/06 section 6.3.
-    - The research workload is frozen to pretrained EleutherAI Pythia-160m and an immutable FineWeb-Edu stream; exact raw and processed hashes remain a RED precondition.
+    - Asset preflight job 2385193.opbs exits zero on mg0048 and freezes exact GPT-2 WikiText-2 Pythia-160m and FineWeb-Edu raw hashes without Torch or GPU use.
+    - The research workload is frozen to pretrained EleutherAI Pythia-160m and the immutable FineWeb-Edu sample/10BT stream; deterministic processed hashes are required before GREEN.
     checked_commit: null
     selected_evidence: []
     next_command: stage immutable raw assets on one compute node then freeze exact model data and preprocessing manifests before semantic RED

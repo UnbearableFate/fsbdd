@@ -1,7 +1,8 @@
 # S1-06 Model and Data Profile ADR
 
-Status: preflight-frozen except exact materialized file hashes, which are a
-blocking pre-RED field in the two tracked profile JSON files.
+Status: accepted and preflight-frozen. Exact raw file hashes are in the two
+tracked profile JSON files; processed artifact hashes are produced by the
+deterministic materializer and are a blocking pre-GREEN condition.
 
 ## Decision
 
@@ -52,6 +53,13 @@ files. There is no runtime download fallback.
 No Torch dependency version is changed by this decision. S1-06 uses the
 existing locked environment (`torch 2.13.0+cu132`). Any future Torch change
 requires user permission.
+
+Preflight job `2385193.opbs` on `mg0048` exited zero and froze the selected
+raw inputs. Its visibility-last marker binds raw hash-list digest
+`88fed1dc7e31bbc6810b6dd88e1dd3593d6d4d2703bd6655b66d0632dbf647ef`;
+the FineWeb-Edu source parquet is 2,152,819,114 bytes with SHA-256
+`b1ba7b2c...e871`. The job imported no mutable revision and did not initialize
+Torch or use its GPU.
 
 ## Measurement decision
 
