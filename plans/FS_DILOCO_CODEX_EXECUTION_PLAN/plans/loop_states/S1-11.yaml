@@ -2,7 +2,7 @@ schema_version: 2
 loop_id: S1-11
 title: Atomic global commit and consumed frontier
 stage: stage1
-status: red
+status: green
 source_hashes:
   research_plan: 2c0db3148110da10ea62f445c189d2d53b405527d8da264b9af9817f5ca9d835
   stage0_4_spec: 1ea71fb6e34fef0d7b5558d8e7999dfdedeb82957f4331afcf6f80279d1f5a7d
@@ -52,14 +52,15 @@ red:
   evidence_path: runtime_runs/S1-11/red-83dcca9-semantic
 green:
   command: PYTHONPATH=src .venv/bin/python -m pytest -q tests/stage1/test_s1_11_global_commit.py tests/stage1/test_s1_11_global_commit_analyzer.py tests/stage1/test_s1_11_global_commit_static.py
-  evidence_path: null
+  evidence_path: runtime_runs/S1-11/l1-targeted-2386911.opbs
+  result: 29 passed on Miyabi compute node; candidate 43b086163e84b239b5f7eee13fbf84742e42c3cb
 harden:
   commands:
   - all four payload and visibility fault boundaries with fresh-reader replay classification
   - exact duplicate retry version skip rollback same-version conflict and same-base repeat rejection
   - eight concurrent readers late proposal freeze stability restart and 10000 frontier advances
   - fail-closed envelope identity checksum schema selected-weight frontier and analyzer mutations
-  evidence_paths: []
+  evidence_paths: [runtime_runs/S1-11/l1-targeted-2386911.opbs]
 nine_node_gate: {required: false, run_id: null, topology_gate: null, loss_gate: null, runtime_gate: null}
 checker:
   context_id: null
