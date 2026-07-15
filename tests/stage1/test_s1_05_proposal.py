@@ -189,13 +189,11 @@ def test_delayed_old_completion_cannot_regress_latest(tmp_path: Path) -> None:
     release = threading.Event()
     errors: list[BaseException] = []
 
-    def delay(_slot: str, _proposal: Proposal) -> None:
+    def publish_old() -> None:
         entered.set()
         assert release.wait(timeout=10)
-
-    def publish_old() -> None:
         try:
-            store.publish(make_proposal("a-seq2", sequence=2), before_visibility=delay)
+            store.publish(make_proposal("a-seq2", sequence=2))
         except BaseException as error:  # pragma: no branch - asserted below
             errors.append(error)
 
@@ -209,38 +207,65 @@ def test_delayed_old_completion_cannot_regress_latest(tmp_path: Path) -> None:
     assert not thread.is_alive()
     assert len(errors) == 1
     assert isinstance(errors[0], ProposalError)
-    assert "ceased to be greater" in str(errors[0])
+    assert "regress" in str(errors[0])
     assert store.load_latest("a", 0) == newest
 
 
-def test_concurrent_visibility_guards_serialize_the_monotonic_check(
+def test_single_writer_rejects_a_second_in_flight_publication(
     tmp_path: Path,
 ) -> None:
     store = make_store(tmp_path)
     store.publish(make_proposal(sequence=1))
-    barrier = threading.Barrier(2)
+    entered = threading.Event()
+    release = threading.Event()
     errors: list[BaseException] = []
 
-    def rendezvous(_slot: str, _proposal: Proposal) -> None:
-        barrier.wait(timeout=10)
+    def delay(_slot: str, _proposal: Proposal) -> None:
+        entered.set()
+        assert release.wait(timeout=10)
 
-    def publish(sequence: int) -> None:
+    def publish_old() -> None:
         try:
             store.publish(
-                make_proposal(f"a-seq{sequence}", sequence=sequence),
-                before_visibility=rendezvous,
+                make_proposal("a-seq2", sequence=2), before_visibility=delay
             )
         except ProposalError as error:
             errors.append(error)
 
-    threads = [threading.Thread(target=publish, args=(sequence,)) for sequence in (2, 3)]
-    for thread in threads:
-        thread.start()
-    for thread in threads:
-        thread.join(timeout=10)
-    assert all(not thread.is_alive() for thread in threads)
-    assert len(errors) <= 1
-    assert store.load_latest("a", 0).sequence == 3
+    thread = threading.Thread(target=publish_old)
+    thread.start()
+    assert entered.wait(timeout=10)
+    with pytest.raises(ProposalError, match="already in flight"):
+        store.publish(make_proposal("a-seq3", sequence=3))
+    release.set()
+    thread.join(timeout=10)
+    assert not thread.is_alive()
+    assert not errors
+    assert store.load_latest("a", 0).sequence == 2
+
+
+def test_rootless_distinct_backend_views_reject_a_delayed_stale_task(
+    tmp_path: Path,
+) -> None:
+    class RootlessBackend:
+        def __init__(self, backend: PosixStorageBackend) -> None:
+            self.backend = backend
+
+        def publish(self, *args, **kwargs):
+            return self.backend.publish(*args, **kwargs)
+
+        def read(self, *args, **kwargs):
+            return self.backend.read(*args, **kwargs)
+
+    backend = PosixStorageBackend(tmp_path)
+    older_view = make_store(tmp_path, RootlessBackend(backend))
+    current_view = make_store(tmp_path, RootlessBackend(backend))
+    current_view.publish(make_proposal(sequence=1))
+    delayed = make_proposal("a-seq2", sequence=2)
+    current_view.publish(make_proposal("a-seq3", sequence=3))
+    with pytest.raises(ProposalError, match="regress"):
+        older_view.publish(delayed)
+    assert current_view.load_latest("a", 0).sequence == 3
 
 
 def test_discovery_reads_exact_fixed_slots_without_history_scan(
@@ -358,6 +383,8 @@ def _shared_case(case: dict[str, object]) -> tuple[list[Proposal], ConsumptionFr
     )
     frontier_values = case["frontiers"]
     frontiers = ConsumptionFrontiers(
+        IDENTITIES,
+        DESCRIPTORS[0],
         frozen_learners,
         tuple(
             ConsumptionFrontier(**frontier_values.get(learner, {}))  # type: ignore[union-attr]
@@ -440,12 +467,28 @@ def test_shared_stage0_decision_vectors_match_for_every_permutation() -> None:
         ),
         (
             make_proposal(
+                "wrong-config",
+                identities=dataclasses.replace(IDENTITIES, config_identity="d" * 64),
+            ),
+            "config_identity_mismatch",
+        ),
+        (
+            make_proposal(
                 "wrong-map",
                 identities=dataclasses.replace(
                     IDENTITIES, fragment_map_identity="d" * 64
                 ),
             ),
             "fragment_map_identity_mismatch",
+        ),
+        (
+            make_proposal(
+                "wrong-fragment",
+                descriptor=dataclasses.replace(
+                    DESCRIPTORS[0], identity="other-fragment"
+                ),
+            ),
+            "fragment_identity_mismatch",
         ),
         (
             make_proposal(
@@ -461,22 +504,59 @@ def test_shared_stage0_decision_vectors_match_for_every_permutation() -> None:
             ),
             "shape_mismatch",
         ),
+        (
+            make_proposal(
+                "wrong-parameters",
+                descriptor=dataclasses.replace(
+                    DESCRIPTORS[0], parameter_identities=("other-parameter",)
+                ),
+            ),
+            "parameter_identity_mismatch",
+        ),
     ],
 )
 def test_eligibility_boundary_has_deterministic_rejection(
     proposal: Proposal, reason: str
 ) -> None:
     result = select_candidates(
-        [proposal], ConsumptionFrontiers.empty(LEARNERS), make_policy()
+        [proposal],
+        ConsumptionFrontiers.empty(
+            identities=IDENTITIES,
+            descriptor=DESCRIPTORS[0],
+            learner_ids=LEARNERS,
+        ),
+        make_policy(),
     )
     assert result.selected == ()
     assert result.rejections == {proposal.proposal_id: reason}
 
 
+def test_in_window_missing_retained_base_is_rejected_explicitly() -> None:
+    policy = dataclasses.replace(
+        make_policy(current_version=3, s_max=1),
+        retained_bases=(RetainedBaseIdentity(3, base_identity(3)),),
+    )
+    proposal = make_proposal("missing-base", base_version=2)
+    result = select_candidates(
+        [proposal],
+        ConsumptionFrontiers.empty(
+            identities=IDENTITIES,
+            descriptor=DESCRIPTORS[0],
+            learner_ids=LEARNERS,
+        ),
+        policy,
+    )
+    assert result.rejections == {"missing-base": "base_not_retained"}
+
+
 def test_smax_zero_and_positive_use_the_same_generic_eligibility_function() -> None:
     fresh = make_proposal("fresh", base_version=3)
     stale = make_proposal("stale", base_version=2)
-    frontiers = ConsumptionFrontiers.empty(LEARNERS)
+    frontiers = ConsumptionFrontiers.empty(
+        identities=IDENTITIES,
+        descriptor=DESCRIPTORS[0],
+        learner_ids=LEARNERS,
+    )
     zero = select_candidates(
         [fresh, stale], frontiers, make_policy(s_max=0, current_version=3)
     )
@@ -495,7 +575,11 @@ def test_smax_zero_and_positive_use_the_same_generic_eligibility_function() -> N
 
 
 def test_consumption_frontier_is_fixed_size_and_advances_only_after_publish() -> None:
-    frontiers = ConsumptionFrontiers.empty(LEARNERS)
+    frontiers = ConsumptionFrontiers.empty(
+        identities=IDENTITIES,
+        descriptor=DESCRIPTORS[0],
+        learner_ids=LEARNERS,
+    )
     proposal = make_proposal()
     assert commit_consumption(frontiers, [proposal], False) is frontiers
     committed = commit_consumption(frontiers, [proposal], True)
@@ -521,6 +605,26 @@ def test_consumption_frontier_is_fixed_size_and_advances_only_after_publish() ->
         make_policy(current_version=10_003, s_max=0),
     )
     assert result.rejections == {same_base.proposal_id: "consumed_base"}
+
+
+def test_consumption_frontier_rejects_cross_fragment_selection_and_commit() -> None:
+    fragment_zero = ConsumptionFrontiers.empty(
+        identities=IDENTITIES,
+        descriptor=DESCRIPTORS[0],
+        learner_ids=LEARNERS,
+    )
+    fragment_one_proposal = make_proposal(
+        "fragment-one",
+        descriptor=DESCRIPTORS[1],
+    )
+    with pytest.raises(ProposalError, match="fragment descriptors differ"):
+        select_candidates(
+            [fragment_one_proposal],
+            fragment_zero,
+            make_policy(descriptor=DESCRIPTORS[1]),
+        )
+    with pytest.raises(ProposalError, match="fragment descriptors differ"):
+        commit_consumption(fragment_zero, [fragment_one_proposal], True)
 
 
 def test_float32_weights_match_shared_oracle_and_report_telemetry() -> None:

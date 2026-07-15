@@ -1,18 +1,13 @@
 from __future__ import annotations
 
 import dataclasses
-import fcntl
 import hashlib
 import json
 import math
 import struct
-import sys
 import threading
-from contextlib import contextmanager
 from collections.abc import Callable, Sequence
 from fractions import Fraction
-from pathlib import Path
-from typing import Iterator
 
 from .global_state import FragmentStateDescriptor, GlobalStateIdentities
 from .identity import canonical_bytes, canonical_digest
@@ -347,29 +342,6 @@ def proposal_slot(learner_id: str, fragment_index: int) -> str:
 
 BeforeVisibility = Callable[[str, Proposal], None]
 
-_FALLBACK_LOCKS_GUARD = threading.Lock()
-_FALLBACK_LOCKS: dict[tuple[int, str], threading.Lock] = {}
-
-
-@contextmanager
-def _visibility_lock(backend: StorageBackend, slot: str) -> Iterator[None]:
-    root = getattr(backend, "root", None)
-    if isinstance(root, Path):
-        lock_root = root / ".proposal-locks"
-        lock_root.mkdir(parents=True, exist_ok=True)
-        with (lock_root / f"{slot}.lock").open("a+b") as stream:
-            fcntl.flock(stream.fileno(), fcntl.LOCK_EX)
-            try:
-                yield
-            finally:
-                fcntl.flock(stream.fileno(), fcntl.LOCK_UN)
-        return
-    key = (id(backend), slot)
-    with _FALLBACK_LOCKS_GUARD:
-        lock = _FALLBACK_LOCKS.setdefault(key, threading.Lock())
-    with lock:
-        yield
-
 
 class ProposalStore:
     def __init__(
@@ -405,6 +377,9 @@ class ProposalStore:
         )
         self.maximum_processed_tokens = _require_positive(
             maximum_processed_tokens, "maximum_processed_tokens"
+        )
+        self._in_flight = tuple(
+            tuple(threading.Lock() for _ in descriptors) for _ in learner_ids
         )
 
     def _descriptor(self, index: int) -> FragmentStateDescriptor:
@@ -503,6 +478,11 @@ class ProposalStore:
         if proposal.processed_tokens > self.maximum_processed_tokens:
             raise ProposalError("proposal processed_tokens exceeds the frozen maximum")
 
+    def _in_flight_lock(self, learner_id: str, fragment_index: int) -> threading.Lock:
+        return self._in_flight[
+            self.learner_ids.index(learner_id)
+        ][fragment_index]
+
     def publish(
         self,
         proposal: Proposal,
@@ -512,46 +492,40 @@ class ProposalStore:
     ) -> Proposal:
         self._validate_for_publish(proposal)
         slot = proposal_slot(proposal.learner_id, proposal.descriptor.index)
-        try:
-            current = self.load_latest(
-                proposal.learner_id, proposal.descriptor.index, timeout_seconds=0
+        in_flight = self._in_flight_lock(
+            proposal.learner_id, proposal.descriptor.index
+        )
+        if not in_flight.acquire(blocking=False):
+            raise ProposalError(
+                "a proposal publication is already in flight for this learner and fragment"
             )
-        except PublicationNotFound:
-            current = None
-        if current is not None:
-            if current.sequence > proposal.sequence:
-                raise ProposalError("proposal sequence would regress latest")
-            if current.sequence == proposal.sequence:
-                if current.content_identity == proposal.content_identity:
-                    return current
-                raise ProposalError("conflicting proposal content at the same sequence")
-
-        visibility_lock = _visibility_lock(self._backend, slot)
-        lock_entered = False
-
-        def monotonic_visibility_guard(
-            visibility_slot: str, _record: PublicationRecord
-        ) -> None:
-            nonlocal lock_entered
-            if before_visibility is not None:
-                before_visibility(visibility_slot, proposal)
-            visibility_lock.__enter__()
-            lock_entered = True
+        try:
             try:
-                visible = self.load_latest(
+                current = self.load_latest(
                     proposal.learner_id,
                     proposal.descriptor.index,
                     timeout_seconds=0,
                 )
             except PublicationNotFound:
-                return
-            if visible.sequence >= proposal.sequence:
-                raise ProposalError(
-                    "proposal sequence ceased to be greater before visibility"
-                )
+                current = None
+            if current is not None:
+                if current.sequence > proposal.sequence:
+                    raise ProposalError("proposal sequence would regress latest")
+                if current.sequence == proposal.sequence:
+                    if current.content_identity == proposal.content_identity:
+                        return current
+                    raise ProposalError(
+                        "conflicting proposal content at the same sequence"
+                    )
 
-        encoded = encode_proposal(proposal)
-        try:
+            encoded = encode_proposal(proposal)
+
+            def visibility_hook(
+                visibility_slot: str, _record: PublicationRecord
+            ) -> None:
+                if before_visibility is not None:
+                    before_visibility(visibility_slot, proposal)
+
             record = self._backend.publish(
                 slot,
                 encoded,
@@ -565,21 +539,14 @@ class ProposalStore:
                     shape=proposal.descriptor.shape,
                     base_content_identity=proposal.base_content_identity,
                 ),
-                visibility_hook=monotonic_visibility_guard,
+                visibility_hook=visibility_hook,
                 crash_at=crash_at,
             )
-        except BaseException:
-            if lock_entered:
-                visibility_lock.__exit__(*sys.exc_info())
-                lock_entered = False
-            raise
+            if record.sequence != proposal.sequence:
+                raise ProposalError("storage returned the wrong proposal sequence")
+            return proposal
         finally:
-            if lock_entered:
-                visibility_lock.__exit__(None, None, None)
-                lock_entered = False
-        if record.sequence != proposal.sequence:
-            raise ProposalError("storage returned the wrong proposal sequence")
-        return proposal
+            in_flight.release()
 
 
 @dataclasses.dataclass(frozen=True, slots=True)
@@ -598,10 +565,16 @@ class ConsumptionFrontier:
 
 @dataclasses.dataclass(frozen=True, slots=True)
 class ConsumptionFrontiers:
+    identities: GlobalStateIdentities
+    descriptor: FragmentStateDescriptor
     learner_ids: tuple[str, ...]
     entries: tuple[ConsumptionFrontier, ...]
 
     def __post_init__(self) -> None:
+        if not isinstance(self.identities, GlobalStateIdentities):
+            raise ProposalError("frontier identities must be GlobalStateIdentities")
+        if not isinstance(self.descriptor, FragmentStateDescriptor):
+            raise ProposalError("frontier descriptor must be FragmentStateDescriptor")
         if not isinstance(self.learner_ids, tuple) or not self.learner_ids:
             raise ProposalError("frontier learner_ids must be a non-empty tuple")
         for learner_id in self.learner_ids:
@@ -614,8 +587,16 @@ class ConsumptionFrontiers:
             raise ProposalError("frontier entries must match the frozen learners")
 
     @classmethod
-    def empty(cls, learner_ids: tuple[str, ...]) -> ConsumptionFrontiers:
+    def empty(
+        cls,
+        *,
+        identities: GlobalStateIdentities,
+        descriptor: FragmentStateDescriptor,
+        learner_ids: tuple[str, ...],
+    ) -> ConsumptionFrontiers:
         return cls(
+            identities=identities,
+            descriptor=descriptor,
             learner_ids=learner_ids,
             entries=tuple(ConsumptionFrontier() for _ in learner_ids),
         )
@@ -802,6 +783,10 @@ def select_candidates(
         raise ProposalError("proposals must be a sequence")
     if not isinstance(frontiers, ConsumptionFrontiers):
         raise ProposalError("frontiers must be ConsumptionFrontiers")
+    if frontiers.identities != policy.identities:
+        raise ProposalError("frontier and policy frozen identities differ")
+    if frontiers.descriptor != policy.descriptor:
+        raise ProposalError("frontier and policy fragment descriptors differ")
     if frontiers.learner_ids != policy.learner_ids:
         raise ProposalError("frontier and policy learner identities differ")
     rejections: dict[str, str] = {}
@@ -858,6 +843,10 @@ def commit_consumption(
     entries = list(frontiers.entries)
     seen_learners: set[str] = set()
     for proposal in selected:
+        if proposal.identities != frontiers.identities:
+            raise ProposalError("selected proposal and frontier identities differ")
+        if proposal.descriptor != frontiers.descriptor:
+            raise ProposalError("selected proposal and frontier fragment descriptors differ")
         if proposal.learner_id in seen_learners:
             raise ProposalError("selected proposals contain a duplicate learner")
         seen_learners.add(proposal.learner_id)
@@ -876,7 +865,12 @@ def commit_consumption(
             last_sequence=proposal.sequence,
             last_base_version=proposal.base_version,
         )
-    return ConsumptionFrontiers(frontiers.learner_ids, tuple(entries))
+    return ConsumptionFrontiers(
+        frontiers.identities,
+        frontiers.descriptor,
+        frontiers.learner_ids,
+        tuple(entries),
+    )
 
 
 @dataclasses.dataclass(frozen=True, slots=True)

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import dataclasses
 import hashlib
 import json
 import os
@@ -277,12 +278,10 @@ def run_role(
         release = threading.Event()
         reorder_errors: list[str] = []
 
-        def delay(_slot: str, _proposal_value: Proposal) -> None:
+        def publish_delayed() -> None:
             entered.set()
             if not release.wait(timeout=60):
                 raise TimeoutError("delayed sequence was not released")
-
-        def publish_delayed() -> None:
             try:
                 store.publish(
                     _proposal(
@@ -291,8 +290,7 @@ def run_role(
                         fragment_index=0,
                         sequence=2,
                         payload_bytes=payload_bytes,
-                    ),
-                    before_visibility=delay,
+                    )
                 )
             except ProposalError as error:
                 reorder_errors.append(str(error))
@@ -300,7 +298,7 @@ def run_role(
         thread = threading.Thread(target=publish_delayed)
         thread.start()
         if not entered.wait(timeout=60):
-            raise TimeoutError("sequence-2 publication did not reach its delay point")
+            raise TimeoutError("sequence-2 publication task did not reach its delay point")
         sequence_three = _proposal(
             store,
             learner_index=0,
@@ -380,6 +378,26 @@ def run_role(
     _wait(coordination / "reorder-ready.json")
     final_reordered = reader_store.load_latest(reader_store.learner_ids[0], 0)
     discovered = reader_store.discover_latest(timeout_seconds=30)
+    proposal_schema_fields = [field.name for field in dataclasses.fields(Proposal)]
+    required_schema_fields = {
+        "proposal_id",
+        "identities",
+        "learner_id",
+        "descriptor",
+        "sequence",
+        "base_version",
+        "base_content_identity",
+        "local_steps",
+        "processed_tokens",
+        "snapshot_local_step",
+        "parameters",
+        "parameters_sha256",
+        "content_identity",
+    }
+    if set(proposal_schema_fields) != required_schema_fields:
+        raise AssertionError("decoded proposal schema inventory is incomplete")
+    if any(item.payload_bytes != payload_bytes for item in discovered):
+        raise AssertionError("decoded proposal payload byte count differs from the workload")
     fragment_results = []
     for descriptor in reader_store.descriptors:
         candidates = tuple(
@@ -401,7 +419,11 @@ def run_role(
             maximum_processed_tokens=maximum_processed_tokens,
             lambda_s=1.0,
         )
-        frontiers = ConsumptionFrontiers.empty(reader_store.learner_ids)
+        frontiers = ConsumptionFrontiers.empty(
+            identities=identities,
+            descriptor=descriptor,
+            learner_ids=reader_store.learner_ids,
+        )
         selection = select_candidates(candidates, frontiers, policy)
         if not selection.ready or len(selection.selected) != learner_count:
             raise AssertionError("formal proposal selection did not reach full quorum")
@@ -438,6 +460,14 @@ def run_role(
         "baseline_proposals": len(baseline),
         "post_history_proposals": len(after_history),
         "final_reordered_sequence": final_reordered.sequence,
+        "decoded_proposal_schema": {
+            "fields": proposal_schema_fields,
+            "payload_kind": "complete_local_parameters",
+            "payload_bytes": payload_bytes,
+            "payload_identity_bound": True,
+            "base_version_bound": True,
+            "base_content_identity_bound": True,
+        },
         "fragment_results": fragment_results,
     }
     _write_json_new(result_root / "proposal_discoverer.json", result)
@@ -460,6 +490,7 @@ def summarize(
     config_identity: str,
     model_identity: str,
     fragment_map_identity: str,
+    base_retention_evidence: Path,
     output: Path,
 ) -> dict[str, Any]:
     writer = json.loads(
@@ -480,6 +511,20 @@ def summarize(
         raise AssertionError("writer identities differ from the frozen workload")
     if reader.get("state_identities") != expected_identities:
         raise AssertionError("discoverer identities differ from the frozen workload")
+    base_retention = json.loads(base_retention_evidence.read_text(encoding="utf-8"))
+    component_identities = base_retention.get("state_identities", {})
+    for field in ("config_identity", "model_identity", "fragment_map_identity"):
+        if component_identities.get(field) != expected_identities[field]:
+            raise AssertionError(
+                f"S1-04 base-retention component {field} differs from S1-05"
+            )
+    bounded_authority = base_retention.get("bounded_authority", {})
+    if (
+        bounded_authority.get("current_records") != fragment_count
+        or bounded_authority.get("retained_base_entries") != fragment_count
+        or bounded_authority.get("maximum_base_entries") != fragment_count
+    ):
+        raise AssertionError("S1-04 S_max=0 base-retention component is incomplete")
     slot_count = learner_count * fragment_count
     if not writer["partial_interrupted"] or not reader["partial_proposal_invisible"]:
         raise AssertionError("partial proposal invisibility evidence is incomplete")
@@ -566,6 +611,41 @@ def summarize(
             "repeated_polling_once_only": True,
             "generic_s_max": s_max,
             "lambda_s": 1.0,
+        },
+        "decoded_proposal_schema": reader["decoded_proposal_schema"],
+        "stale_ready_interfaces": {
+            "proposal_base_and_progress_identity": True,
+            "generic_eligibility": {
+                "runtime_s_max": s_max,
+                "positive_s_max_evidence": (
+                    "tests/stage1/test_s1_05_proposal.py::"
+                    "test_smax_zero_and_positive_use_the_same_generic_eligibility_function"
+                ),
+            },
+            "inverse_staleness_weighting": {
+                "lambda_s": 1.0,
+                "telemetry_fields": [
+                    "processed_tokens",
+                    "staleness",
+                    "raw_weight",
+                    "normalized_weight",
+                ],
+            },
+            "fixed_consumption_frontier_fields": [
+                "last_sequence",
+                "last_base_version",
+            ],
+            "bounded_base_retention_component": {
+                "source": str(base_retention_evidence),
+                "sha256": file_digest(base_retention_evidence),
+                "runtime_s_max": 0,
+                "retained_base_entries": bounded_authority[
+                    "retained_base_entries"
+                ],
+                "maximum_base_entries": bounded_authority[
+                    "maximum_base_entries"
+                ],
+            },
         },
     }
     _write_json_new(output, summary)
@@ -673,6 +753,7 @@ def _add_workload_arguments(parser: argparse.ArgumentParser, *, output: bool) ->
     ):
         parser.add_argument(f"--{name}", required=True, type=value_type)
     if output:
+        parser.add_argument("--base-retention-evidence", required=True, type=Path)
         parser.add_argument("--output", required=True, type=Path)
 
 
@@ -743,6 +824,7 @@ def main(argv: list[str] | None = None) -> int:
             config_identity=args.config_identity,
             model_identity=args.model_identity,
             fragment_map_identity=args.fragment_map_identity,
+            base_retention_evidence=args.base_retention_evidence,
             output=args.output,
         )
         print(json.dumps({"status": summary["status"]}, sort_keys=True))

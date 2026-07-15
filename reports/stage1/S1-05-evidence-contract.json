@@ -3,6 +3,11 @@
   "resource_level": "L2",
   "selected_evidence_root": "/work/xg24i002/x10041/fsbdd/runtime_runs/S1-05/formal-l2",
   "target_shared_root": "/work/xg24i002/x10041/fsbdd/runtime_runs",
+  "code_identity_contract": {
+    "submission_value": "EXPECTED_COMMIT is the full 40-character candidate SHA supplied to qsub",
+    "required_equality": "EXPECTED_COMMIT == clean worktree HEAD == manifest identities.code.commit",
+    "dirty_allowed": false
+  },
   "topology": {
     "pbs_queue": "debug-g",
     "pbs_group": "xg24i002",
@@ -12,6 +17,13 @@
     "roles": ["proposal_writer", "proposal_discoverer"],
     "application_coordination": "filesystem_only",
     "mpi_usage": "launcher_only"
+  },
+  "writer_invariant": {
+    "proposal_writers_per_learner_fragment": 1,
+    "in_flight_publications_per_learner_fragment": 1,
+    "formal_role_enforcement": "only proposal_writer may publish; proposal_discoverer is read-only",
+    "storage_primitives": ["atomic_visibility_publication", "eventual_readability"],
+    "storage_lock_dependency": false
   },
   "frozen_workload": {
     "learner_identities": ["learner-00", "learner-01", "learner-02", "learner-03", "learner-04", "learner-05", "learner-06", "learner-07"],
@@ -35,16 +47,25 @@
     "synthetic_model_identity": "d91a92be805f856514a9f13ac049e5c91ba8489bc415e2bf12c4bbadc3082100",
     "synthetic_fragment_map_identity": "d1fb096403b6c0043570e3784cbaffce8c625bc48a98a5fdb37e06ef1d03b2ab"
   },
+  "component_evidence": {
+    "bounded_base_retention": {
+      "source": "runtime_runs/S1-04/formal-l2/analysis/global-state-summary.json",
+      "sha256": "d8c2031c08533339c0b00b2681cdbd04d5c52b4ee7be6ee0b897dfb56294186a",
+      "copied_into_formal_package": "configs/s1-04-base-retention-summary.json",
+      "validated_facts": "S_max=0 retains exactly one base per each of four fragments and binds the same config model and fragment-map identities"
+    }
+  },
   "authoritative_observation": {
     "discovery_interval": "one complete ProposalStore.discover_latest call over the frozen eight-learner four-fragment slot set",
     "discovery_io_counter": "CountingStorageBackend read invocations at the proposal API boundary",
     "history_independence": "baseline_discovery_read_calls == post_10000_object_discovery_read_calls == learner_count * fragment_count",
     "partial_publication": "remote load_latest before a complete visibility record must raise and return no proposal",
-    "latest_monotonic": "a sequence-2 publication delayed before visibility must reject after sequence 3 is visible and final latest must remain sequence 3",
+    "latest_monotonic": "under the frozen single-writer and one-in-flight invariant a delayed sequence-2 task that reaches publish after sequence 3 is visible must reject and final latest must remain sequence 3",
     "idempotence": "identical same-sequence publication creates zero new immutable payloads and preserves the content identity",
     "same_sequence_conflict": "different content under the same learner fragment and sequence rejects before changing latest authority",
     "one_per_learner": "selected proposal count equals distinct selected learner count for every shared decision vector and permutation",
-    "fixed_frontier": "one pair of last consumed sequence and base version per frozen learner and fragment independent of update history",
+    "fixed_frontier": "one run/map/fragment-bound pair of last consumed sequence and base version per frozen learner independent of update history",
+    "decoded_schema": "summary inventories every decoded proposal identity progress base payload checksum and content field and asserts complete-local-parameters payload binding",
     "generic_eligibility": "identity integrity frontier progress base retention and 0 <= current-base <= S_max use one deterministic rejection path with no S_max-zero branch",
     "weighting": "normalized float32 tokens/(1+lambda_s*staleness) matches the shared Stage 0 oracle"
   },

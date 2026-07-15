@@ -23,6 +23,8 @@ CONFIG_SHA256="dd1dc08de331759cc49de1959bc1f2d9ba305ff985b07c2efb9084746fda3c50"
 STATE_MODEL_IDENTITY="d91a92be805f856514a9f13ac049e5c91ba8489bc415e2bf12c4bbadc3082100"
 STATE_FRAGMENT_MAP_IDENTITY="d1fb096403b6c0043570e3784cbaffce8c625bc48a98a5fdb37e06ef1d03b2ab"
 DECISION_VECTOR_SHA256="0dd9fe699bce3eef6b3da97b67d12a755ac227a0d36132e23e6feda128cbd5a8"
+S1_04_BASE_RETENTION_SOURCE="$MAIN_ROOT/runtime_runs/S1-04/formal-l2/analysis/global-state-summary.json"
+S1_04_BASE_RETENTION_SHA256="d8c2031c08533339c0b00b2681cdbd04d5c52b4ee7be6ee0b897dfb56294186a"
 RESEARCH_SHA256="2c0db3148110da10ea62f445c189d2d53b405527d8da264b9af9817f5ca9d835"
 SPEC_SHA256="1ea71fb6e34fef0d7b5558d8e7999dfdedeb82957f4331afcf6f80279d1f5a7d"
 SKILL_REPOSITORY="https://github.com/UnbearableFate/miyabi-development"
@@ -71,6 +73,11 @@ if [[ "$ACTUAL_VECTOR_SHA256" != "$DECISION_VECTOR_SHA256" ]]; then
   echo "shared decision vector hash mismatch" >&2
   exit 65
 fi
+ACTUAL_BASE_RETENTION_SHA256="$(sha256sum "$S1_04_BASE_RETENTION_SOURCE" | awk '{print $1}')"
+if [[ "$ACTUAL_BASE_RETENTION_SHA256" != "$S1_04_BASE_RETENTION_SHA256" ]]; then
+  echo "S1-04 base-retention component hash mismatch" >&2
+  exit 65
+fi
 
 cd "$PROJECT_ROOT"
 export PYTHONPATH="$PROJECT_ROOT/src"
@@ -96,6 +103,7 @@ QUEUE="$(awk -F' = ' '/^[[:space:]]*queue =/{print $2}' "$EVIDENCE_ROOT/env/qsta
 cp reports/stage1/S1-05-evidence-contract.json "$EVIDENCE_ROOT/configs/evidence-contract.json"
 cp reports/stage1/S1-05-requirement-matrix.csv "$EVIDENCE_ROOT/configs/requirement-matrix.csv"
 cp tests/fixtures/stage0_decision_vectors.json "$EVIDENCE_ROOT/configs/stage0-decision-vectors.json"
+cp "$S1_04_BASE_RETENTION_SOURCE" "$EVIDENCE_ROOT/configs/s1-04-base-retention-summary.json"
 "$PYTHON" -m fsbdd.cli config resolve "$CONFIG_SOURCE" "$EVIDENCE_ROOT/configs/resolved.json" \
   > "$EVIDENCE_ROOT/stdout/config-resolve.json" 2> "$EVIDENCE_ROOT/stderr/config-resolve.log"
 "$PYTHON" -m fsbdd.cli requirements \
@@ -142,6 +150,7 @@ mpirun -np 2 --map-by ppr:1:node --hostfile "$PBS_NODEFILE" \
   --maximum-processed-tokens "$MAXIMUM_PROCESSED_TOKENS" \
   --config-identity "$CONFIG_SHA256" --model-identity "$STATE_MODEL_IDENTITY" \
   --fragment-map-identity "$STATE_FRAGMENT_MAP_IDENTITY" \
+  --base-retention-evidence "$EVIDENCE_ROOT/configs/s1-04-base-retention-summary.json" \
   --output "$EVIDENCE_ROOT/analysis/proposal-summary.json" \
   > "$EVIDENCE_ROOT/stdout/proposal-summary.json" \
   2> "$EVIDENCE_ROOT/stderr/proposal-summary.log"
