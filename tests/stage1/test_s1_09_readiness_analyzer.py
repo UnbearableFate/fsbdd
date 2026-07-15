@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 import copy
+import hashlib
 import json
+import struct
 from pathlib import Path
 
 import pytest
 
 from fsbdd.global_state_stress import _fragments, derive_stress_identities
+from fsbdd.identity import canonical_digest
 from fsbdd.syncer_readiness_stress import ReadinessStressError, analyze_results
 
 
@@ -40,31 +43,81 @@ def _state_identities(config: dict) -> dict:
     return values
 
 
-def _weight(learner: int, count: int) -> dict:
-    return {
-        "proposal_id": f"proposal-{learner}",
-        "learner_id": f"learner-{learner:02d}",
-        "processed_tokens": learner + 1,
-        "staleness": 0,
-        "raw_weight": float(learner + 1),
-        "normalized_weight": 1.0 / count,
-    }
+def _f32(value: float | int) -> float:
+    return struct.unpack("!f", struct.pack("!f", float(value)))[0]
 
 
-def _selection(fragment: int, learners: int) -> dict:
-    return {
+def _selection(
+    fragment: int,
+    learners: int,
+    logical_syncer_id: str,
+    *,
+    learner_order: list[int] | None = None,
+) -> dict:
+    learner_order = list(range(learners)) if learner_order is None else learner_order
+    proposal_ids = [f"f{fragment}-proposal-{index}" for index in learner_order]
+    learner_ids = [f"learner-{index:02d}" for index in learner_order]
+    content_ids = [
+        hashlib.sha256(f"f{fragment}-content-{index}".encode()).hexdigest()
+        for index in learner_order
+    ]
+    tokens = [index + 1 for index in learner_order]
+    raw_weights = [_f32(value) for value in tokens]
+    total = _f32(0.0)
+    for value in raw_weights:
+        total = _f32(total + value)
+    weights = [
+        {
+            "proposal_id": proposal_id,
+            "learner_id": learner_id,
+            "processed_tokens": processed_tokens,
+            "staleness": 0,
+            "raw_weight": raw_weight,
+            "normalized_weight": _f32(raw_weight / total),
+        }
+        for proposal_id, learner_id, processed_tokens, raw_weight in zip(
+            proposal_ids, learner_ids, tokens, raw_weights, strict=True
+        )
+    ]
+    authority_identity = hashlib.sha256(f"authority-{fragment}".encode()).hexdigest()
+    selection = {
         "fragment_index": fragment,
         "current_version": 0,
-        "authority_identity": f"authority-{fragment}",
+        "authority_identity": authority_identity,
         "generation": 1,
         "grace_started_ns": 0,
         "frozen_observed_ns": 0,
-        "proposal_ids": [f"f{fragment}-proposal-{index}" for index in range(learners)],
-        "proposal_content_identities": [f"content-{index}" for index in range(learners)],
-        "learner_ids": [f"learner-{index:02d}" for index in range(learners)],
-        "weights": [_weight(index, learners) for index in range(learners)],
-        "selection_identity": f"selection-{fragment}",
+        "proposal_ids": proposal_ids,
+        "proposal_content_identities": content_ids,
+        "learner_ids": learner_ids,
+        "proposal_facts": [
+            {
+                "proposal_id": proposal_id,
+                "content_identity": content_identity,
+                "learner_id": learner_id,
+                "sequence": 1,
+                "base_version": 0,
+                "processed_tokens": processed_tokens,
+            }
+            for proposal_id, content_identity, learner_id, processed_tokens in zip(
+                proposal_ids, content_ids, learner_ids, tokens, strict=True
+            )
+        ],
+        "weights": weights,
+        "selection_identity": "",
     }
+    selection["selection_identity"] = canonical_digest(
+        {
+            "schema_version": 1,
+            "logical_syncer_id": logical_syncer_id,
+            "fragment_index": fragment,
+            "current_version": 0,
+            "authority_identity": authority_identity,
+            "proposal_content_identities": content_ids,
+            "weights": weights,
+        }
+    )
+    return selection
 
 
 def _valid_results() -> tuple[dict, dict, dict]:
@@ -74,18 +127,21 @@ def _valid_results() -> tuple[dict, dict, dict]:
     grace = config["decoupled_grace"]
     slot_count = profile["learner_count"] * profile["fragment_count"]
     selections = [
-        _selection(index, profile["learner_count"])
+        _selection(
+            index,
+            profile["learner_count"],
+            profile["logical_syncer_id"],
+        )
         for index in range(profile["fragment_count"])
     ]
     selection_ids = [item["selection_identity"] for item in selections]
-    frozen = _selection(0, grace["initial_learners"] + grace["pre_freeze_late_learners"])
-    for field in (
-        "proposal_ids",
-        "proposal_content_identities",
-        "learner_ids",
-        "weights",
-    ):
-        frozen[field] = list(reversed(frozen[field]))
+    grace_learners = grace["initial_learners"] + grace["pre_freeze_late_learners"]
+    frozen = _selection(
+        0,
+        grace_learners,
+        grace["logical_syncer_id"],
+        learner_order=list(reversed(range(grace_learners))),
+    )
     writer = {
         "status": "pass",
         "role": "proposal_writer",
@@ -173,6 +229,13 @@ def test_analyzer_accepts_complete_frozen_fixture() -> None:
         lambda writer, syncer: syncer["profile_a"]["selections"][0]["learner_ids"].__setitem__(1, "learner-00"),
         lambda writer, syncer: syncer["grace"].__setitem__("after_selection_identity", "changed"),
         lambda writer, syncer: syncer["grace"]["after_weights"].__setitem__(0, {"changed": True}),
+        lambda writer, syncer: syncer["profile_a"]["selections"][0].__setitem__("weights", syncer["profile_a"]["selections"][0]["weights"][:1]),
+        lambda writer, syncer: syncer["profile_a"]["selections"][0]["weights"][0].__setitem__("proposal_id", "wrong"),
+        lambda writer, syncer: syncer["profile_a"]["selections"][0]["proposal_facts"][0].__setitem__("processed_tokens", 99),
+        lambda writer, syncer: syncer["profile_a"]["selections"][0]["weights"][0].__setitem__("raw_weight", 99.0),
+        lambda writer, syncer: syncer["profile_a"]["selections"][0]["weights"][0].__setitem__("normalized_weight", 1.0),
+        lambda writer, syncer: syncer["profile_a"]["selections"][0]["proposal_content_identities"].__setitem__(0, "f" * 64),
+        lambda writer, syncer: syncer["profile_a"]["selections"][0].__setitem__("selection_identity", "0" * 64),
         lambda writer, syncer: writer.__setitem__("gpu_memory_after_bytes", 1),
         lambda writer, syncer: writer.__setitem__("profile_a_published", 31),
         lambda writer, syncer: writer["state_identities"]["profile_a"].__setitem__("run_identity", "wrong"),

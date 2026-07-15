@@ -18,8 +18,8 @@ def _sha256(path: Path) -> str:
 
 def test_frozen_readiness_profile_and_contract_are_exact() -> None:
     assert _sha256(CONFIG) == "8ff3fe364fca10bb48fe80ebf0bcede63163731e47cc26fc87512b298e3c225d"
-    assert _sha256(CONTRACT) == "d9003b8400a50e55af660267ed3d5716d55f9f06be04c15f28758e4b9b8ca283"
-    assert _sha256(MATRIX) == "6e9a45c76c77ce9780908f97813e82af763fa2a40af31da5532b4de495c8f25f"
+    assert _sha256(CONTRACT) == "af5ed55da568d5c67800690644e15acb3f603ac9bef16f320eefd43b34d722c0"
+    assert _sha256(MATRIX) == "609930d526397361b8640cdac0157faac320f33584d5fe50d2eff394307be4bb"
     config = json.loads(CONFIG.read_text(encoding="utf-8"))
     profile = config["profile_a"]
     grace = config["decoupled_grace"]

@@ -30,6 +30,7 @@ from fsbdd.syncer_readiness import (
     ReadinessPhase,
     SyncerReadinessMachine,
 )
+from fsbdd.syncer_readiness_stress import _validate_frozen_selection
 
 
 IDENTITIES = GlobalStateIdentities(
@@ -64,7 +65,7 @@ def _system(
     grace_period_ns: int = 0,
     counting: bool = False,
 ):
-    learner_ids = tuple(f"learner-{index}" for index in range(learner_count))
+    learner_ids = tuple(f"learner-{index:02d}" for index in range(learner_count))
     descriptors = _descriptors(fragment_count)
     global_store = GlobalStateStore(
         PosixStorageBackend(tmp_path / "global"),
@@ -223,6 +224,27 @@ def test_cpu_poll_count_never_substitutes_for_quorum(tmp_path: Path) -> None:
     assert machine.snapshot().poll_cycles == 1000
 
 
+@pytest.mark.parametrize("q_fresh", [0, 1, 2, 3])
+def test_smax_zero_makes_every_eligible_distinct_learner_fresh(
+    tmp_path: Path, q_fresh: int
+) -> None:
+    machine, store, authorities, _ = _system(
+        tmp_path,
+        learner_count=3,
+        fragment_count=1,
+        q=3,
+        q_fresh=q_fresh,
+    )
+    fresh = tuple(_proposal(store, authorities, index, 0) for index in range(3))
+    below_quorum = machine.observe(fresh[:2], observed_ns=0).fragments[0]
+    assert below_quorum.phase == ReadinessPhase.WAITING
+    assert below_quorum.eligible_distinct == below_quorum.fresh_distinct == 2
+    ready = machine.observe(fresh, observed_ns=1).fragments[0]
+    assert ready.phase == ReadinessPhase.FROZEN
+    assert ready.eligible_distinct == ready.fresh_distinct == 3
+    assert machine.config.s_max == 0
+
+
 def test_profile_a_freezes_every_learner_immediately_and_is_order_independent(
     tmp_path: Path,
 ) -> None:
@@ -255,6 +277,12 @@ def test_profile_a_freezes_every_learner_immediately_and_is_order_independent(
         identities.add(frozen.selection_identity)
         assert len(frozen.proposals) == 4
         assert abs(sum(item.normalized_weight for item in frozen.weights) - 1.0) < 2e-6
+        _validate_frozen_selection(
+            frozen.to_dict(),
+            profile={"learner_count": 4, "logical_syncer_id": "syncer-0"},
+            fragment_index=0,
+            expected_count=4,
+        )
     assert len(identities) == 1
     machine.observe(proposals, observed_ns=0)
     assert machine.selection_for(0) is not None

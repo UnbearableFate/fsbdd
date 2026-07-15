@@ -59,16 +59,21 @@ harden:
   - cyclic fairness over every cursor position and 64 concurrent single-lease claims
   - mixed per-fragment versions consumed-frontier repeat poll transient not-ready and restart reconstruction fixtures
   - 10000 unrelated objects with exact M times F fixed reads and forbidden directory APIs
-  - eleven fail-closed formal analyzer mutations plus config PBS JSON ruff py_compile and shell checks
-  evidence_paths: [runtime_runs/S1-09/harden-local-cb11204]
+  - eighteen fail-closed formal analyzer mutations including missing weights correspondence token math content and selection identity plus config PBS JSON ruff py_compile and shell checks
+  evidence_paths: [runtime_runs/S1-09/harden-local-cb11204, runtime_runs/S1-09/correction-local-f030691, runtime_runs/S1-09/l1-targeted-2386021.opbs, runtime_runs/S1-09/l1-role-2386062.opbs]
 nine_node_gate: {required: false, run_id: null, topology_gate: null, loss_gate: null, runtime_gate: null}
 checker:
   context_id: null
   maker_chat_inherited: false
-  phase_a_verdict: pending
+  phase_a_verdict: BLOCKED_PRECHECK on f030691 for incomplete fail-closed frozen-weight analysis and an initially overbroad Q_fresh evidence claim; correction narrows S_max=0 scope and binds every proposal fact weight and selection identity
   verdict: pending
   report_path: reports/checkers/S1-09.md
-  cycles: []
+  cycles:
+  - cycle: 1
+    phase: A
+    checked_candidate: f030691ce6334b1e89cac0fdd35c9a727e1109b0
+    verdict: BLOCKED_PRECHECK
+    correction: validate exact frozen proposal content learner token raw normalized weight cardinality and recomputed selection identity then prove the S_max=0 eligible-equals-fresh invariant while deferring stale-inclusive independent Q_fresh binding to S4-03
 persist:
   evidence_index: evidence/indexes/S1-09.md
   raw_evidence_root: runtime_runs/S1-09

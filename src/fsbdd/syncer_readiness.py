@@ -154,6 +154,17 @@ class FrozenSelection:
                 item.content_identity for item in self.proposals
             ],
             "learner_ids": list(self.learner_ids),
+            "proposal_facts": [
+                {
+                    "proposal_id": item.proposal_id,
+                    "content_identity": item.content_identity,
+                    "learner_id": item.learner_id,
+                    "sequence": item.sequence,
+                    "base_version": item.base_version,
+                    "processed_tokens": item.processed_tokens,
+                }
+                for item in self.proposals
+            ],
             "weights": [item.to_dict() for item in self.weights],
             "selection_identity": self.selection_identity,
         }

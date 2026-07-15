@@ -6,6 +6,7 @@ import json
 import os
 import shutil
 import socket
+import struct
 import subprocess
 import sys
 import time
@@ -14,7 +15,7 @@ from typing import Any
 
 from .global_state import CountingStorageBackend, GlobalStateIdentities, GlobalStateStore
 from .global_state_stress import _fragments, derive_stress_identities
-from .identity import file_digest
+from .identity import canonical_digest, file_digest
 from .manifest import build_manifest
 from .proposal import (
     ConsumptionFrontiers,
@@ -554,6 +555,152 @@ def run_role(
     return result
 
 
+def _f32(value: float | int) -> float:
+    return struct.unpack("!f", struct.pack("!f", float(value)))[0]
+
+
+def _is_sha256(value: object) -> bool:
+    return (
+        isinstance(value, str)
+        and len(value) == 64
+        and all(character in "0123456789abcdef" for character in value)
+    )
+
+
+def _validate_frozen_selection(
+    selection: dict[str, Any],
+    *,
+    profile: dict[str, Any],
+    fragment_index: int,
+    expected_count: int,
+) -> None:
+    exact_fields = {
+        "fragment_index",
+        "current_version",
+        "authority_identity",
+        "generation",
+        "grace_started_ns",
+        "frozen_observed_ns",
+        "proposal_ids",
+        "proposal_content_identities",
+        "learner_ids",
+        "proposal_facts",
+        "weights",
+        "selection_identity",
+    }
+    if not isinstance(selection, dict) or set(selection) != exact_fields:
+        raise ReadinessStressError("frozen selection schema is malformed")
+    current_version = selection["current_version"]
+    if (
+        selection["fragment_index"] != fragment_index
+        or not isinstance(current_version, int)
+        or isinstance(current_version, bool)
+        or current_version < 0
+        or not isinstance(selection["generation"], int)
+        or isinstance(selection["generation"], bool)
+        or selection["generation"] <= 0
+        or not isinstance(selection["grace_started_ns"], int)
+        or isinstance(selection["grace_started_ns"], bool)
+        or not isinstance(selection["frozen_observed_ns"], int)
+        or isinstance(selection["frozen_observed_ns"], bool)
+        or selection["grace_started_ns"] < 0
+        or selection["frozen_observed_ns"] < selection["grace_started_ns"]
+        or not _is_sha256(selection["authority_identity"])
+    ):
+        raise ReadinessStressError("frozen selection authority or time is invalid")
+    proposal_ids = selection["proposal_ids"]
+    content_ids = selection["proposal_content_identities"]
+    learner_ids = selection["learner_ids"]
+    facts = selection["proposal_facts"]
+    weights = selection["weights"]
+    collections = (proposal_ids, content_ids, learner_ids, facts, weights)
+    if any(not isinstance(item, list) or len(item) != expected_count for item in collections):
+        raise ReadinessStressError("frozen selection cardinalities differ")
+    if (
+        len(set(proposal_ids)) != expected_count
+        or len(set(content_ids)) != expected_count
+        or len(set(learner_ids)) != expected_count
+        or any(not _is_sha256(value) for value in content_ids)
+        or any(not isinstance(value, str) or not value for value in proposal_ids)
+        or any(not isinstance(value, str) or not value for value in learner_ids)
+    ):
+        raise ReadinessStressError("frozen selection identities are not distinct and complete")
+    expected_learners = {
+        f"learner-{index:02d}" for index in range(profile["learner_count"])
+    }
+    if not set(learner_ids) <= expected_learners:
+        raise ReadinessStressError("frozen selection has an unknown learner")
+    expected_weight_fields = {
+        "proposal_id",
+        "learner_id",
+        "processed_tokens",
+        "staleness",
+        "raw_weight",
+        "normalized_weight",
+    }
+    raw_weights: list[float] = []
+    for offset, (proposal_id, content_id, learner_id, fact, weight) in enumerate(
+        zip(proposal_ids, content_ids, learner_ids, facts, weights, strict=True)
+    ):
+        expected_fact_fields = {
+            "proposal_id",
+            "content_identity",
+            "learner_id",
+            "sequence",
+            "base_version",
+            "processed_tokens",
+        }
+        if not isinstance(fact, dict) or set(fact) != expected_fact_fields:
+            raise ReadinessStressError("frozen proposal fact schema is malformed")
+        if not isinstance(weight, dict) or set(weight) != expected_weight_fields:
+            raise ReadinessStressError("frozen weight schema is malformed")
+        if (
+            fact["proposal_id"] != proposal_id
+            or fact["content_identity"] != content_id
+            or fact["learner_id"] != learner_id
+            or weight["proposal_id"] != proposal_id
+            or weight["learner_id"] != learner_id
+            or weight["processed_tokens"] != fact["processed_tokens"]
+            or not isinstance(fact["sequence"], int)
+            or isinstance(fact["sequence"], bool)
+            or fact["sequence"] < 0
+            or not isinstance(fact["base_version"], int)
+            or isinstance(fact["base_version"], bool)
+            or not isinstance(fact["processed_tokens"], int)
+            or isinstance(fact["processed_tokens"], bool)
+            or fact["processed_tokens"] <= 0
+        ):
+            raise ReadinessStressError(
+                f"frozen proposal/weight correspondence differs at {offset}"
+            )
+        staleness = current_version - fact["base_version"]
+        if staleness != 0 or weight["staleness"] != staleness:
+            raise ReadinessStressError("formal S_max=0 selection contains a stale weight")
+        tokens = _f32(fact["processed_tokens"])
+        denominator = _f32(1.0 + _f32(staleness))
+        expected_raw = _f32(tokens / denominator)
+        if weight["raw_weight"] != expected_raw:
+            raise ReadinessStressError("frozen raw weight differs from token semantics")
+        raw_weights.append(expected_raw)
+    total = _f32(0.0)
+    for raw_weight in raw_weights:
+        total = _f32(total + raw_weight)
+    for weight, raw_weight in zip(weights, raw_weights, strict=True):
+        if weight["normalized_weight"] != _f32(raw_weight / total):
+            raise ReadinessStressError("frozen normalized weight differs from reference")
+    semantic = {
+        "schema_version": 1,
+        "logical_syncer_id": profile["logical_syncer_id"],
+        "fragment_index": fragment_index,
+        "current_version": current_version,
+        "authority_identity": selection["authority_identity"],
+        "proposal_content_identities": content_ids,
+        "weights": weights,
+    }
+    if selection["selection_identity"] != canonical_digest(semantic):
+        raise ReadinessStressError("frozen selection identity does not bind its contents")
+
+
 def _analyze_results(
     *,
     writer: dict[str, Any],
@@ -632,18 +779,12 @@ def _analyze_results(
         raise ReadinessStressError("Profile A selection inventory is incomplete")
     baseline_ids = []
     for index, selection in enumerate(selections):
-        if (
-            selection["fragment_index"] != index
-            or len(selection["proposal_ids"]) != profile["learner_count"]
-            or len(set(selection["learner_ids"])) != profile["learner_count"]
-            or any(item["staleness"] != 0 for item in selection["weights"])
-            or abs(
-                sum(item["normalized_weight"] for item in selection["weights"])
-                - 1.0
-            )
-            > 2e-6
-        ):
-            raise ReadinessStressError("Profile A distinct fresh selection is invalid")
+        _validate_frozen_selection(
+            selection,
+            profile=profile,
+            fragment_index=index,
+            expected_count=profile["learner_count"],
+        )
         baseline_ids.append(selection["selection_identity"])
     if (
         profile_result["history_selection_ids"] != baseline_ids
@@ -677,6 +818,12 @@ def _analyze_results(
             raise ReadinessStressError(f"grace {field} is not exactly M")
     frozen = grace_result["frozen_selection"]
     expected_selected = grace["initial_learners"] + grace["pre_freeze_late_learners"]
+    _validate_frozen_selection(
+        frozen,
+        profile=grace,
+        fragment_index=0,
+        expected_count=expected_selected,
+    )
     expected_learners = [
         f"learner-{index:02d}" for index in reversed(range(expected_selected))
     ]
@@ -693,11 +840,6 @@ def _analyze_results(
         or post_learner in grace_result["after_selected_learners"]
         or grace_result["after_selection_identity"] != frozen["selection_identity"]
         or grace_result["after_weights"] != frozen["weights"]
-        or len(frozen["weights"]) != expected_selected
-        or abs(
-            sum(item["normalized_weight"] for item in frozen["weights"]) - 1.0
-        )
-        > 2e-6
     ):
         raise ReadinessStressError("fixed grace or late-arrival evidence is invalid")
     if (

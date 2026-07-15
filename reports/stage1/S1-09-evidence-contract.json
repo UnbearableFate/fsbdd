@@ -61,6 +61,12 @@
     "directory_order_rule": "candidate normalization and proposal policy ordering make input permutation irrelevant",
     "duplicate_rule": "identical duplicate proposal identities are one observation and different proposals from one learner contribute at most one"
   },
+  "fresh_only_scope": {
+    "stage1_policy": "S_max=0 makes every eligible proposal current-base and therefore fresh",
+    "executable_invariant": "for every valid Q_fresh value from zero through Q the production observation reports eligible_distinct == fresh_distinct",
+    "unreachable_case": "eligible_distinct >= Q with fresh_distinct < Q_fresh cannot occur when Q_fresh <= Q and S_max=0",
+    "deferred_binding": "stale-inclusive independent Q and fresh-anchor Q_fresh behavior remains covered by S0A-01 and is a production obligation of S4-03"
+  },
   "fairness": {
     "scheduler": "deterministic cyclic round robin over frozen fragments",
     "observation_point": "each successful claim_next return while no earlier lease remains active",
