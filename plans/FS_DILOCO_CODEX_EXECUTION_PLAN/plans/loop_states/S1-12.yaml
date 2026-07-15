@@ -29,7 +29,7 @@ orient:
   raw_evidence_on_demand: [runtime_runs/S1-07, runtime_runs/S1-08, runtime_runs/S1-09, runtime_runs/S1-11]
   resource_level: L2
   available_resources: Miyabi debug-g up to four compute nodes with one local GPU per learner and shared POSIX runtime root
-  recent_failure: After targeted job 2388641.opbs passed the prior role path Checker Phase A blocked three evidence semantics. Correction job 2388765.opbs then preserved a deterministic integrated-path failure where adoption mutated progress before the publisher validated the same safe-boundary event. The corrected established observer order snapshots first then applies pending adoption while raw numeric decoding and restart-loader path auditing remain unchanged.
+  recent_failure: After targeted job 2388641.opbs passed the prior role path Checker Phase A blocked three evidence semantics. Correction job 2388765.opbs then preserved a deterministic integrated-path failure where adoption mutated progress before the publisher validated the same safe-boundary event. The corrected snapshot-then-adopt order passed job 2388775.opbs with 21 tests 100 authoritative numeric updates measured evaluation reads and integrated control/injected syncer counts 19/10.
   attempt_budget: {red: 1, targeted: 8, l1_compute: 8, formal_l2_batch: 1}
   failure_ladder: preserve the first L2 failure then reproduce the failing role or analyzer on one compute node before resubmission
   nine_node_gate_required: false
@@ -49,8 +49,14 @@ red:
   command: PYTHONPATH=src .venv/bin/python tests/red_cases/s1_12_naive_profile_a_surrogate.py
   exit_code: 1
   evidence_path: runtime_runs/S1-12/red-92b9006-semantic
-green: {command: null, evidence_path: null, result: null}
-harden: {commands: [], evidence_paths: [], formal_result: null}
+green:
+  command: .venv/bin/python -m pytest -q tests/stage1/test_s1_12_profile_a.py tests/stage1/test_s1_12_evaluation.py tests/stage1/test_s1_12_analyzer.py tests/stage1/test_s1_12_static.py
+  evidence_path: runtime_runs/S1-12/targeted-2388775.opbs/pytest.log
+  result: 21 passed and the exact code candidate completed the integrated one-node role diagnostic
+harden:
+  commands: [qsub -v EXPECTED_COMMIT=4bd8fb728268822dfd66b968958177586cf3d4be pbs/stage1_s1_12_targeted.pbs]
+  evidence_paths: [runtime_runs/S1-12/targeted-2387668.opbs, runtime_runs/S1-12/targeted-2387680.opbs, runtime_runs/S1-12/targeted-2387700.opbs, runtime_runs/S1-12/targeted-2388610.opbs, runtime_runs/S1-12/targeted-2388627.opbs, runtime_runs/S1-12/targeted-2388641.opbs, runtime_runs/S1-12/targeted-2388765.opbs, runtime_runs/S1-12/targeted-2388775.opbs]
+  formal_result: null
 nine_node_gate: {required: false, run_id: null, topology_gate: null, loss_gate: null, runtime_gate: null}
 checker: {context_id: s1_12_checker, maker_chat_inherited: false, phase_a_verdict: BLOCKED_PRECHECK, verdict: null, report_path: reports/checkers/S1-12.md, cycles: [phase_a_blocked_integrated_timing_raw_numeric_and_evaluation_access_audit]}
 persist: {evidence_index: evidence/indexes/S1-12.md, raw_evidence_root: runtime_runs/S1-12, acceptance_traceability_updated: false, next_gap: S1-13 baseline training and one-billion-token run, handoff: null}
