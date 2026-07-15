@@ -115,6 +115,11 @@ orient:
     cause: an unsynchronized AtomicGlobalCommitStore authority cache allowed a concurrent reader to replace the writer's cache binding; the resulting writer exception was hidden because the test did not set its reader stop event in a finally block, so executor shutdown hung until the pre-walltime timeout
     expected_solution: serialize per-instance cache reads and the complete commit transaction with an RLock, bound and finally-release the regression readers, add verbose/faulthandler smoke pytest diagnostics, pass static gates, then obtain same-Checker authorization for one smallest focused one-node validation before any capacity-smoke retry
     correction_commit: cd8ca08d8711194a0fa3bcef455dcb7d02913562
+    focused_validation:
+      pbs_job_id: 2393136.opbs
+      result: pass; 23 tests passed in 0.42 seconds including original concurrent readers, deterministic held-writer serialization, readiness cases, and smoke static contract; scheduler exit 0; no abnormal node; same-Checker Phase B PASS
+      raw_evidence_root: runtime_runs/S1-13/targeted-focus-cache-20260715T225155Z-cd8ca08
+      scheduler_evidence_root: runtime_runs/S1-13/targeted-focus-cache-20260715T225155Z-cd8ca08-scheduler
   attempt_budget: {asset_stage: 3, red: 1, targeted: 5, reproduction_preflight: 3, l1_real: 2, l2_real: 4, formal_l3_9n: 2, formal_l4_long: 3}
   attempt_budget_amendments:
     - recorded_at_utc: 2026-07-15T20:42:48Z
@@ -221,7 +226,8 @@ orient:
       authorization_gate: The same S1-13 Checker must first pass job 2393122 failure attribution, the core/cache and harness corrections, static gates, and this amendment, then explicitly authorize one exact-clean focused candidate.
       authorization_commit: cd8ca08d8711194a0fa3bcef455dcb7d02913562
       checker_verdict: Phase B PASS for job 2393122 failure attribution and Phase A PASS for exactly one fifth-and-final one-node focused correction validation using only pbs/stage1_s1_13_targeted_focus.pbs SHA c75a93b21097447d43a9b9c30a1062b559c1cb43cf90224d01930a7ffc9fa6c6; no smoke retry, formal-long, or other compute authorized
-      final_attempt: pending
+      final_attempt: 2393136.opbs
+      final_attempt_result: pass; 23 tests passed in 0.42 seconds; original concurrency and deterministic held-writer regressions passed; scheduler exit 0; no abnormal node; same-Checker Phase B PASS
     - amended_at_utc: 2026-07-15T22:44:39Z
       prior_formal_l4_long_budget: 2
       amended_formal_l4_long_budget: 3
@@ -230,7 +236,8 @@ orient:
       reason: The registered two-slot L4-long budget retained one capacity preflight slot and one formal-long slot. Job 2393122 consumed the preflight slot but stopped in pytest before any learner or syncer process, leaving the required 59-of-60 Pythia/FineWeb capacity evidence absent. One replacement preflight slot is required while preserving the still-unused formal-long slot.
       scope: Add exactly one replacement five-node non-formal capacity-smoke attempt after the new one-node focused correction validation passes same-Checker Phase B. This amendment does not itself authorize the replacement smoke or formal-long.
       authorization_gate: The same S1-13 Checker must pass the focused job in Phase B and separately authorize an exact-clean smoke candidate before submission; formal-long still requires its own later Phase A.
-      authorization_commit: pending focused Phase B and separate exact-candidate review
+      authorization_commit: cd8ca08d8711194a0fa3bcef455dcb7d02913562
+      checker_verdict: focused job 2393136 Phase B PASS; Phase A PASS for exactly one replacement five-node non-formal capacity smoke using only pbs/stage1_s1_13_long_smoke.pbs SHA 64d550957b13162df05b0bb07a2b3810ca7cd0d5cf13641c294104b30e9c5e6f; no formal-long, retry, or other compute authorized
       final_attempt: pending
   failure_ladder: preserve the first expensive failure then reproduce its failing role or analyzer at the smallest one-node or two-node topology before an authorized retry
   nine_node_gate_required: true
@@ -285,7 +292,7 @@ nine_node_gate:
 checker:
   context_id: s1_13_checker
   maker_chat_inherited: false
-  phase_a_verdict: Phase B PASS for job 2393122 failure attribution and Phase A PASS for exactly one fifth-and-final one-node focused correction validation at cd8ca08d8711194a0fa3bcef455dcb7d02913562 using only pbs/stage1_s1_13_targeted_focus.pbs SHA c75a93b21097447d43a9b9c30a1062b559c1cb43cf90224d01930a7ffc9fa6c6; no smoke retry, formal-long, or other compute authorized
+  phase_a_verdict: focused job 2393136.opbs Phase B PASS; replacement Phase A PASS for exactly one five-node non-formal capacity smoke at cd8ca08d8711194a0fa3bcef455dcb7d02913562 using only pbs/stage1_s1_13_long_smoke.pbs SHA 64d550957b13162df05b0bb07a2b3810ca7cd0d5cf13641c294104b30e9c5e6f; no formal-long, retry, or other compute authorized
   verdict: null
   report_path: reports/checkers/S1-13.md
   cycles:
@@ -343,12 +350,12 @@ checker:
       result: job 2393122 consumed the authorization and failed with exit 124 after exactly 264 pytest completions; automatic failure and scheduler evidence retained; no learner or syncer process started; reviewed core-cache race correction awaits same-Checker review
     - candidate: cd8ca08d8711194a0fa3bcef455dcb7d02913562
       verdict: Phase B PASS for job 2393122 failure attribution and Phase A PASS for exactly one fifth-and-final one-node focused correction validation using only pbs/stage1_s1_13_targeted_focus.pbs SHA c75a93b21097447d43a9b9c30a1062b559c1cb43cf90224d01930a7ffc9fa6c6; no smoke retry, formal-long, or other compute authorized
-      result: pending; use a fresh absent output root and return checksum, scheduler, and pytest evidence to the same Checker Phase B
+      result: focused job 2393136 passed 23 tests in 0.42 seconds with scheduler exit 0/no abnormal node; same-Checker Phase B PASS and replacement Phase A PASS for exactly one five-node capacity smoke using only pbs/stage1_s1_13_long_smoke.pbs SHA 64d550957b13162df05b0bb07a2b3810ca7cd0d5cf13641c294104b30e9c5e6f; no formal-long or other compute authorized
 persist:
   evidence_index: evidence/indexes/S1-13.md
   raw_evidence_root: runtime_runs/S1-13
   acceptance_traceability_updated: false
   next_gap: Stage 2 asynchronous GPU to CPU to filesystem publication pipeline
   handoff: >-
-    Same-Checker Phase B passed for job 2393122 failure attribution and Phase A authorized exactly one fifth-and-final one-node focused correction validation at cd8ca08d8711194a0fa3bcef455dcb7d02913562 using only pbs/stage1_s1_13_targeted_focus.pbs SHA c75a93b21097447d43a9b9c30a1062b559c1cb43cf90224d01930a7ffc9fa6c6. Use a fresh absent output root and return checksum, scheduler, and pytest evidence to the same Checker Phase B. No smoke retry, formal-long, or other compute is authorized.
-blocker: Exactly one one-node focused correction validation is authorized and pending at cd8ca08d8711194a0fa3bcef455dcb7d02913562; replacement smoke, formal-long, retry, and all other compute remain blocked pending focused evidence and same-Checker Phase B.
+    Focused correction job 2393136.opbs passed 23 tests in 0.42 seconds with scheduler exit 0/no abnormal node, and same-Checker Phase B passed. The same Checker authorized exactly one replacement five-node non-formal capacity smoke at cd8ca08d8711194a0fa3bcef455dcb7d02913562 using only pbs/stage1_s1_13_long_smoke.pbs SHA 64d550957b13162df05b0bb07a2b3810ca7cd0d5cf13641c294104b30e9c5e6f. Use new absent roots and return raw/scheduler/checksum/gate evidence. No formal-long, retry, or other compute is authorized.
+blocker: Exactly one replacement five-node capacity smoke is authorized and pending at cd8ca08d8711194a0fa3bcef455dcb7d02913562; formal-long, retry, and all other compute remain blocked pending smoke evidence and same-Checker Phase B.

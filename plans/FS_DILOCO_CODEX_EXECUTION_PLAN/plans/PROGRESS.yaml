@@ -365,7 +365,7 @@ loops:
   result_commit: null
   evidence_index: evidence/indexes/S1-13.md
   checker_verdict: null
-  blocker: Same-Checker Phase B passed for capacity-smoke job 2393122 failure attribution. Exactly one fifth-and-final one-node focused correction validation is authorized at cd8ca08d8711194a0fa3bcef455dcb7d02913562; replacement smoke, formal-long, retry, and all other compute remain blocked pending its passing evidence and same-Checker Phase B.
+  blocker: Focused correction job 2393136.opbs passed 23 tests and same-Checker Phase B. Exactly one replacement five-node capacity smoke is authorized at cd8ca08d8711194a0fa3bcef455dcb7d02913562; formal-long, retry, and all other compute remain blocked pending its evidence and same-Checker Phase B.
 - id: S2-01
   stage: stage2
   title: 异步 GPU→CPU→FS Publication Pipeline
