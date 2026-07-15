@@ -219,7 +219,14 @@ def test_declared_old_base_gradient_is_applied_to_current_state() -> None:
     )
     source = MemorySource({"stale": stale_local, "fresh": fresh_local})
     bases = MemoryBaseSource(
-        {OLD_ID: ResolvedBase(0, OLD_ID, payload([3.0, 5.0]))}
+        {
+            OLD_ID: ResolvedBase(
+                0,
+                OLD_ID,
+                payload([3.0, 5.0]),
+                hashlib.sha256(payload([3.0, 5.0])).hexdigest(),
+            )
+        }
     )
     request = make_request(current, facts, version=1)
     result = execute_streaming_fragment_update(

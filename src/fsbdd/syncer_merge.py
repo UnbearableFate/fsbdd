@@ -238,11 +238,15 @@ class ResolvedBase:
     version: int
     content_identity: str
     parameters: bytes
+    parameters_sha256: str
 
     def __post_init__(self) -> None:
         _require_nonnegative(self.version, "resolved base version")
         _require_hex(self.content_identity, "resolved base identity")
-        _require_fp32_payload(self.parameters, "resolved base parameters")
+        parameters = _require_fp32_payload(self.parameters, "resolved base parameters")
+        _require_hex(self.parameters_sha256, "resolved base parameters_sha256")
+        if hashlib.sha256(parameters).hexdigest() != self.parameters_sha256:
+            raise MergeError("resolved base parameter checksum mismatch")
 
 
 class StreamingBaseSource(Protocol):
@@ -323,7 +327,7 @@ class ImmutableFileBaseSource:
         self,
         root: Path,
         locations: Sequence[PayloadLocation],
-        bases: Mapping[str, tuple[int, str]],
+        bases: Mapping[str, tuple[int, str, str]],
     ) -> None:
         self._files = ImmutableFileContributionSource(root, locations)
         self._bases = dict(bases)
@@ -331,7 +335,9 @@ class ImmutableFileBaseSource:
     @contextlib.contextmanager
     def open_base(self, contribution: ContributionFact) -> Iterator[ResolvedBase]:
         try:
-            version, content_identity = self._bases[contribution.base_content_identity]
+            version, content_identity, parameters_sha256 = self._bases[
+                contribution.base_content_identity
+            ]
         except KeyError as error:
             raise MergeError("declared base is absent from the retained base source") from error
         placeholder = ContributionFact(
@@ -347,7 +353,7 @@ class ImmutableFileBaseSource:
             payload_bytes=contribution.payload_bytes,
         )
         with self._files.open_payload(placeholder) as payload:
-            yield ResolvedBase(version, content_identity, payload)
+            yield ResolvedBase(version, content_identity, payload, parameters_sha256)
 
     def metrics(self) -> SourceMetrics:
         return self._files.metrics()
@@ -498,7 +504,12 @@ def build_update_facts(
             item.parameters_sha256 for item in request.contributions
         ],
         "merge_policy": dict(merge_policy.identity_facts()),
-        "outer_optimizer_policy": outer_policy.identity_facts(),
+        "outer_optimizer_policy": outer_policy.name,
+        "outer_hyperparameters": {
+            "learning_rate": outer_policy.f32_learning_rate,
+            "momentum": outer_policy.f32_momentum,
+            "nesterov": outer_policy.nesterov,
+        },
         "accumulation_dtype": "float32",
         "fragment_map_identity": request.fragment_map_identity,
         "fragment_identity": request.descriptor.identity,

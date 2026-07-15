@@ -314,7 +314,8 @@ def build_workload(root: Path, config: Mapping[str, Any]) -> dict[str, Any]:
             }
         )
     old_base_path = "payloads/mixed/old-base.f32"
-    _write_payload_new(root, old_base_path, _payload(old_base))
+    old_base_payload = _payload(old_base)
+    _write_payload_new(root, old_base_path, old_base_payload)
 
     memory_elements = int(config["formal_workload"]["fragment_elements"])
     memory_current_array = np.linspace(-1.0, 1.0, memory_elements, dtype=np.float32)
@@ -354,6 +355,7 @@ def build_workload(root: Path, config: Mapping[str, Any]) -> dict[str, Any]:
             "old_base": old_base,
             "old_base_identity": mixed_old_identity,
             "old_base_relative_path": old_base_path,
+            "old_base_parameters_sha256": hashlib.sha256(old_base_payload).hexdigest(),
             "selection_identity": _identity("mixed-selection"),
             "contributions": mixed_contributions,
         },
@@ -504,6 +506,8 @@ def execute_order_workload(root: Path, workload: Mapping[str, Any], config: Mapp
     errors = [_relative_l2(value, canonical) for value in outputs]
     return {
         "permutation_count": len(outputs),
+        "orders": orders[:count],
+        "outputs": outputs,
         "maximum_relative_l2": max(errors),
         "relative_l2": errors,
         "output_sha256": [hashlib.sha256(_payload(value)).hexdigest() for value in outputs],
@@ -523,7 +527,13 @@ def execute_mixed_base_workload(root: Path, workload: Mapping[str, Any], config:
     base_source = ImmutableFileBaseSource(
         root,
         (PayloadLocation(mixed["old_base_identity"], mixed["old_base_relative_path"]),),
-        {mixed["old_base_identity"]: (0, mixed["old_base_identity"])},
+        {
+            mixed["old_base_identity"]: (
+                0,
+                mixed["old_base_identity"],
+                mixed["old_base_parameters_sha256"],
+            )
+        },
     )
     request = FragmentMergeRequest(
         descriptor=_descriptor_from_dict(workload["small_descriptor"]),
@@ -918,6 +928,8 @@ def analyze_roles(
         raise MergeStressError("numeric trace does not contain exactly 50 updates")
     state = OuterSGDState(None)
     expected_current = workload["numeric"]["initial_parameters"]
+    production_current = workload["numeric"]["initial_parameters"]
+    production_buffer: list[float] | None = None
     recomputed_errors = []
     update_ids: set[str] = set()
     for position, (source, trace) in enumerate(zip(updates, traces, strict=True)):
@@ -952,10 +964,103 @@ def analyze_roles(
         if _relative_l2(trace["production_merged_gradient"], merged) > 1e-6:
             raise MergeStressError("production merged gradient differs from direct oracle")
         facts = trace["update_facts"]
+        _require_exact_keys(
+            facts,
+            {
+                "schema_version",
+                "current_version",
+                "current_content_identity",
+                "current_parameters_sha256",
+                "current_outer_state",
+                "selection_identity",
+                "ordered_proposal_identities",
+                "ordered_proposal_content_identities",
+                "ordered_base_versions",
+                "ordered_base_content_identities",
+                "ordered_processed_tokens",
+                "ordered_staleness",
+                "ordered_float32_weights",
+                "ordered_local_parameters_sha256",
+                "merge_policy",
+                "outer_optimizer_policy",
+                "outer_hyperparameters",
+                "accumulation_dtype",
+                "fragment_map_identity",
+                "fragment_identity",
+                "fragment_index",
+            },
+            "update identity facts",
+        )
+        _require_exact_keys(
+            facts["current_outer_state"],
+            {"update_count", "momentum_buffer_sha256"},
+            "current outer state identity",
+        )
+        _require_exact_keys(
+            facts["merge_policy"], {"name", "formula"}, "merge policy identity"
+        )
+        _require_exact_keys(
+            facts["outer_hyperparameters"],
+            {"learning_rate", "momentum", "nesterov"},
+            "outer hyperparameters identity",
+        )
         if canonical_digest(facts) != trace["update_identity"]:
             raise MergeStressError("update identity does not bind its packaged facts")
-        if facts["current_version"] != position:
-            raise MergeStressError("update facts current version mismatch")
+        source_facts = [entry["fact"] for entry in source["contributions"]]
+        descriptor = workload["small_descriptor"]
+        expected_outer_buffer_sha = (
+            None
+            if production_buffer is None
+            else hashlib.sha256(_payload(production_buffer)).hexdigest()
+        )
+        if (
+            facts["schema_version"] != 1
+            or facts["current_version"] != position
+            or facts["current_content_identity"] != source["current_identity"]
+            or facts["current_parameters_sha256"]
+            != hashlib.sha256(_payload(production_current)).hexdigest()
+            or facts["current_outer_state"]
+            != {
+                "update_count": position,
+                "momentum_buffer_sha256": expected_outer_buffer_sha,
+            }
+            or facts["selection_identity"] != source["selection_identity"]
+            or facts["ordered_proposal_identities"]
+            != [item["proposal_id"] for item in source_facts]
+            or facts["ordered_proposal_content_identities"]
+            != [item["content_identity"] for item in source_facts]
+            or facts["ordered_base_versions"]
+            != [item["base_version"] for item in source_facts]
+            or facts["ordered_base_content_identities"]
+            != [item["base_content_identity"] for item in source_facts]
+            or facts["ordered_processed_tokens"]
+            != [item["processed_tokens"] for item in source_facts]
+            or facts["ordered_staleness"]
+            != [item["staleness"] for item in source_facts]
+            or facts["ordered_float32_weights"]
+            != [item["normalized_weight"] for item in source_facts]
+            or facts["ordered_local_parameters_sha256"]
+            != [item["parameters_sha256"] for item in source_facts]
+            or facts["merge_policy"]
+            != {
+                "name": "direct_weighted_average",
+                "formula": "sum(weight * (declared_base - local))",
+            }
+            or facts["outer_optimizer_policy"] != "sgd"
+            or facts["outer_hyperparameters"]
+            != {
+                "learning_rate": float(
+                    np.float32(config["outer_optimizer"]["learning_rate"])
+                ),
+                "momentum": float(np.float32(config["outer_optimizer"]["momentum"])),
+                "nesterov": config["outer_optimizer"]["nesterov"],
+            }
+            or facts["accumulation_dtype"] != "float32"
+            or facts["fragment_map_identity"] != workload["fragment_map_identity"]
+            or facts["fragment_identity"] != descriptor["identity"]
+            or facts["fragment_index"] != descriptor["index"]
+        ):
+            raise MergeStressError("update identity facts differ from selected transition")
         contribution_count = len(source["contributions"])
         if (
             len(facts["ordered_proposal_identities"]) != contribution_count
@@ -971,6 +1076,8 @@ def analyze_roles(
         if trace["byte_accounting"]["full_model_operations"] != 0:
             raise MergeStressError("numeric update performed a full-model operation")
         recomputed_errors.append(error)
+        production_current = trace["production_parameters"]
+        production_buffer = trace["production_momentum_buffer"]
     gates = config["numeric_gates"]
     if max(recomputed_errors) > gates["fifty_update_relative_l2_max"]:
         raise MergeStressError("50-update relative L2 gate failed")
@@ -982,12 +1089,53 @@ def analyze_roles(
         raise MergeStressError("numeric update identity cardinality mismatch")
 
     order = syncer["order"]
+    permutation_count = config["formal_workload"]["order_permutations"]
+    if any(
+        len(order[field]) != permutation_count
+        for field in ("orders", "outputs", "relative_l2", "output_sha256")
+    ) or order["permutation_count"] != permutation_count:
+        raise MergeStressError("contribution-order trace cardinality mismatch")
+    first_update = updates[0]
+    independently_expected_order_outputs = []
+    for indices, packaged_output, packaged_sha in zip(
+        order["orders"], order["outputs"], order["output_sha256"], strict=True
+    ):
+        if sorted(indices) != list(range(len(first_update["contributions"]))):
+            raise MergeStressError("contribution-order trace is not a permutation")
+        selected = [first_update["contributions"][index] for index in indices]
+        expected_gradient = weighted_direct_merge(
+            current=first_update["current"],
+            bases=[first_update["current"] for _ in selected],
+            locals_=[entry["local"] for entry in selected],
+            weights=[entry["fact"]["normalized_weight"] for entry in selected],
+        )
+        expected_output, _ = outer_sgd_step(
+            first_update["current"],
+            expected_gradient,
+            OuterSGDState(None),
+            learning_rate=config["direct_average_control"]["learning_rate"],
+            momentum=config["direct_average_control"]["momentum"],
+            nesterov=config["direct_average_control"]["nesterov"],
+        )
+        if _relative_l2(packaged_output, expected_output) > gates["order_relative_l2_max"]:
+            raise MergeStressError("permuted production output differs from independent oracle")
+        if hashlib.sha256(_payload(packaged_output)).hexdigest() != packaged_sha:
+            raise MergeStressError("permuted output checksum mismatch")
+        independently_expected_order_outputs.append(packaged_output)
+    canonical_order_output = independently_expected_order_outputs[0]
+    recomputed_order_errors = [
+        _relative_l2(value, canonical_order_output)
+        for value in independently_expected_order_outputs
+    ]
     if (
-        order["permutation_count"] != config["formal_workload"]["order_permutations"]
-        or len(order["relative_l2"]) != order["permutation_count"]
-        or len(order["output_sha256"]) != order["permutation_count"]
+        any(
+            not math.isclose(left, right, rel_tol=0.0, abs_tol=1e-15)
+            for left, right in zip(
+                recomputed_order_errors, order["relative_l2"], strict=True
+            )
+        )
         or not math.isclose(
-            max(order["relative_l2"]),
+            max(recomputed_order_errors),
             order["maximum_relative_l2"],
             rel_tol=0.0,
             abs_tol=1e-15,
@@ -1012,10 +1160,33 @@ def analyze_roles(
         momentum=0.0,
         nesterov=False,
     )
+    wrong_gradient = weighted_direct_merge(
+        current=mixed_source["current"],
+        bases=[mixed_source["current"], mixed_source["current"]],
+        locals_=[entry["local"] for entry in mixed_source["contributions"]],
+        weights=[entry["fact"]["normalized_weight"] for entry in mixed_source["contributions"]],
+    )
+    wrong_expected, _ = outer_sgd_step(
+        mixed_source["current"],
+        wrong_gradient,
+        OuterSGDState(None),
+        learning_rate=1.0,
+        momentum=0.0,
+        nesterov=False,
+    )
+    recomputed_wrong_error = _relative_l2(wrong_expected, mixed_expected)
     if (
         _relative_l2(mixed["production_parameters"], mixed_expected)
         > gates["single_update_relative_l2_max"]
-        or mixed["wrong_relative_l2"] <= gates["single_update_relative_l2_max"]
+        or _relative_l2(mixed["wrong_current_relative_parameters"], wrong_expected)
+        > 1e-12
+        or not math.isclose(
+            mixed["wrong_relative_l2"],
+            recomputed_wrong_error,
+            rel_tol=0.0,
+            abs_tol=1e-15,
+        )
+        or recomputed_wrong_error <= gates["single_update_relative_l2_max"]
         or mixed["retained_base_reads"] != 1
         or mixed["maximum_active_base_payloads"] != 1
         or canonical_digest(mixed["update_facts"]) != mixed["update_identity"]

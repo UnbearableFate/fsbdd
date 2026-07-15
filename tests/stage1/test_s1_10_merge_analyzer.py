@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 
+from fsbdd.identity import canonical_digest
 from fsbdd.syncer_merge_stress import (
     MergeStressError,
     analyze_roles,
@@ -122,7 +123,9 @@ def test_analyzer_independently_recomputes_all_formal_transitions(analyzer_case)
 
 
 def _mutate_missing_update_fact(writer, syncer, config):
-    del syncer["numeric"]["traces"][0]["update_facts"]["ordered_processed_tokens"]
+    trace = syncer["numeric"]["traces"][0]
+    del trace["update_facts"]["ordered_processed_tokens"]
+    trace["update_identity"] = canonical_digest(trace["update_facts"])
 
 
 def _mutate_numeric_output(writer, syncer, config):
@@ -130,7 +133,19 @@ def _mutate_numeric_output(writer, syncer, config):
 
 
 def _mutate_weight_correspondence(writer, syncer, config):
-    syncer["numeric"]["traces"][0]["update_facts"]["ordered_float32_weights"][0] = 0.5
+    trace = syncer["numeric"]["traces"][0]
+    trace["update_facts"]["ordered_float32_weights"][0] = 0.5
+    trace["update_identity"] = canonical_digest(trace["update_facts"])
+
+
+def _mutate_outer_hyperparameters(writer, syncer, config):
+    trace = syncer["numeric"]["traces"][0]
+    trace["update_facts"]["outer_hyperparameters"]["momentum"] = 0.5
+    trace["update_identity"] = canonical_digest(trace["update_facts"])
+
+
+def _mutate_order_output(writer, syncer, config):
+    syncer["order"]["outputs"][3][0] += 0.1
 
 
 def _mutate_cache_all(writer, syncer, config):
@@ -159,6 +174,8 @@ def _mutate_writer_torch(writer, syncer, config):
         _mutate_missing_update_fact,
         _mutate_numeric_output,
         _mutate_weight_correspondence,
+        _mutate_outer_hyperparameters,
+        _mutate_order_output,
         _mutate_cache_all,
         _mutate_rss,
         _mutate_wrong_base_output,
