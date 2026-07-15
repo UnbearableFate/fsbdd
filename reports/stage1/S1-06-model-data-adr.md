@@ -73,6 +73,15 @@ Formal evidence must prove at least one parameter changed, every loss and
 fragment update norm is finite, gradient accumulation does not advance local
 step early, and `torch.distributed` remains uninitialized.
 
+The first deterministic materialization reproduced the normative WikiText
+counts exactly: 2,415,651 tokens, 4,718 blocks, remainder 35, shard counts
+`[590,590,590,590,590,590,589,589]`, token-stream SHA-256
+`b5b77d97...dc13`, and manifest SHA-256 `9308c7ca...ce94`. The FineWeb-Edu
+smoke prefix consumes 105 nonempty rows, yields exactly 40 blocks per each of
+four shards plus remainder 420, token-stream SHA-256 `585a3477...64b0`, and
+manifest SHA-256 `1c969197...b6e4`. Formal clean-candidate evidence must
+reproduce these hashes; mismatch is `EVIDENCE_FAIL`.
+
 ## Consequences
 
 The GPT-2 workload remains comparable to the future 9-node regression gate.

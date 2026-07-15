@@ -36,7 +36,7 @@ preflight:
   package_validator_command: fsbdd evidence validate runtime_runs/S1-06/formal-l1
   package_validator_result: pending
   checker_phase_a: required
-  asset_freeze: immutable GPT-2 WikiText-2 Pythia-160m and FineWeb-Edu raw hashes frozen after job 2385193.opbs; processed smoke-manifest digests required before GREEN
+  asset_freeze: immutable raw hashes frozen after job 2385193.opbs and deterministic GPT-2/WikiText plus Pythia/FineWeb processed manifest and token-stream digests frozen before GREEN
 red:
   command: PYTHONPATH=src .venv/bin/python tests/red_cases/s1_06_naive_learner_surrogate.py
   exit_code: 1

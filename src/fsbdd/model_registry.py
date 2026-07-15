@@ -175,6 +175,23 @@ def _builtin_mapping(model: Any) -> ExplicitMapping:
                 "model.rotary_emb.original_inv_freq",
             ),
         )
+    if model_type == "gpt2":
+        blocks = _children_paths(model, "transformer.h")
+        reconstructable_buffers: list[str] = []
+        for name, _buffer in model.named_buffers(recurse=True, remove_duplicate=False):
+            if name.endswith(".attn.bias") or name.endswith(".attn.masked_bias"):
+                reconstructable_buffers.append(name)
+        return ExplicitMapping(
+            family="gpt2",
+            embedding_path="transformer.wte",
+            block_paths=blocks,
+            head_path="lm_head",
+            misc=(
+                MiscAssignment("transformer.wpe", 0, 1),
+                MiscAssignment("transformer.ln_f", len(blocks), len(blocks) + 1),
+            ),
+            reconstructable_buffers=tuple(reconstructable_buffers),
+        )
     raise RegistryError(f"unsupported or ambiguous model_type {model_type!r}; provide explicit mapping")
 
 

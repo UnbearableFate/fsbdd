@@ -1,0 +1,205 @@
+#!/bin/bash
+#PBS -q debug-g
+#PBS -l select=1
+#PBS -l walltime=00:30:00
+#PBS -W group_list=xg24i002
+#PBS -N fsbdd-s1-06-learner
+
+set -eEuo pipefail
+trap 'echo "[ERROR] line=$LINENO command=$BASH_COMMAND" >&2' ERR
+
+: "${PROJECT_ROOT:=/work/xg24i002/x10041/fsbdd-s100-clean}"
+: "${MAIN_ROOT:=/work/xg24i002/x10041/fsbdd}"
+: "${EVIDENCE_ROOT:=$MAIN_ROOT/runtime_runs/S1-06/formal-l1}"
+: "${EXPECTED_COMMIT:?EXPECTED_COMMIT is required}"
+: "${SUBMISSION_UTC:?SUBMISSION_UTC is required}"
+: "${INITIAL_HOSTNAME:=miyabi-g1}"
+: "${HF_HOME:=/work/xg24i002/x10041/hf_home}"
+: "${MIYABI_SKILL_DIR:=/work/xg24i002/x10041/.codex/skills/miyabi-development}"
+: "${MIYABI_SKILL_COMMIT:=c3ddfa47cadfd9132edf939d359b90b28ab5f8ed}"
+: "${MODULE_NAME:=nv-hpcx/25.9}"
+
+PYTHON="$MAIN_ROOT/.venv/bin/python"
+HUB_CACHE="$HF_HOME/hub"
+GPT2_PROFILE="configs/stage1/s1_06_gpt2_wikitext_smoke.json"
+PYTHIA_PROFILE="configs/stage1/s1_06_pythia160m_fineweb_smoke.json"
+PROFILE_SET_SHA256="0601217fbfed20de69370d92ce3fd976e695467c2c37e7540e4638d82eae6f7a"
+GPT2_MATERIALIZED_SHA256="9308c7ca728f9021b3c984c8f086e0b7ef34157e7bd6359d2e0f10998813ce94"
+PYTHIA_MATERIALIZED_SHA256="1c9691978f6e435d8a72a4d2582b97e52f5fad8f53a12b4951c596028314b6e4"
+ASSET_STAGE="$MAIN_ROOT/runtime_runs/S1-06/assets-2385193.opbs"
+ASSET_HASH_LIST_SHA256="88fed1dc7e31bbc6810b6dd88e1dd3593d6d4d2703bd6655b66d0632dbf647ef"
+RESEARCH_SHA256="2c0db3148110da10ea62f445c189d2d53b405527d8da264b9af9817f5ca9d835"
+SPEC_SHA256="1ea71fb6e34fef0d7b5558d8e7999dfdedeb82957f4331afcf6f80279d1f5a7d"
+SKILL_REPOSITORY="https://github.com/UnbearableFate/miyabi-development"
+REPOSITORY="https://github.com/UnbearableFate/fsbdd.git"
+BRANCH="codex/S1-06-learner-inner-training"
+RUN_ID="s1-06-${PBS_JOBID}"
+TEST_ROOT="$MAIN_ROOT/runtime_runs/S1-06/work-${PBS_JOBID}"
+MANIFEST_DRAFT="/tmp/s1-06-manifest-${PBS_JOBID}.json"
+
+if [[ ! -x "$PYTHON" ]]; then
+  echo "Missing project Python: $PYTHON" >&2
+  exit 69
+fi
+export PAGER=cat MODULES_PAGER=cat LMOD_PAGER=cat
+module load "$MODULE_NAME"
+if [[ "$(git -C "$PROJECT_ROOT" rev-parse HEAD)" != "$EXPECTED_COMMIT" ]]; then
+  echo "clean worktree commit mismatch" >&2
+  exit 65
+fi
+if [[ -n "$(git -C "$PROJECT_ROOT" status --porcelain)" ]]; then
+  echo "formal worktree is dirty" >&2
+  exit 65
+fi
+if [[ "$(git -C "$MIYABI_SKILL_DIR" rev-parse HEAD)" != "$MIYABI_SKILL_COMMIT" ]]; then
+  echo "Miyabi skill commit mismatch" >&2
+  exit 65
+fi
+if [[ ! -f "$ASSET_STAGE/complete.json" ]] || \
+   [[ "$(sha256sum "$ASSET_STAGE/raw-files.sha256" | awk '{print $1}')" != "$ASSET_HASH_LIST_SHA256" ]]; then
+  echo "frozen raw asset-stage identity mismatch" >&2
+  exit 65
+fi
+
+cd "$PROJECT_ROOT"
+export PYTHONPATH="$PROJECT_ROOT/src"
+export HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 HF_DATASETS_OFFLINE=1
+export HF_HUB_DISABLE_PROGRESS_BARS=1 TOKENIZERS_PARALLELISM=false
+export CUBLAS_WORKSPACE_CONFIG=:4096:8
+
+ACTUAL_PROFILE_SET_SHA256="$($PYTHON -c '
+from pathlib import Path
+from fsbdd.learner_assets import load_learner_profile
+from fsbdd.learner_smoke import profile_set_digest
+import sys
+print(profile_set_digest(tuple(load_learner_profile(Path(path)) for path in sys.argv[1:])))
+' "$GPT2_PROFILE" "$PYTHIA_PROFILE")"
+if [[ "$ACTUAL_PROFILE_SET_SHA256" != "$PROFILE_SET_SHA256" ]]; then
+  echo "frozen learner profile-set identity mismatch" >&2
+  exit 65
+fi
+
+"$PYTHON" -m fsbdd.cli evidence init "$EVIDENCE_ROOT"
+if [[ -e "$TEST_ROOT" ]]; then
+  echo "refusing to reuse formal work root" >&2
+  exit 73
+fi
+mkdir -p "$TEST_ROOT" "$EVIDENCE_ROOT"/{analysis,configs/materialized,env,runtime/profiles,stdout,stderr}
+hostname > "$EVIDENCE_ROOT/env/compute-hostname.txt"
+sort -u "$PBS_NODEFILE" > "$EVIDENCE_ROOT/env/compute-hosts.txt"
+cp "$PBS_NODEFILE" "$EVIDENCE_ROOT/env/pbs-nodefile.txt"
+git status --porcelain > "$EVIDENCE_ROOT/env/git-status.txt"
+"$PYTHON" --version > "$EVIDENCE_ROOT/env/python.txt" 2>&1
+module -t list > "$EVIDENCE_ROOT/env/modules.txt" 2>&1
+qstat -f "$PBS_JOBID" > "$EVIDENCE_ROOT/env/qstat.txt"
+findmnt -T "$MAIN_ROOT/runtime_runs" > "$EVIDENCE_ROOT/env/findmnt.txt"
+nvidia-smi --query-gpu=name,uuid,driver_version,memory.total --format=csv,noheader \
+  > "$EVIDENCE_ROOT/env/gpu.txt"
+"$PYTHON" -c 'import torch; print(torch.__version__); print(torch.cuda.is_available()); print(torch.cuda.is_bf16_supported())' \
+  > "$EVIDENCE_ROOT/env/torch.txt" 2> "$EVIDENCE_ROOT/stderr/torch.log"
+
+cp reports/stage1/S1-06-evidence-contract.json "$EVIDENCE_ROOT/configs/evidence-contract.json"
+cp reports/stage1/S1-06-requirement-matrix.csv "$EVIDENCE_ROOT/configs/requirement-matrix.csv"
+cp reports/stage1/S1-06-model-data-adr.md "$EVIDENCE_ROOT/configs/model-data-adr.md"
+cp "$GPT2_PROFILE" "$EVIDENCE_ROOT/configs/gpt2-wikitext-profile.json"
+cp "$PYTHIA_PROFILE" "$EVIDENCE_ROOT/configs/pythia160m-fineweb-profile.json"
+cp "$ASSET_STAGE/complete.json" "$EVIDENCE_ROOT/configs/raw-asset-stage-marker.json"
+cp "$ASSET_STAGE/raw-files.sha256" "$EVIDENCE_ROOT/configs/raw-asset-files.sha256"
+
+"$PYTHON" -m fsbdd.cli requirements \
+  plans/FS_DILOCO_CODEX_EXECUTION_PLAN/loops/stage1/S1-06.md \
+  reports/stage1/S1-06-requirement-matrix.csv \
+  > "$EVIDENCE_ROOT/analysis/requirements.json" 2> "$EVIDENCE_ROOT/stderr/requirements.log"
+
+printf '%q ' "$PYTHON" -m pytest -q tests/stage1 > "$EVIDENCE_ROOT/commands.log"
+printf '\n' >> "$EVIDENCE_ROOT/commands.log"
+"$PYTHON" -m pytest -q tests/stage1 \
+  > "$EVIDENCE_ROOT/stdout/pytest.log" 2> "$EVIDENCE_ROOT/stderr/pytest.log"
+
+for profile in gpt2 pythia; do
+  if [[ "$profile" == gpt2 ]]; then
+    source_profile="$GPT2_PROFILE"
+    output_root="$TEST_ROOT/gpt2-wikitext"
+  else
+    source_profile="$PYTHIA_PROFILE"
+    output_root="$TEST_ROOT/pythia160m-fineweb"
+  fi
+  printf '%q ' "$PYTHON" -m fsbdd.learner_smoke materialize --profile "$source_profile" \
+    --hub-cache "$HUB_CACHE" --output "$output_root" >> "$EVIDENCE_ROOT/commands.log"
+  printf '\n' >> "$EVIDENCE_ROOT/commands.log"
+  "$PYTHON" -m fsbdd.learner_smoke materialize --profile "$source_profile" \
+    --hub-cache "$HUB_CACHE" --output "$output_root" \
+    > "$EVIDENCE_ROOT/stdout/materialize-${profile}.json" \
+    2> "$EVIDENCE_ROOT/stderr/materialize-${profile}.log"
+done
+if [[ "$(sha256sum "$TEST_ROOT/gpt2-wikitext/manifest.json" | awk '{print $1}')" != "$GPT2_MATERIALIZED_SHA256" ]]; then
+  echo "GPT-2/WikiText materialization identity mismatch" >&2
+  exit 65
+fi
+if [[ "$(sha256sum "$TEST_ROOT/pythia160m-fineweb/manifest.json" | awk '{print $1}')" != "$PYTHIA_MATERIALIZED_SHA256" ]]; then
+  echo "Pythia/FineWeb materialization identity mismatch" >&2
+  exit 65
+fi
+cp "$TEST_ROOT/gpt2-wikitext/manifest.json" "$EVIDENCE_ROOT/configs/materialized/gpt2-wikitext-manifest.json"
+cp "$TEST_ROOT/gpt2-wikitext/complete.json" "$EVIDENCE_ROOT/configs/materialized/gpt2-wikitext-complete.json"
+cp "$TEST_ROOT/pythia160m-fineweb/manifest.json" "$EVIDENCE_ROOT/configs/materialized/pythia160m-fineweb-manifest.json"
+cp "$TEST_ROOT/pythia160m-fineweb/complete.json" "$EVIDENCE_ROOT/configs/materialized/pythia160m-fineweb-complete.json"
+
+printf '%q ' "$PYTHON" -m fsbdd.learner_smoke run-tiny \
+  --output "$EVIDENCE_ROOT/runtime/profiles/tiny.json" \
+  --log "$EVIDENCE_ROOT/runtime/profiles/tiny.jsonl" >> "$EVIDENCE_ROOT/commands.log"
+printf '\n' >> "$EVIDENCE_ROOT/commands.log"
+"$PYTHON" -m fsbdd.learner_smoke run-tiny \
+  --output "$EVIDENCE_ROOT/runtime/profiles/tiny.json" \
+  --log "$EVIDENCE_ROOT/runtime/profiles/tiny.jsonl" \
+  > "$EVIDENCE_ROOT/stdout/tiny.json" 2> "$EVIDENCE_ROOT/stderr/tiny.log"
+
+for profile in gpt2 pythia; do
+  if [[ "$profile" == gpt2 ]]; then
+    source_profile="$GPT2_PROFILE"
+    materialized="$TEST_ROOT/gpt2-wikitext"
+    name="gpt2-wikitext"
+  else
+    source_profile="$PYTHIA_PROFILE"
+    materialized="$TEST_ROOT/pythia160m-fineweb"
+    name="pythia160m-fineweb"
+  fi
+  printf '%q ' "$PYTHON" -m fsbdd.learner_smoke run-real --profile "$source_profile" \
+    --hub-cache "$HUB_CACHE" --materialized-root "$materialized" \
+    --output "$EVIDENCE_ROOT/runtime/profiles/${name}.json" \
+    --log "$EVIDENCE_ROOT/runtime/profiles/${name}.jsonl" >> "$EVIDENCE_ROOT/commands.log"
+  printf '\n' >> "$EVIDENCE_ROOT/commands.log"
+  "$PYTHON" -m fsbdd.learner_smoke run-real --profile "$source_profile" \
+    --hub-cache "$HUB_CACHE" --materialized-root "$materialized" \
+    --output "$EVIDENCE_ROOT/runtime/profiles/${name}.json" \
+    --log "$EVIDENCE_ROOT/runtime/profiles/${name}.jsonl" \
+    > "$EVIDENCE_ROOT/stdout/${name}.json" 2> "$EVIDENCE_ROOT/stderr/${name}.log"
+done
+
+"$PYTHON" -m fsbdd.learner_smoke summarize \
+  --tiny "$EVIDENCE_ROOT/runtime/profiles/tiny.json" \
+  --gpt2 "$EVIDENCE_ROOT/runtime/profiles/gpt2-wikitext.json" \
+  --pythia "$EVIDENCE_ROOT/runtime/profiles/pythia160m-fineweb.json" \
+  --output "$EVIDENCE_ROOT/analysis/learner-summary.json" \
+  > "$EVIDENCE_ROOT/stdout/learner-summary.json" \
+  2> "$EVIDENCE_ROOT/stderr/learner-summary.log"
+
+"$PYTHON" -m fsbdd.learner_smoke manifest \
+  --repository "$REPOSITORY" --branch "$BRANCH" --commit "$EXPECTED_COMMIT" \
+  --run-id "$RUN_ID" --config-sha256 "$PROFILE_SET_SHA256" \
+  --research-sha256 "$RESEARCH_SHA256" --spec-sha256 "$SPEC_SHA256" \
+  --skill-repository "$SKILL_REPOSITORY" --skill-commit "$MIYABI_SKILL_COMMIT" \
+  --initial-hostname "$INITIAL_HOSTNAME" --project-root "$PROJECT_ROOT" \
+  --evidence-root "$EVIDENCE_ROOT" --job-id "$PBS_JOBID" \
+  --timestamp-utc "$SUBMISSION_UTC" --modules-file "$EVIDENCE_ROOT/env/modules.txt" \
+  --output "$MANIFEST_DRAFT" \
+  > "$EVIDENCE_ROOT/stdout/manifest.json" 2> "$EVIDENCE_ROOT/stderr/manifest.log"
+
+if find "$EVIDENCE_ROOT/stderr" -type f -size +0c -print -quit | grep -q .; then
+  echo "formal packaged stderr must be empty" >&2
+  find "$EVIDENCE_ROOT/stderr" -type f -size +0c -print >&2
+  exit 70
+fi
+"$PYTHON" -m fsbdd.cli evidence finalize "$EVIDENCE_ROOT" "$MANIFEST_DRAFT"
+"$PYTHON" -m fsbdd.cli evidence validate "$EVIDENCE_ROOT"
+rm -f "$MANIFEST_DRAFT"

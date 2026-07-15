@@ -65,6 +65,20 @@
     "scheduler": "constant",
     "scheduler_basis": "local_optimizer_steps"
   },
+  "frozen_profile_set": {
+    "sha256": "0601217fbfed20de69370d92ce3fd976e695467c2c37e7540e4638d82eae6f7a",
+    "gpt2_wikitext_profile_sha256": "8eba7a559f2f8264371f80eb4cd51bec0ddca4ff25b0810d7168873888341b53",
+    "pythia160m_fineweb_profile_sha256": "5c6516a703be7c620f4d6ad8c3b9a2d18e749f8268d2de4bdf8ac0d22f0bb309"
+  },
+  "materialized_asset_contract": {
+    "gpt2_wikitext_manifest_sha256": "9308c7ca728f9021b3c984c8f086e0b7ef34157e7bd6359d2e0f10998813ce94",
+    "gpt2_token_stream_sha256": "b5b77d97b3e69dd4d681a3c1946e9d94f9f2458a9952f236c20549d12b58dc13",
+    "gpt2_packed_blocks": 4718,
+    "pythia160m_fineweb_smoke_manifest_sha256": "1c9691978f6e435d8a72a4d2582b97e52f5fad8f53a12b4951c596028314b6e4",
+    "pythia160m_fineweb_smoke_token_stream_sha256": "585a3477838411f2809e85a961a071808228e1e5f2a2de6db6775dcfaf4664b0",
+    "pythia160m_fineweb_smoke_packed_blocks": 160,
+    "required_equality": "formal clean-candidate materialization must reproduce every listed digest exactly"
+  },
   "safe_boundary": "an event is emitted only after backward accumulation gradient clipping optimizer.step scheduler.step and zero_grad complete",
   "token_accounting": {
     "processed_input_tokens": "sum attention_mask or non-padding input positions over all microbatches in one optimizer step",
