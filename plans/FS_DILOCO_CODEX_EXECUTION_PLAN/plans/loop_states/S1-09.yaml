@@ -11,7 +11,7 @@ git:
   integration_branch: master
   branch: codex/S1-09-syncer-readiness
   base_commit: cb11204711910b2a3fb88faaa4d391c6c3a67923
-  result_commit: null
+  result_commit: 1f04f41d995adfe1b4981c73f26319d46e36c723
   dirty_at_start: true
   user_owned_dirty_paths: [AGENTS.md]
 dependencies: [S1-05, S1-04]
@@ -104,4 +104,16 @@ persist:
     checked_commit: 40a1707bb5b3716b98fee5ebc9c89fb7af6f404f
     selected_evidence: [runtime_runs/S1-09/formal-l2, runtime_runs/S1-09/scheduler-2386129-audit2]
     next_command: create the S1-10 branch from the S1-09 closure commit and begin its ORIENT phase
+  cost:
+    attempts_by_level: {L0: 5, L1: 3, L2: 1}
+    queue_seconds: 7
+    active_seconds: 77
+    checker_cycles: 3
+    goal_tokens_end: 3332228
+    agent_tokens_used: 599958
+    phase_token_deltas: {}
+    rework_causes:
+    - Checker Phase A independently showed that the first analyzer accepted one weight record for eight frozen proposals; the correction added exact fact and weight correspondence and fail-closed mutations before the sole L2 submission.
+    - The first evidence wording treated Q_fresh as independently exercised under S_max=0; the corrected contract proves eligible equals fresh in this scope and explicitly defers stale-inclusive independent anchoring to S4-03.
+    - Checker-driven correction required a third L1 role run beyond the initial two-run compute budget so that the corrected analyzer and emitted role schema were exercised before the formal submission.
 blocker: null
