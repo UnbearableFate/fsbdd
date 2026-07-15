@@ -103,7 +103,19 @@ orient:
     cause: the script relied on the active PBS 2024.1 documented default-y/automatic-array rerunnability, while the site effective defaults supplied -r n -k oed and the script lacked an explicit rerunnable override
     expected_solution: preserve and never reuse the rejected roots, add explicit '#PBS -r y' plus a static regression, pass login static gates, and obtain same-Checker replacement authorization before another qsub
     correction_commit: e850f5116a69ed517a4a5772799b4d2554721cc0
-  attempt_budget: {asset_stage: 3, red: 1, targeted: 4, reproduction_preflight: 3, l1_real: 2, l2_real: 4, formal_l3_9n: 2, formal_l4_long: 2}
+  latest_long_smoke_failure:
+    experiment_id: s1-13-long-smoke-20260715T223443Z-729ebbb
+    pbs_job_id: 2393122.opbs
+    code_commit: 729ebbb89d2930ade0e20eda4679cf6fe60f8ae5
+    result: Stage 1 pytest preflight timed out after exactly 264 completions with scheduler exit 124; no learner, syncer, proposal, update, or gate ran
+    raw_evidence_root: runtime_runs/S1-13/long-smoke-20260715T223443Z-729ebbb
+    scheduler_evidence_root: runtime_runs/S1-13/long-smoke-s1-13-long-smoke-20260715T223443Z-729ebbb-scheduler
+    reviewed_ledger: reports/stage1/S1-13-experiment-failures.json
+    attempt_consumed: true
+    cause: an unsynchronized AtomicGlobalCommitStore authority cache allowed a concurrent reader to replace the writer's cache binding; the resulting writer exception was hidden because the test did not set its reader stop event in a finally block, so executor shutdown hung until the pre-walltime timeout
+    expected_solution: serialize per-instance cache reads and the complete commit transaction with an RLock, bound and finally-release the regression readers, add verbose/faulthandler smoke pytest diagnostics, pass static gates, then obtain same-Checker authorization for one smallest focused one-node validation before any capacity-smoke retry
+    correction_commit: pending exact candidate
+  attempt_budget: {asset_stage: 3, red: 1, targeted: 5, reproduction_preflight: 3, l1_real: 2, l2_real: 4, formal_l3_9n: 2, formal_l4_long: 3}
   attempt_budget_amendments:
     - recorded_at_utc: 2026-07-15T20:42:48Z
       budget_class: asset_stage
@@ -199,6 +211,26 @@ orient:
       result_root: runtime_runs/S1-13/reproduction-2n-s1-13-refrozen-2n-20260715T212830Z-74dbd16
       scheduler_root: runtime_runs/S1-13/reproduction-2n-s1-13-refrozen-2n-20260715T212830Z-74dbd16-scheduler
       final_attempt_result: pass; scheduler exit 0; no abnormal node; all 11 correction checks true; 500 learner steps; 40 fresh fragment updates; final version vector [10,10,10,10]; empty bounded queues; admissible checksum-exact package; same-Checker Phase B pending
+    - amended_at_utc: 2026-07-15T22:44:39Z
+      prior_targeted_budget: 4
+      amended_targeted_budget: 5
+      consumed_before_amendment: 4
+      consumed_attempts: [2392180.opbs, 2392261.opbs, 2392542.opbs, 2392578.opbs]
+      reason: Authorized five-node capacity smoke 2393122 stopped before the real workload because the complete Stage 1 pytest preflight exposed a nondeterministic AtomicGlobalCommitStore cache race. Static review identified and corrected the core race and the regression-harness cleanup defect, but production core synchronization changed and must be exercised dynamically at the smallest topology before another five-node allocation.
+      scope: Add exactly one fifth-and-final one-node targeted-focus attempt using only pbs/stage1_s1_13_targeted_focus.pbs. It must run the atomic concurrent-reader/writer regression, the readiness analyzer cases, and the smoke static contract. It does not authorize a smoke retry, formal-long, or any other compute.
+      authorization_gate: The same S1-13 Checker must first pass job 2393122 failure attribution, the core/cache and harness corrections, static gates, and this amendment, then explicitly authorize one exact-clean focused candidate.
+      authorization_commit: pending same-Checker exact-candidate review
+      final_attempt: pending
+    - amended_at_utc: 2026-07-15T22:44:39Z
+      prior_formal_l4_long_budget: 2
+      amended_formal_l4_long_budget: 3
+      consumed_before_amendment: 1
+      consumed_attempts: [2393122.opbs]
+      reason: The registered two-slot L4-long budget retained one capacity preflight slot and one formal-long slot. Job 2393122 consumed the preflight slot but stopped in pytest before any learner or syncer process, leaving the required 59-of-60 Pythia/FineWeb capacity evidence absent. One replacement preflight slot is required while preserving the still-unused formal-long slot.
+      scope: Add exactly one replacement five-node non-formal capacity-smoke attempt after the new one-node focused correction validation passes same-Checker Phase B. This amendment does not itself authorize the replacement smoke or formal-long.
+      authorization_gate: The same S1-13 Checker must pass the focused job in Phase B and separately authorize an exact-clean smoke candidate before submission; formal-long still requires its own later Phase A.
+      authorization_commit: pending focused Phase B and separate exact-candidate review
+      final_attempt: pending
   failure_ladder: preserve the first expensive failure then reproduce its failing role or analyzer at the smallest one-node or two-node topology before an authorized retry
   nine_node_gate_required: true
   goal_tokens_start: 5924432
@@ -252,7 +284,7 @@ nine_node_gate:
 checker:
   context_id: s1_13_checker
   maker_chat_inherited: false
-  phase_a_verdict: Phase A PASS for exactly one five-node non-formal long-profile capacity smoke at exact runtime commit 729ebbb89d2930ade0e20eda4679cf6fe60f8ae5 using only pbs/stage1_s1_13_long_smoke.pbs SHA c080026703700d3bc56267605e8c7bf6689fdc64345be571765618cd0fe74bdb; formal-long, retry, and every other compute remain unauthorized
+  phase_a_verdict: the one authorized five-node capacity smoke at 729ebbb89d2930ade0e20eda4679cf6fe60f8ae5 was consumed by failed job 2393122.opbs before workload launch; its reviewed failure, correction, and reasoned one-node focused amendment await same-Checker Phase B/Phase A; no compute is currently authorized
   verdict: null
   report_path: reports/checkers/S1-13.md
   cycles:
@@ -307,12 +339,12 @@ checker:
       result: no root was created and no job was submitted; cumulative pre-walltime supervision required correction
     - candidate: 729ebbb89d2930ade0e20eda4679cf6fe60f8ae5
       verdict: Phase A PASS for exactly one five-node non-formal long-profile capacity smoke using only pbs/stage1_s1_13_long_smoke.pbs SHA c080026703700d3bc56267605e8c7bf6689fdc64345be571765618cd0fe74bdb; no formal-long, retry, or other compute authorized
-      result: pending; sequential ceilings total 1590 seconds and one 15-second terminal grace leaves at least 195 seconds within PBS walltime for setup and evidence finalization
+      result: job 2393122 consumed the authorization and failed with exit 124 after exactly 264 pytest completions; automatic failure and scheduler evidence retained; no learner or syncer process started; reviewed core-cache race correction awaits same-Checker review
 persist:
   evidence_index: evidence/indexes/S1-13.md
   raw_evidence_root: runtime_runs/S1-13
   acceptance_traceability_updated: false
   next_gap: Stage 2 asynchronous GPU to CPU to filesystem publication pipeline
   handoff: >-
-    Same-Checker Phase B passed for formal array job 2393100[].opbs and consumed the first formal_l3_9n attempt successfully. The same Checker authorized exactly one five-node non-formal long-profile capacity smoke at exact runtime commit 729ebbb89d2930ade0e20eda4679cf6fe60f8ae5 using only pbs/stage1_s1_13_long_smoke.pbs SHA c080026703700d3bc56267605e8c7bf6689fdc64345be571765618cd0fe74bdb. Use fresh absent roots, then return scheduler/raw/checksum/gate evidence to the same Checker Phase B. Formal-long, retry, and every other compute remain unauthorized.
-blocker: Exactly one five-node non-formal capacity smoke is authorized and pending at runtime commit 729ebbb89d2930ade0e20eda4679cf6fe60f8ae5; formal-long and all other compute remain blocked pending its passing evidence and same-Checker Phase B.
+    Authorized capacity smoke job 2393122.opbs failed in its pytest preflight after exactly 264 completions, before any learner or syncer launch. Automatic raw failure, scheduler evidence, and checksum inventories are retained; reviewed code analysis found an unsynchronized core authority-cache race plus a test cleanup defect. Corrections and login static gates pass, and reasoned budgets add one smallest one-node targeted-focus validation followed by one replacement capacity-smoke slot. Return the immutable failure, exact correction candidate, and focused amendment to the same Checker. No compute is authorized before Phase B/Phase A.
+blocker: Job 2393122 failure attribution, core/cache correction, and the fifth-and-final one-node targeted-focus amendment await same-Checker Phase B/Phase A. No focused test, smoke retry, formal-long, or other compute is authorized.

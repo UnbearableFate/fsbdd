@@ -55,6 +55,7 @@ def test_formal_topologies_freeze_independent_9n_and_coallocated_4_plus_1() -> N
     assert "timeout --signal=TERM --kill-after=15s 1350s" in smoke
     assert "timeout --signal=TERM --kill-after=15s 120s" in smoke
     assert smoke.count("timeout --signal=TERM --kill-after=15s 60s") == 2
+    assert "pytest -vv --durations=20 -o faulthandler_timeout=60" in smoke
     targeted = (ROOT / "pbs/stage1_s1_13_targeted.pbs").read_text(encoding="utf-8")
     assert "EXPECTED_COMMIT" in targeted
     assert 'if [[ -e "$OUTPUT_ROOT" ]]' in targeted
@@ -73,6 +74,8 @@ def test_formal_topologies_freeze_independent_9n_and_coallocated_4_plus_1() -> N
     assert "test_analyzer_accepts_complete_frozen_fixture" in focus
     assert "test_analyzer_fails_closed_on_mutated_authoritative_fields" in focus
     assert "test_concurrent_readers_observe_only_complete_committed_authorities" in focus
+    assert "test_local_reader_cannot_replace_cache_during_commit" in focus
+    assert "test_formal_topologies_freeze_independent_9n_and_coallocated_4_plus_1" in focus
 
 
 def test_syncer_keeps_update_history_only_in_durable_jsonl() -> None:

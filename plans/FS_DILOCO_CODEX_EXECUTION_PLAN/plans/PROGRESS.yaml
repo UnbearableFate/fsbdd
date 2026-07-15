@@ -365,7 +365,7 @@ loops:
   result_commit: null
   evidence_index: evidence/indexes/S1-13.md
   checker_verdict: null
-  blocker: Same-Checker Phase B passed for formal array job 2393100[].opbs. Exactly one five-node non-formal long-profile capacity smoke is authorized at runtime commit 729ebbb89d2930ade0e20eda4679cf6fe60f8ae5 and pending; formal-long, retry, and all other compute remain blocked until that smoke passes and receives same-Checker Phase B.
+  blocker: Authorized capacity smoke job 2393122.opbs failed in pytest after exactly 264 completions and before learner/syncer launch. The raw failure, cause, expected solution, scheduler evidence, core-cache/harness correction, and reasoned one-node focused amendment are recorded and await same-Checker Phase B/Phase A. No compute is currently authorized.
 - id: S2-01
   stage: stage2
   title: 异步 GPU→CPU→FS Publication Pipeline

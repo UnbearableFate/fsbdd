@@ -540,6 +540,83 @@
         "submission_marker_sha256": "93137ce8124a42cb99dda2e6c195a4f2fa5de14de41ed72e092c2303dbc8bd89",
         "original_formal_pbs_script_sha256": "c6dd14a77dd5c99c73104fa5c70f2559264f576fe44abe2a98bb4e85f578130c"
       }
+    },
+    {
+      "experiment_id": "s1-13-long-smoke-20260715T223443Z-729ebbb",
+      "analysis_status": "reviewed_core_cache_race_corrected_static_pass_pending_checker_and_focused_validation",
+      "workload": "five-node four-Pythia-learner plus CPU-only syncer FineWeb-Edu capacity smoke",
+      "pbs_job_id": "2393122.opbs",
+      "code_commit": "729ebbb89d2930ade0e20eda4679cf6fe60f8ae5",
+      "queued_at_utc": "2026-07-15T22:34:43Z",
+      "failed_at_utc": "2026-07-15T22:36:56Z",
+      "raw_evidence_root": "runtime_runs/S1-13/long-smoke-20260715T223443Z-729ebbb",
+      "scheduler_evidence_root": "runtime_runs/S1-13/long-smoke-s1-13-long-smoke-20260715T223443Z-729ebbb-scheduler",
+      "attempt_consumed": true,
+      "failure": {
+        "summary": "The authorized smoke timed out in the Stage 1 pytest preflight after exactly 264 tests completed; the Pythia/FineWeb learner and syncer workload never started.",
+        "exit_code": 124,
+        "failed_command": "timeout --signal=TERM --kill-after=15s 120s python -m pytest -q tests/stage1",
+        "observed_progress": {
+          "pytest_completion_markers": 264,
+          "pytest_suite_completed": false,
+          "pytest_stderr": "empty",
+          "learner_or_syncer_process_started": false,
+          "proposal_publications": 0,
+          "fragment_outer_updates": 0,
+          "scheduler_exit_status": 124,
+          "scheduler_walltime": "00:02:03",
+          "scheduler_peak_resident_kb": 5647744,
+          "abnormal_nodes": "none",
+          "allocated_hosts": [
+            "mg0004",
+            "mg0005",
+            "mg0006",
+            "mg0007",
+            "mg0008"
+          ]
+        },
+        "automatic_capture": "The pre-walltime timeout returned 124 and the shared ERR trap wrote failures/raw-2393122.opbs-2307217.json before PBS walltime."
+      },
+      "cause": {
+        "status": "diagnosed_from_exact_progress_position_prior_verbose_trace_scheduler_metrics_and_code_review",
+        "summary": "The active test was the concurrent global-authority reader/writer regression. AtomicGlobalCommitStore shared an unsynchronized per-process authority cache between readers and the writer; a reader could reinstall an older bound record between the writer's current-authority load and cache check, making commit raise. The test then hid that writer exception because its reader stop event was not set in a finally block, so executor shutdown waited until the external timeout.",
+        "direct_evidence": [
+          "The partial quiet log contains exactly 264 completion dots. The last complete verbose suite at bac11ae identifies test 265 as test_concurrent_readers_observe_only_complete_committed_authorities, and the diff from bac11ae to the failed runtime adds tests only in lexically later S1-13 files, so the prefix order is unchanged.",
+          "The same regression had previously exposed an incomplete suite at this exact test boundary, but its earlier correction bounded retained observations without serializing AtomicGlobalCommitStore._authority_cache.",
+          "Code review shows load_fragment reads and writes _authority_cache without a lock, while commit separately loads current authority and later requires the cached object to be the identical object. A concurrent stale bound-record read can overwrite that cache entry during this interval.",
+          "The test set finished only after all 20 writer commits. Any writer exception therefore entered ThreadPoolExecutor shutdown while eight readers continued waiting for finished, masking the original exception as a hang.",
+          "Scheduler memory remained bounded at 5,647,744 KB and PBS reported no abnormal node, distinguishing this failure from the historical append-only observation-memory growth.",
+          "No mpirun log, role record, proposal, or gate output exists; failure occurred before the real-model workload launch."
+        ],
+        "scope": "The review found a thread-safety defect in the core in-process atomic-authority cache and a masking defect in its regression harness. Filesystem publication remains process-atomic, and no real learner/syncer execution occurred in this job."
+      },
+      "expected_solution": {
+        "status": "implemented_static_pass_focused_compute_and_reauthorization_required",
+        "changes": [
+          "Protect AtomicGlobalCommitStore cache reads and the complete load-validate-publish-cache commit transaction with one reentrant per-instance lock.",
+          "Bound each concurrent reader's observation loop and set the reader stop event in a finally block so a writer exception is surfaced instead of converted into executor-shutdown timeout.",
+          "Add a deterministic two-thread regression that holds a writer immediately before visibility and proves a local reader cannot replace the cache until the commit completes.",
+          "Run the smoke pytest preflight with verbose node IDs, slow-test durations, and a faulthandler watchdog while retaining the 120-second external ceiling.",
+          "Keep the sequential smoke supervision ceiling at 1590 seconds plus at most 15 seconds terminal grace, preserving 195 seconds of PBS-walltime headroom."
+        ],
+        "validation_before_next_experiment": [
+          "Pass login-node compileall, Ruff, Pyright with zero errors and warnings, active PBS Bash, JSON/YAML, and diff checks without executing project tests or loading models there.",
+          "Amend the exhausted targeted budget for one smallest one-node focused regression covering atomic commit concurrency and the smoke static contract, and obtain exact-commit authorization from the same Checker before qsub.",
+          "After focused Phase B, amend the formal_l4_long budget from two to three because this consumed the only preflight slot while never starting a learner or syncer, then obtain separate exact-commit authorization for one replacement capacity smoke.",
+          "Do not submit a focused test, smoke retry, formal-long run, or any other compute before the applicable same-Checker authorization."
+        ]
+      },
+      "evidence_integrity": {
+        "raw_checksum_inventory_sha256": "aa1f0f53d6b6797ae1c51cb3735086be4df1a96106d9fe13b8d8c8bde381bea0",
+        "scheduler_checksum_inventory_sha256": "36200223f8b0537d9319e6710566a89de2fd8f24e87b044080153e5e0302191a",
+        "raw_failure_sha256": "8737a8f26bce147ea188f37b04620d7914cdfeffacda59786538c9dfc190307a",
+        "pytest_log_sha256": "56d827e335a514e938bc4693726fbdb51861bc5ee76d688716ad5b9bc7a9af72",
+        "pytest_stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "qstat_final_sha256": "717ef5f6a3fabcbfb7029182846ff1a43f96b7ba2331fe1d86d3206efed96a82",
+        "tracejob_sha256": "04faefce6b92b95e82b81124e03b120ff4b145759cf90132724761db24e466f1",
+        "pbs_stderr_sha256": "100f1aea2cb7e709d2ef545c08b9fa91d98f1f600cac066670dececb510d25da",
+        "pbs_stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
     }
   ]
 }

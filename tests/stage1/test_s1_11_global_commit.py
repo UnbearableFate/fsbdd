@@ -410,11 +410,13 @@ def test_concurrent_readers_observe_only_complete_committed_authorities(
         started.wait()
         local_observations = set()
         local_count = 0
-        while not finished.is_set() or local_count < 50:
+        while local_count < 1_000 and (
+            not finished.is_set() or local_count < 50
+        ):
             local_observations.add(facts(store.load_fragment(0)))
             local_count += 1
             if not finished.is_set():
-                finished.wait(0.0005)
+                finished.wait(0.001)
         with lock:
             observations.update(local_observations)
             observation_count += local_count
@@ -422,11 +424,15 @@ def test_concurrent_readers_observe_only_complete_committed_authorities(
     with ThreadPoolExecutor(max_workers=9) as pool:
         readers = [pool.submit(reader) for _ in range(8)]
         started.set()
-        for _ in range(20):
-            current = store.load_fragment(0)
-            result = store.commit(_request(current))
-            complete.add(facts(result.authority))
-        finished.set()
+        try:
+            for _ in range(20):
+                current = store.load_fragment(0)
+                result = store.commit(_request(current))
+                complete.add(facts(result.authority))
+        finally:
+            # A writer exception must release the readers so pytest reports the
+            # original failure instead of hanging in executor shutdown.
+            finished.set()
         for future in readers:
             future.result()
 
@@ -434,6 +440,40 @@ def test_concurrent_readers_observe_only_complete_committed_authorities(
     assert observations <= complete
     assert {item[0] for item in observations} <= set(range(21))
     assert store.load_fragment(0).version == 20
+
+
+def test_local_reader_cannot_replace_cache_during_commit(tmp_path: Path) -> None:
+    store, _ = _system(tmp_path / "global")
+    current = store.load_fragment(0)
+    request = _request(current)
+    writer_before_visibility = threading.Event()
+    release_writer = threading.Event()
+    reader_started = threading.Event()
+    reader_returned = threading.Event()
+
+    def hold_writer(_successor) -> None:
+        writer_before_visibility.set()
+        assert release_writer.wait(2)
+
+    def read_concurrently():
+        reader_started.set()
+        try:
+            return store.load_fragment(0)
+        finally:
+            reader_returned.set()
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        writer = pool.submit(store.commit, request, before_visibility=hold_writer)
+        assert writer_before_visibility.wait(2)
+        reader = pool.submit(read_concurrently)
+        assert reader_started.wait(2)
+        reader_was_serialized = not reader_returned.wait(0.05)
+        release_writer.set()
+        committed = writer.result(timeout=2).authority
+        observed = reader.result(timeout=2)
+
+    assert reader_was_serialized
+    assert observed == committed
 
 
 def test_envelope_integrity_schema_and_policy_fail_closed(tmp_path: Path) -> None:

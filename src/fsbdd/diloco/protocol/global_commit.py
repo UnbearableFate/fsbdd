@@ -5,6 +5,7 @@ import hashlib
 import json
 import math
 import struct
+import threading
 from collections.abc import Callable
 
 from fsbdd.diloco.protocol.global_state import (
@@ -631,6 +632,7 @@ class AtomicGlobalCommitStore:
         self.store = store
         self.learner_ids = learner_ids
         self.policy_identity = _require_hex(policy_identity, "policy_identity")
+        self._authority_lock = threading.RLock()
         self._authority_cache: dict[
             int, tuple[PublicationRecord, AtomicFragmentAuthority]
         ] = {}
@@ -674,6 +676,10 @@ class AtomicGlobalCommitStore:
         )
 
     def load_fragment(self, index: int) -> AtomicFragmentAuthority:
+        with self._authority_lock:
+            return self._load_fragment_locked(index)
+
+    def _load_fragment_locked(self, index: int) -> AtomicFragmentAuthority:
         record = self.store.peek_fragment_record(index, timeout_seconds=0)
         cached = self._authority_cache.get(index)
         if cached is not None and cached[0] == record:
@@ -813,6 +819,20 @@ class AtomicGlobalCommitStore:
         *,
         crash_at: str | None = None,
         before_visibility: BeforeVisibility | None = None,
+    ) -> AtomicCommitResult:
+        with self._authority_lock:
+            return self._commit_locked(
+                request,
+                crash_at=crash_at,
+                before_visibility=before_visibility,
+            )
+
+    def _commit_locked(
+        self,
+        request: AtomicCommitRequest,
+        *,
+        crash_at: str | None,
+        before_visibility: BeforeVisibility | None,
     ) -> AtomicCommitResult:
         if not isinstance(request, AtomicCommitRequest):
             raise AtomicCommitError("request must be AtomicCommitRequest")
