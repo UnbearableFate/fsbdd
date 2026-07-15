@@ -90,6 +90,19 @@ orient:
     diagnostic_result: old/current registry digests 27b639fb/57fc39e7 and fragment-map digests 58dc07dc/9a7da067 differ while model parameter identity matches exactly
     expected_solution: use an ERR-trap-immune if/else status capture, preserve fatal handling for any status other than the exact validated mismatch, add a static regression, pass login static gates, amend the exhausted asset budget, and return to the same Checker before any compute job
     correction_commit: 04f05e6713205005d252926f7464993d71adb6cb
+  latest_formal_submission_rejection:
+    experiment_id: s1-13-formal-9n-20260715T215204Z-99a1d09
+    pbs_job_id: null
+    code_commit: 99a1d0935eabf97df8dc3733bb1c89986a98bc77
+    result: qsub rejected the 0-8 array before queue admission because Miyabi effective default_qsub_arguments supplied -r n; no job ID, subjob, role, or model runtime existed
+    raw_evidence_root: runtime_runs/S1-13/rejected-submissions/formal-9n-20260715T215204Z-99a1d09
+    rejected_shared_root: runtime_runs/S1-13/shared-9n-20260715T215204Z-99a1d09
+    rejected_result_root: runtime_runs/S1-13/results-9n-20260715T215204Z-99a1d09
+    reviewed_ledger: reports/stage1/S1-13-experiment-failures.json
+    attempt_consumed: false
+    cause: the script relied on the active PBS 2024.1 documented default-y/automatic-array rerunnability, while the site effective defaults supplied -r n -k oed and the script lacked an explicit rerunnable override
+    expected_solution: preserve and never reuse the rejected roots, add explicit '#PBS -r y' plus a static regression, pass login static gates, and obtain same-Checker replacement authorization before another qsub
+    correction_commit: e850f5116a69ed517a4a5772799b4d2554721cc0
   attempt_budget: {asset_stage: 3, red: 1, targeted: 4, reproduction_preflight: 3, l1_real: 2, l2_real: 4, formal_l3_9n: 2, formal_l4_long: 2}
   attempt_budget_amendments:
     - recorded_at_utc: 2026-07-15T20:42:48Z
@@ -224,7 +237,7 @@ nine_node_gate: {required: true, run_id: null, topology_gate: null, loss_gate: n
 checker:
   context_id: s1_13_checker
   maker_chat_inherited: false
-  phase_a_verdict: replacement Phase A ADMISSIBLE for exactly one first formal_l3_9n attempt at corrected exact candidate 99a1d0935eabf97df8dc3733bb1c89986a98bc77 using only pbs/stage1_s1_13_formal_9n.pbs SHA c6dd14a77dd5c99c73104fa5c70f2559264f576fe44abe2a98bb4e85f578130c; unused 74dbd16 authorization superseded; no retry, long-smoke, or formal-long run authorized
+  phase_a_verdict: Phase B PASS for the pre-queue rejection attribution and replacement Phase A ADMISSIBLE for exactly one first formal_l3_9n submission at e850f5116a69ed517a4a5772799b4d2554721cc0 using only pbs/stage1_s1_13_formal_9n.pbs SHA 2d4827380e68f9aaaa17c487f94f4f31aad0bebf354bf2055cd8e79030f8cbf2; create fresh roots and never reuse the rejected roots; no retry, long-smoke, formal-long, or other compute authorized
   verdict: null
   report_path: reports/checkers/S1-13.md
   cycles:
@@ -270,12 +283,15 @@ checker:
       result: preflight job 2393049 and L2 job 2393059 passed Phase B; first L3 authorization was not exercised because review found prepare-nine rejected real 40-hex Git commits before root creation; no L3 attempt consumed
     - candidate: 99a1d0935eabf97df8dc3733bb1c89986a98bc77
       verdict: replacement Phase A ADMISSIBLE for exactly one first formal_l3_9n attempt using only pbs/stage1_s1_13_formal_9n.pbs SHA c6dd14a77dd5c99c73104fa5c70f2559264f576fe44abe2a98bb4e85f578130c; no retry, long-smoke, or formal-long run authorized
-      result: dedicated lowercase 40-hex Git validator added, realistic positive and negative regressions added, duplicate root-distinctness check removed, all login static gates pass, and unused 74dbd16 authorization is superseded without consuming an attempt; first L3 roots/submission pending
+      result: prepare-nine created fresh exclusive roots and marker, but qsub rejected the array before queue admission because the effective arguments supplied -r n; no job ID or formal attempt was created, and the rejected roots are preserved
+    - candidate: e850f5116a69ed517a4a5772799b4d2554721cc0
+      verdict: Phase B PASS for immutable rejection attribution and replacement Phase A ADMISSIBLE for exactly one first formal_l3_9n submission using only pbs/stage1_s1_13_formal_9n.pbs SHA 2d4827380e68f9aaaa17c487f94f4f31aad0bebf354bf2055cd8e79030f8cbf2; no retry, long-smoke, formal-long, or other compute authorized
+      result: explicit '#PBS -r y' overrides the effective site -r n default; static regression added; full login compileall, Ruff, Pyright, Bash, JSON/YAML, rejected-package checksum, and diff gates pass; fresh formal roots/submission pending
 persist:
   evidence_index: evidence/indexes/S1-13.md
   raw_evidence_root: runtime_runs/S1-13
   acceptance_traceability_updated: false
   next_gap: Stage 2 asynchronous GPU to CPU to filesystem publication pipeline
   handoff: >-
-    Replacement same-Checker Phase A authorizes corrected exact candidate 99a1d0935eabf97df8dc3733bb1c89986a98bc77 for exactly one first formal_l3_9n attempt. Use only pbs/stage1_s1_13_formal_9n.pbs SHA c6dd14a77dd5c99c73104fa5c70f2559264f576fe44abe2a98bb4e85f578130c, create new absent shared/result/evidence roots through prepare-nine, and submit one 0-8 PBS array with the identical marker validated by all nine roles. The unused 74dbd16 authorization is superseded and no attempt was consumed. No retry, long-smoke, formal-long, or other compute is authorized.
-blocker: Exactly one first formal_l3_9n attempt is authorized at corrected candidate 99a1d0935eabf97df8dc3733bb1c89986a98bc77 and not yet submitted. No retry or other compute run is authorized.
+    The authorized 99a1d09 submission created exclusive shared/result roots and marker, but qsub rejected the 0-8 array before queue admission because Miyabi effective defaults supplied -r n. The immutable rejection package passed same-Checker Phase B, no formal attempt was consumed, and the rejected roots must never be reused. Replacement Phase A authorizes exact candidate e850f5116a69ed517a4a5772799b4d2554721cc0 for exactly one first formal_l3_9n submission using only pbs/stage1_s1_13_formal_9n.pbs SHA 2d4827380e68f9aaaa17c487f94f4f31aad0bebf354bf2055cd8e79030f8cbf2 with explicit '#PBS -r y', one 0-8 array, and fresh prepare-nine roots. No retry, long-smoke, formal-long, or other compute is authorized.
+blocker: Exactly one first formal_l3_9n submission is authorized at corrected candidate e850f5116a69ed517a4a5772799b4d2554721cc0 and not yet submitted. The prior rejected roots are immutable and non-reusable; no retry or other compute run is authorized.
