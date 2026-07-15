@@ -552,6 +552,7 @@ class AtomicGlobalCommitStore:
         self.store = store
         self.learner_ids = learner_ids
         self.policy_identity = _require_hex(policy_identity, "policy_identity")
+        self._authority_cache: dict[int, tuple[str, AtomicFragmentAuthority]] = {}
 
     def _empty_envelope(
         self, descriptor: FragmentStateDescriptor, outer_optimizer_state: bytes
@@ -594,7 +595,19 @@ class AtomicGlobalCommitStore:
         )
 
     def load_fragment(self, index: int) -> AtomicFragmentAuthority:
-        state = self.store.load_fragment(index, timeout_seconds=0)
+        record = self.store.peek_fragment_record(index, timeout_seconds=0)
+        cached = self._authority_cache.get(index)
+        if cached is not None and cached[0] == record.payload_identity:
+            return cached[1]
+        state, loaded_record = self.store.load_fragment_publication(
+            index, timeout_seconds=0
+        )
+        if loaded_record.payload_identity != record.payload_identity:
+            # Visibility changed between the metadata peek and payload load;
+            # retry once through the ordinary exact-record read.
+            state, loaded_record = self.store.load_fragment_publication(
+                index, timeout_seconds=0
+            )
         envelope = decode_commit_envelope(
             state.outer_state,
             identities=state.identities,
@@ -604,7 +617,9 @@ class AtomicGlobalCommitStore:
             raise AtomicCommitError("committed learner frontier identities differ")
         if envelope.policy_identity != self.policy_identity:
             raise AtomicCommitError("committed policy identity differs")
-        return AtomicFragmentAuthority(state, envelope)
+        authority = AtomicFragmentAuthority(state, envelope)
+        self._authority_cache[index] = (loaded_record.payload_identity, authority)
+        return authority
 
     def load_snapshot(self) -> AtomicGlobalSnapshot:
         authorities = tuple(
@@ -748,14 +763,22 @@ class AtomicGlobalCommitStore:
             selection_identity=request.selection.selection_identity,
             update_identity=request.update_identity,
         )
-        self.store.publish_successor(
-            request.fragment_index,
+        cached = self._authority_cache.get(request.fragment_index)
+        if cached is None or cached[1] is not current:
+            raise AtomicCommitError("current authority cache is unavailable for commit")
+        successor_state, successor_record = self.store.publish_successor_from_current(
+            current.state,
+            expected_payload_identity=cached[0],
             parameters=request.parameters,
             outer_state=encode_commit_envelope(envelope),
             crash_at=crash_at,
             before_visibility=before_visibility,
         )
-        committed = self.load_fragment(request.fragment_index)
+        committed = AtomicFragmentAuthority(successor_state, envelope)
+        self._authority_cache[request.fragment_index] = (
+            successor_record.payload_identity,
+            committed,
+        )
         if not self._matches_retry(committed, request):
             raise AtomicCommitError("visible successor differs from immutable request")
         return AtomicCommitResult(committed, published=True, duplicate_retry=False)

@@ -524,13 +524,23 @@ class GlobalStateStore:
     def load_fragment(
         self, index: int, *, timeout_seconds: float = 0
     ) -> FragmentGlobalState:
+        state, _record = self.load_fragment_publication(
+            index, timeout_seconds=timeout_seconds
+        )
+        return state
+
+    def load_fragment_publication(
+        self, index: int, *, timeout_seconds: float = 0
+    ) -> tuple[FragmentGlobalState, PublicationRecord]:
+        """Load one state together with the exact visibility record that named it."""
+
         descriptor = self._descriptor(index)
         published = self._backend.read(
             current_slot(index),
             self._expectation(descriptor),
             timeout_seconds=timeout_seconds,
         )
-        return self._validate_published(published, descriptor)
+        return self._validate_published(published, descriptor), published.record
 
     def peek_fragment_record(
         self, index: int, *, timeout_seconds: float = 0
@@ -682,6 +692,40 @@ class GlobalStateStore:
             current_slot(index), self._expectation(descriptor), timeout_seconds=0
         )
         current = self._validate_published(visible, descriptor)
+        successor, _record = self.publish_successor_from_current(
+            current,
+            expected_payload_identity=visible.record.payload_identity,
+            parameters=parameters,
+            outer_state=outer_state,
+            crash_at=crash_at,
+            before_visibility=before_visibility,
+        )
+        return successor
+
+    def publish_successor_from_current(
+        self,
+        current: FragmentGlobalState,
+        *,
+        expected_payload_identity: str,
+        parameters: bytes,
+        outer_state: bytes,
+        crash_at: str | None = None,
+        before_visibility: Callable[[FragmentGlobalState], None] | None = None,
+    ) -> tuple[FragmentGlobalState, PublicationRecord]:
+        """Publish from an already decoded authority using metadata race checks."""
+
+        if not isinstance(current, FragmentGlobalState):
+            raise GlobalStateError("current state must be a FragmentGlobalState")
+        _require_hex(expected_payload_identity, "expected payload identity")
+        _require_bytes(parameters, "parameters")
+        _require_bytes(outer_state, "outer_state")
+        index = current.descriptor.index
+        descriptor = self._descriptor(index)
+        if current.identities != self.identities or current.descriptor != descriptor:
+            raise GlobalStateError("current state differs from the frozen store authority")
+        visible = self.peek_fragment_record(index, timeout_seconds=0)
+        if visible.payload_identity != expected_payload_identity:
+            raise GlobalStateError(f"fragment {index} changed before successor publication")
         version = current.version + 1
         next_base = BaseSnapshot(
             version=version,
@@ -701,26 +745,20 @@ class GlobalStateStore:
         )
 
         def require_unchanged_base(_slot: str, _record: PublicationRecord) -> None:
-            latest = self._backend.read(
-                current_slot(index), self._expectation(descriptor), timeout_seconds=0
-            )
-            if latest.record.payload_identity != visible.record.payload_identity:
+            latest = self.peek_fragment_record(index, timeout_seconds=0)
+            if latest.payload_identity != expected_payload_identity:
                 raise GlobalStateError(
                     f"fragment {index} changed during successor publication"
                 )
             if before_visibility is not None:
                 before_visibility(successor)
-                latest = self._backend.read(
-                    current_slot(index),
-                    self._expectation(descriptor),
-                    timeout_seconds=0,
-                )
-                if latest.record.payload_identity != visible.record.payload_identity:
+                latest = self.peek_fragment_record(index, timeout_seconds=0)
+                if latest.payload_identity != expected_payload_identity:
                     raise GlobalStateError(
                         f"fragment {index} changed during successor publication hook"
                     )
 
-        self._backend.publish(
+        record = self._backend.publish(
             current_slot(index),
             encode_global_state(successor),
             PublicationSpec(
@@ -736,7 +774,7 @@ class GlobalStateStore:
             visibility_hook=require_unchanged_base,
             crash_at=crash_at,
         )
-        return self.load_fragment(index, timeout_seconds=0)
+        return successor, record
 
     def inspect_live_set(self) -> LiveSetReport:
         states: list[FragmentGlobalState] = []

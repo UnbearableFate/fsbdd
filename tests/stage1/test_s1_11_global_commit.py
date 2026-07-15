@@ -224,6 +224,26 @@ def test_bootstrap_exposes_one_compound_authority_per_fragment(tmp_path: Path) -
     assert not any("latest" in item or "head" in item for item in visibility)
 
 
+def test_steady_state_commit_reuses_unchanged_decoded_authority(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    store, backend = _system(tmp_path / "global")
+    current = store.load_fragment(0)
+    payload_reads = 0
+    original = backend.read
+
+    def counted(*args, **kwargs):
+        nonlocal payload_reads
+        payload_reads += 1
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(backend, "read", counted)
+    assert store.load_fragment(0) is current
+    committed = store.commit(_request(current)).authority
+    assert store.load_fragment(0) is committed
+    assert payload_reads == 0
+
+
 @pytest.mark.parametrize(
     ("crash_at", "new_is_visible"),
     (

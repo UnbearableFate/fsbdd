@@ -248,7 +248,12 @@ def _runtime_gate(
     for role in roles:
         events = _records(Path(role["_result_root"]) / "logs" / f"{role['learner_id']}.jsonl", "safe_boundary")
         step_latencies.extend(float(item["step_latency_seconds"]) for item in events)
-    passed = 0 < active_seconds <= budget and all(math.isfinite(item) and item > 0 for item in step_latencies)
+    update_latencies = [float(item["update_latency_seconds"]) for item in syncer["updates"]]
+    passed = (
+        0 < active_seconds <= budget
+        and all(math.isfinite(item) and item > 0 for item in step_latencies)
+        and all(math.isfinite(item) and item > 0 for item in update_latencies)
+    )
     return {
         "schema_version": 1,
         "gate": "runtime",
@@ -263,6 +268,11 @@ def _runtime_gate(
             "points": len(step_latencies),
             "median": statistics.median(step_latencies),
             "maximum": max(step_latencies),
+        },
+        "syncer_fragment_update_latency_seconds": {
+            "points": len(update_latencies),
+            "median": statistics.median(update_latencies),
+            "maximum": max(update_latencies),
         },
         "queue_time_excluded": True,
     }

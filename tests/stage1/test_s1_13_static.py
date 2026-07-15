@@ -19,6 +19,7 @@ def test_closure_runtime_has_no_application_network_data_plane() -> None:
         assert token not in source
     assert '"network_data_plane": False' in source
     assert '"application_coordination": "shared_filesystem_only"' in source
+    assert 'minimum_step_seconds=0.5 if workload == "nine_node" else None' in source
 
 
 def test_formal_topologies_freeze_independent_9n_and_coallocated_4_plus_1() -> None:

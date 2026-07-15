@@ -611,9 +611,17 @@ class LearnerRuntime:
         *,
         optimizer_steps: int,
         stop_requested: Callable[[], bool] | None = None,
+        minimum_step_seconds: float | None = None,
     ) -> LearnerRunSummary:
         if stop_requested is not None and not callable(stop_requested):
             raise LearnerError("stop_requested must be callable")
+        if minimum_step_seconds is not None and (
+            not isinstance(minimum_step_seconds, (int, float))
+            or isinstance(minimum_step_seconds, bool)
+            or not math.isfinite(float(minimum_step_seconds))
+            or minimum_step_seconds <= 0
+        ):
+            raise LearnerError("minimum_step_seconds must be positive and finite")
         state_before = self.rng.state_sha256()
         activation_before = self.rng.activation_count
         with self.rng.activate():
@@ -621,6 +629,7 @@ class LearnerRuntime:
                 batches,
                 optimizer_steps=optimizer_steps,
                 stop_requested=stop_requested,
+                minimum_step_seconds=minimum_step_seconds,
             )
         return dataclasses.replace(
             result,
@@ -645,6 +654,7 @@ class LearnerRuntime:
         *,
         optimizer_steps: int,
         stop_requested: Callable[[], bool] | None,
+        minimum_step_seconds: float | None,
     ) -> LearnerRunSummary:
         import torch
 
@@ -744,6 +754,12 @@ class LearnerRuntime:
                         raise LearnerError("fragment update norm is nonfinite")
                     fragment_norms.append(math.sqrt(squared))
                     total_update_squared += squared
+
+            if minimum_step_seconds is not None:
+                elapsed = (self.clock_ns() - step_start) / 1_000_000_000
+                remaining = float(minimum_step_seconds) - elapsed
+                if remaining > 0:
+                    time.sleep(remaining)
 
             self.progress.local_optimizer_steps += 1
             self.progress.processed_input_tokens += step_inputs

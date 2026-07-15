@@ -486,6 +486,10 @@ def run_learner(
     run = runtime.run(
         _batches(shard, int(config["training"]["batch_size"])),
         optimizer_steps=requested_steps,
+        # The short baseline has a hard 800-step ceiling.  Pace those steps so
+        # its asynchronous fixed slots remain observable instead of being
+        # overwritten by a GPU that can outrun large compound FS commits.
+        minimum_step_seconds=0.5 if workload == "nine_node" else None,
         stop_requested=(
             (lambda: completion_path.exists() and progress.local_optimizer_steps >= minimum_points)
             if workload == "nine_node"
@@ -529,6 +533,11 @@ def run_learner(
             "interval_optimizer_steps": 50 if workload == "nine_node" else 1000,
             "first_step_always_sampled": True,
             "parameter_update_norm_is_sampled_diagnostic": True,
+        },
+        "step_pacing": {
+            "minimum_step_seconds": 0.5 if workload == "nine_node" else None,
+            "scope": "short_fixed-step-baseline_only",
+            "reason": "preserve_H50_fixed_slot_observability_below_the_800_step_ceiling",
         },
         "progress": progress.to_dict(),
         "data_state": shard.state_dict(),
@@ -670,12 +679,16 @@ def run_syncer(
         executor.poll(observed_ns=time.monotonic_ns())
         made_progress = False
         while True:
+            update_started_ns = time.monotonic_ns()
             update = executor.execute_next(observed_ns=time.monotonic_ns(), poll_store=False)
             if update is None:
                 break
             made_progress = True
             report = tracker.report()
             row = _update_record(update, report.global_cycle, time.time_ns())
+            row["update_latency_seconds"] = (
+                time.monotonic_ns() - update_started_ns
+            ) / 1_000_000_000
             updates.append(row)
             logger.emit("fragment_outer_update", **row)
         report = tracker.report()
