@@ -11,7 +11,7 @@ git:
   integration_branch: master
   branch: codex/S1-12-profile-a-e2e
   base_commit: 92b9006efa04d6b6962c14a9b1b03efcbfa3dc18
-  result_commit: null
+  result_commit: 2e44bbc3867f1afa344b6ecc9b783bfb2a31250d
   dirty_at_start: true
   user_owned_dirty_paths: [AGENTS.md]
 dependencies: [S1-07, S1-08, S1-09, S1-11]
