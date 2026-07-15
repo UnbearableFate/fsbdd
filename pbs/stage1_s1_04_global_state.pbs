@@ -50,7 +50,12 @@ if [[ "$(git -C "$MIYABI_SKILL_DIR" rev-parse HEAD)" != "$MIYABI_SKILL_COMMIT" ]
   echo "Miyabi skill commit mismatch" >&2
   exit 65
 fi
-if [[ "$(sha256sum "$PROJECT_ROOT/$CONFIG_SOURCE" | awk '{print $1}')" != "$CONFIG_SHA256" ]]; then
+ACTUAL_CONFIG_SHA256="$(
+  PYTHONPATH="$PROJECT_ROOT/src" "$PYTHON" -c \
+    'import sys; from pathlib import Path; from fsbdd.config import load_config; print(load_config(Path(sys.argv[1])).digest)' \
+    "$PROJECT_ROOT/$CONFIG_SOURCE"
+)"
+if [[ "$ACTUAL_CONFIG_SHA256" != "$CONFIG_SHA256" ]]; then
   echo "frozen config source hash mismatch" >&2
   exit 65
 fi
