@@ -224,7 +224,7 @@ nine_node_gate: {required: true, run_id: null, topology_gate: null, loss_gate: n
 checker:
   context_id: s1_13_checker
   maker_chat_inherited: false
-  phase_a_verdict: L2 job 2393059 Phase B PASS; prior L3 authorization at 74dbd164555a49551353f4e4da3229698621a633 was not exercised because pre-submission review found prepare-nine rejected real 40-hex Git commits; corrected exact candidate 99a1d0935eabf97df8dc3733bb1c89986a98bc77 awaits replacement Checker review; no compute run authorized
+  phase_a_verdict: replacement Phase A ADMISSIBLE for exactly one first formal_l3_9n attempt at corrected exact candidate 99a1d0935eabf97df8dc3733bb1c89986a98bc77 using only pbs/stage1_s1_13_formal_9n.pbs SHA c6dd14a77dd5c99c73104fa5c70f2559264f576fe44abe2a98bb4e85f578130c; unused 74dbd16 authorization superseded; no retry, long-smoke, or formal-long run authorized
   verdict: null
   report_path: reports/checkers/S1-13.md
   cycles:
@@ -269,13 +269,13 @@ checker:
       verdict: Phase A ADMISSIBLE for exactly one third-and-final one-node reproduction_preflight; after job 2393049, Phase B PASS and Phase A ADMISSIBLE for exactly one fourth-and-final L2 1+1 reproduction; after job 2393059, Phase B PASS and Phase A ADMISSIBLE for exactly one first formal_l3_9n attempt using only pbs/stage1_s1_13_formal_9n.pbs SHA c6dd14a77dd5c99c73104fa5c70f2559264f576fe44abe2a98bb4e85f578130c; no retry, long-smoke, or formal-long run authorized
       result: preflight job 2393049 and L2 job 2393059 passed Phase B; first L3 authorization was not exercised because review found prepare-nine rejected real 40-hex Git commits before root creation; no L3 attempt consumed
     - candidate: 99a1d0935eabf97df8dc3733bb1c89986a98bc77
-      verdict: pending replacement exact-commit Phase A review; no compute run authorized
-      result: dedicated lowercase 40-hex Git validator added, realistic positive and negative regressions added, duplicate root-distinctness check removed, and all login static gates pass; no formal root or PBS job created
+      verdict: replacement Phase A ADMISSIBLE for exactly one first formal_l3_9n attempt using only pbs/stage1_s1_13_formal_9n.pbs SHA c6dd14a77dd5c99c73104fa5c70f2559264f576fe44abe2a98bb4e85f578130c; no retry, long-smoke, or formal-long run authorized
+      result: dedicated lowercase 40-hex Git validator added, realistic positive and negative regressions added, duplicate root-distinctness check removed, all login static gates pass, and unused 74dbd16 authorization is superseded without consuming an attempt; first L3 roots/submission pending
 persist:
   evidence_index: evidence/indexes/S1-13.md
   raw_evidence_root: runtime_runs/S1-13
   acceptance_traceability_updated: false
   next_gap: Stage 2 asynchronous GPU to CPU to filesystem publication pipeline
   handoff: >-
-    Same-Checker Phase B passed exact-clean L2 job 2393059. The prior L3 authorization at 74dbd164555a49551353f4e4da3229698621a633 was not exercised: before creating roots, review found prepare-nine incorrectly applied a 64-hex SHA-256 validator to the real 40-hex Git commit. Corrected candidate 99a1d0935eabf97df8dc3733bb1c89986a98bc77 has a distinct Git validator, realistic regression, duplicate-check cleanup, and passing login static gates. Return it to the same Checker for replacement exact-commit Phase A review. No formal root or job exists, no L3 attempt is consumed, and no compute run is authorized.
-blocker: Corrected pre-submission candidate 99a1d0935eabf97df8dc3733bb1c89986a98bc77 awaits same-Checker replacement Phase A review. No compute run is authorized.
+    Replacement same-Checker Phase A authorizes corrected exact candidate 99a1d0935eabf97df8dc3733bb1c89986a98bc77 for exactly one first formal_l3_9n attempt. Use only pbs/stage1_s1_13_formal_9n.pbs SHA c6dd14a77dd5c99c73104fa5c70f2559264f576fe44abe2a98bb4e85f578130c, create new absent shared/result/evidence roots through prepare-nine, and submit one 0-8 PBS array with the identical marker validated by all nine roles. The unused 74dbd16 authorization is superseded and no attempt was consumed. No retry, long-smoke, formal-long, or other compute is authorized.
+blocker: Exactly one first formal_l3_9n attempt is authorized at corrected candidate 99a1d0935eabf97df8dc3733bb1c89986a98bc77 and not yet submitted. No retry or other compute run is authorized.

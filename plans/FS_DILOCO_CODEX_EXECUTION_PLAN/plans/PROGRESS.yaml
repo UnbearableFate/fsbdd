@@ -365,7 +365,7 @@ loops:
   result_commit: null
   evidence_index: evidence/indexes/S1-13.md
   checker_verdict: null
-  blocker: L2 job 2393059 passed same-Checker Phase B. Before any formal root or job was created, review found prepare-nine incorrectly validated the real 40-hex Git commit as a 64-hex SHA-256. Correction 99a1d0935eabf97df8dc3733bb1c89986a98bc77 adds the exact Git validator and realistic regression, removes a duplicate check, and passes all login static gates. No L3 attempt was consumed. Replacement exact-commit Checker review is required; no compute run is authorized.
+  blocker: Replacement same-Checker Phase A authorizes exactly one first formal_l3_9n attempt at corrected exact candidate 99a1d0935eabf97df8dc3733bb1c89986a98bc77 using only pbs/stage1_s1_13_formal_9n.pbs SHA c6dd14a77dd5c99c73104fa5c70f2559264f576fe44abe2a98bb4e85f578130c, one 0-8 PBS array, and new prepare-nine exclusive roots/marker. The unused 74dbd16 authorization is superseded and consumed no attempt. No retry, long-smoke, formal-long, or other compute is authorized.
 - id: S2-01
   stage: stage2
   title: 异步 GPU→CPU→FS Publication Pipeline
