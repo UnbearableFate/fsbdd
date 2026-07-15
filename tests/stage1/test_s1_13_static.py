@@ -20,6 +20,7 @@ def test_closure_runtime_has_no_application_network_data_plane() -> None:
     assert '"network_data_plane": False' in source
     assert '"application_coordination": "shared_filesystem_only"' in source
     assert 'minimum_step_seconds=0.5 if workload == "nine_node" else None' in source
+    assert 'merge_backend="numpy"' in source
 
 
 def test_formal_topologies_freeze_independent_9n_and_coallocated_4_plus_1() -> None:
@@ -32,6 +33,7 @@ def test_formal_topologies_freeze_independent_9n_and_coallocated_4_plus_1() -> N
     assert "#PBS -l select=5" in long
     assert "mpirun -np 5 --map-by ppr:1:node" in long
     assert "CUDA_VISIBLE_DEVICES" in long or "stage1_close mpi" in long
+    assert (ROOT / "pbs/stage1_s1_13_numpy_correction.pbs").is_file()
 
 
 def test_formal_package_retains_current_protocol_samples_and_rejects_placeholders() -> None:

@@ -651,6 +651,7 @@ def run_syncer(
         ),
         outer_policy=policy,
         progress=tracker,
+        merge_backend="numpy",
     )
     logger = StructuredLogger(result_root / "logs" / "syncer.jsonl", role="syncer", run_id=run_id)
     updates: list[dict[str, Any]] = []

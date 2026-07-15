@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import os
 import json
+import subprocess
+import sys
 import time
 from pathlib import Path
 
@@ -220,3 +222,15 @@ def test_protocol_sample_capture_binds_current_metadata_and_edges(tmp_path: Path
 def test_formal_package_rejects_unresolved_asset_placeholders() -> None:
     with pytest.raises(Stage1PackageError, match="resolved placeholder"):
         _reject_placeholders({"resolved_runtime_fields": {"asset_bundle_root": "asset_stage"}})
+
+
+def test_numpy_syncer_probe_imports_no_torch() -> None:
+    probe = Path(__file__).resolve().parents[1] / "probes" / "s1_13_numpy_syncer_probe.py"
+    completed = subprocess.run(
+        [sys.executable, str(probe)],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert completed.returncode == 0, completed.stderr
+    assert "torch_module_imported=false" in completed.stdout

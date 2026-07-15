@@ -19,6 +19,7 @@ from .syncer_merge import (
     FragmentUpdateResult,
     OuterSGDPolicy,
     SourceMetrics,
+    execute_numpy_streaming_fragment_update,
     execute_streaming_fragment_update,
 )
 from .syncer_readiness import (
@@ -481,6 +482,7 @@ class ProfileAFragmentExecutor:
         profile: ProfileAConfig,
         outer_policy: OuterSGDPolicy,
         progress: ProfileAProgressTracker,
+        merge_backend: str = "torch",
     ) -> None:
         if not isinstance(atomic_store, AtomicGlobalCommitStore):
             raise ProfileAError("atomic_store is invalid")
@@ -492,6 +494,8 @@ class ProfileAFragmentExecutor:
             raise ProfileAError("outer_policy is invalid")
         if not isinstance(progress, ProfileAProgressTracker):
             raise ProfileAError("progress tracker is invalid")
+        if merge_backend not in {"torch", "numpy"}:
+            raise ProfileAError("merge_backend must be torch or numpy")
         if (
             profile.learner_count != len(atomic_store.learner_ids)
             or profile.fragment_count != len(atomic_store.store.descriptors)
@@ -514,6 +518,7 @@ class ProfileAFragmentExecutor:
         self.profile = profile
         self.outer_policy = outer_policy
         self.progress = progress
+        self.merge_backend = merge_backend
         self.readiness = SyncerReadinessMachine(
             proposal_store,
             authorities=authorities,
@@ -582,7 +587,12 @@ class ProfileAFragmentExecutor:
             ),
         )
         try:
-            result = execute_streaming_fragment_update(
+            merge = (
+                execute_numpy_streaming_fragment_update
+                if self.merge_backend == "numpy"
+                else execute_streaming_fragment_update
+            )
+            result = merge(
                 FragmentMergeRequest(
                     descriptor=previous.state.descriptor,
                     fragment_map_identity=previous.state.identities.fragment_map_identity,

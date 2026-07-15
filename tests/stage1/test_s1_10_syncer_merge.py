@@ -22,6 +22,7 @@ from fsbdd.syncer_merge import (
     OuterSGDPolicy,
     ResolvedBase,
     build_update_facts,
+    execute_numpy_streaming_fragment_update,
     execute_streaming_fragment_update,
 )
 from fsbdd_stage0.oracle import OuterSGDState, outer_sgd_step, weighted_direct_merge
@@ -194,6 +195,47 @@ def test_direct_average_control_matches_stage0_oracle() -> None:
     assert result.byte_accounting.full_model_operations == 0
     assert result.memory_accounting.maximum_active_local_payloads == 1
     assert result.memory_accounting.maximum_tensor_fragment_multiples <= 5
+
+
+def test_cpu_only_numpy_profile_a_kernel_matches_torch_transition() -> None:
+    current = payload([10.0, -2.0, 4.0, 8.0])
+    locals_ = {
+        "a": payload([9.0, -1.0, 5.0, 7.0]),
+        "b": payload([8.0, -4.0, 3.0, 6.0]),
+        "c": payload([11.0, -3.0, 2.0, 9.0]),
+        "d": payload([7.0, 0.0, 6.0, 5.0]),
+    }
+    facts = tuple(
+        make_fact(
+            name,
+            local,
+            learner_id=f"learner-{name}",
+            weight=0.25,
+            tokens=10,
+        )
+        for name, local in locals_.items()
+    )
+    request = make_request(
+        current,
+        facts,
+        outer_state=FragmentOuterState(0, payload([0.5, -0.25, 0.75, -0.5])),
+    )
+    policy = OuterSGDPolicy(learning_rate=0.1, momentum=0.9, nesterov=True)
+    torch_result = execute_streaming_fragment_update(
+        request, MemorySource(locals_), policy
+    )
+    numpy_result = execute_numpy_streaming_fragment_update(
+        request, MemorySource(locals_), policy
+    )
+    assert_close(numpy_result.parameters, values(torch_result.parameters))
+    assert_close(numpy_result.merged_gradient, values(torch_result.merged_gradient))
+    assert numpy_result.outer_state.update_count == torch_result.outer_state.update_count
+    assert_close(
+        numpy_result.outer_state.momentum_buffer,
+        values(torch_result.outer_state.momentum_buffer),
+    )
+    assert numpy_result.update_identity == torch_result.update_identity
+    assert numpy_result.byte_accounting == torch_result.byte_accounting
 
 
 def test_declared_old_base_gradient_is_applied_to_current_state() -> None:

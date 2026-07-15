@@ -717,6 +717,133 @@ def execute_streaming_fragment_update(
     return result
 
 
+def execute_numpy_streaming_fragment_update(
+    request: FragmentMergeRequest,
+    contribution_source: StreamingContributionSource,
+    outer_policy: OuterSGDPolicy,
+) -> FragmentUpdateResult:
+    """CPU-only Profile A merge with the same explicit float32 operation order.
+
+    The formal Stage 1 syncer must remain free of Torch/CUDA imports.  NumPy
+    supplies the production CPU vector kernel while the original Torch path
+    remains the independent implementation used by the numeric test oracle.
+    """
+
+    import numpy as np
+
+    if not isinstance(request, FragmentMergeRequest):
+        raise MergeError("request must be FragmentMergeRequest")
+    if not isinstance(outer_policy, OuterSGDPolicy):
+        raise MergeError("outer_policy must be OuterSGDPolicy")
+    if outer_policy.f32_momentum == 0 and request.outer_state.momentum_buffer is not None:
+        raise MergeError("momentum-free SGD state must not contain a buffer")
+
+    fragment_bytes = len(request.current_parameters)
+    ledger = _TensorLedger()
+
+    def array(payload: bytes, name: str) -> Any:
+        payload = _require_fp32_payload(payload, name)
+        value = np.frombuffer(payload, dtype="<f4").copy()
+        if not bool(np.isfinite(value).all()):
+            raise MergeError(f"{name} contains NaN or Inf")
+        return value
+
+    current = array(request.current_parameters, "current_parameters")
+    ledger.add(fragment_bytes)
+    accumulator = np.zeros_like(current)
+    ledger.add(fragment_bytes)
+    local_bytes_read = 0
+    maximum_active_local = 0
+    for contribution in request.contributions:
+        with contribution_source.open_payload(contribution) as local_payload:
+            maximum_active_local = 1
+            local_payload = _require_fp32_payload(local_payload, "local payload")
+            if len(local_payload) != fragment_bytes:
+                raise MergeError("local contribution shape differs from current fragment")
+            if hashlib.sha256(local_payload).hexdigest() != contribution.parameters_sha256:
+                raise MergeError("local contribution checksum mismatch")
+            local_bytes_read += len(local_payload)
+            local = array(local_payload, "local payload")
+            ledger.add(fragment_bytes)
+            try:
+                if contribution.base_version != request.current_version:
+                    raise MergeError("NumPy Profile A merge requires a current-base contribution")
+                if contribution.base_content_identity != request.current_content_identity:
+                    raise MergeError("current-base contribution identity mismatch")
+                np.negative(local, out=local)
+                np.add(local, current, out=local)
+                np.multiply(local, np.float32(contribution.f32_weight), out=local)
+                np.add(accumulator, local, out=accumulator)
+            finally:
+                ledger.remove(fragment_bytes)
+                del local
+
+    if not bool(np.isfinite(accumulator).all()):
+        raise MergeError("merged gradient contains NaN or Inf")
+    merged_gradient = accumulator.astype("<f4", copy=False).tobytes()
+    momentum = np.float32(outer_policy.f32_momentum)
+    learning_rate = np.float32(outer_policy.f32_learning_rate)
+    buffer = None
+    if momentum == 0:
+        direction = accumulator
+    else:
+        if request.outer_state.momentum_buffer is None:
+            buffer = accumulator.copy()
+        else:
+            buffer = array(request.outer_state.momentum_buffer, "momentum_buffer")
+            np.multiply(buffer, momentum, out=buffer)
+            np.add(buffer, accumulator, out=buffer)
+        ledger.add(fragment_bytes)
+        if outer_policy.nesterov:
+            direction = buffer.copy()
+            ledger.add(fragment_bytes)
+            np.multiply(direction, momentum, out=direction)
+            np.add(direction, accumulator, out=direction)
+        else:
+            direction = buffer
+    successor = direction.copy()
+    ledger.add(fragment_bytes)
+    np.multiply(successor, learning_rate, out=successor)
+    np.subtract(current, successor, out=successor)
+    if not bool(np.isfinite(successor).all()) or (
+        buffer is not None and not bool(np.isfinite(buffer).all())
+    ):
+        raise MergeError("NumPy outer update produced NaN or Inf")
+    successor_payload = successor.astype("<f4", copy=False).tobytes()
+    next_buffer_payload = (
+        None if buffer is None else buffer.astype("<f4", copy=False).tobytes()
+    )
+    policy = DirectWeightedAverage()
+    update_facts = build_update_facts(request, policy, outer_policy)
+    result = FragmentUpdateResult(
+        parameters=successor_payload,
+        outer_state=FragmentOuterState(
+            update_count=request.outer_state.update_count + 1,
+            momentum_buffer=next_buffer_payload,
+        ),
+        merged_gradient=merged_gradient,
+        update_identity=canonical_digest(update_facts),
+        update_facts=update_facts,
+        byte_accounting=ByteAccounting(
+            fragment_index=request.descriptor.index,
+            fragment_bytes=fragment_bytes,
+            current_input_bytes=fragment_bytes,
+            local_payload_reads=len(request.contributions),
+            local_payload_bytes=local_bytes_read,
+            retained_base_reads=0,
+            retained_base_bytes=0,
+            successor_output_bytes=fragment_bytes,
+        ),
+        memory_accounting=MemoryAccounting(
+            maximum_active_local_payloads=maximum_active_local,
+            maximum_active_base_payloads=0,
+            maximum_live_tensor_bytes=ledger.maximum,
+            fragment_bytes=fragment_bytes,
+        ),
+    )
+    return result
+
+
 def linux_process_memory_bytes() -> tuple[int, int]:
     """Return current RSS and high-water RSS from Linux procfs."""
 

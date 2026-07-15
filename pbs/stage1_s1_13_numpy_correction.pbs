@@ -1,0 +1,32 @@
+#!/bin/bash
+#PBS -q debug-g
+#PBS -l select=1
+#PBS -l walltime=00:05:00
+#PBS -W group_list=xg24i002
+#PBS -N fsbdd-s1-13-numpy
+
+set -eEuo pipefail
+trap 'echo "[ERROR] line=$LINENO command=$BASH_COMMAND" >&2' ERR
+
+: "${PROJECT_ROOT:=/work/xg24i002/x10041/fsbdd}"
+: "${OUTPUT_ROOT:=$PROJECT_ROOT/runtime_runs/S1-13/numpy-correction-${PBS_JOBID}}"
+
+module load nv-hpcx/25.9
+if [[ -e "$OUTPUT_ROOT" ]]; then
+  echo "refusing to reuse S1-13 NumPy correction output" >&2
+  exit 73
+fi
+mkdir -p "$OUTPUT_ROOT"
+cd "$PROJECT_ROOT"
+export PYTHONPATH="$PROJECT_ROOT/src"
+export OMP_NUM_THREADS=1
+
+"$PROJECT_ROOT/.venv/bin/python" -m pytest -q \
+  tests/stage1/test_s1_10_syncer_merge.py::test_cpu_only_numpy_profile_a_kernel_matches_torch_transition \
+  tests/stage1/test_s1_11_global_commit.py::test_steady_state_commit_reuses_unchanged_decoded_authority \
+  tests/stage1/test_s1_13_close.py::test_numpy_syncer_probe_imports_no_torch \
+  > "$OUTPUT_ROOT/pytest.log" 2> "$OUTPUT_ROOT/pytest.err"
+"$PROJECT_ROOT/.venv/bin/python" tests/probes/s1_13_numpy_syncer_probe.py \
+  > "$OUTPUT_ROOT/probe.log" 2> "$OUTPUT_ROOT/probe.err"
+hostname > "$OUTPUT_ROOT/hostname.txt"
+qstat -f "$PBS_JOBID" > "$OUTPUT_ROOT/qstat.txt"
