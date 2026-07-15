@@ -66,8 +66,28 @@ orient:
       code_commit: 6a4e465ce43830c28a56508ca66304cb43fb62b5
       result: 10 selected tests passed in 0.33 seconds, frozen package preflight admissible, scheduler exit status 0
       raw_evidence_root: runtime_runs/S1-13/reproduction-preflight-6a4e465-20260715T201715Z
+  latest_l2_failure:
+    experiment_id: s1-13-corrected-2n-20260715T202343Z-6a4e465
+    pbs_job_id: 2392852.opbs
+    code_commit: 6a4e465ce43830c28a56508ca66304cb43fb62b5
+    result: learner initialization rejected the old immutable asset because its registry and/or fragment-map identity differs from the current real-model derivation; scheduler exit status 1 before learner readiness or training
+    raw_evidence_root: runtime_runs/S1-13/reproduction-2n-s1-13-corrected-2n-20260715T202343Z-6a4e465
+    shared_evidence_root: runtime_runs/S1-13/shared-2n-s1-13-corrected-2n-20260715T202343Z-6a4e465
+    reviewed_ledger: reports/stage1/S1-13-experiment-failures.json
+    cause: asset bundle 2389469 records old registry and fragment-map digests but no producer code commit; the retained exception proves the compatibility boundary but does not expose the exact current digest
+    secondary_finding: this Miyabi Open MPI invocation emitted an empty report-bindings stream, so effective per-rank affinity must be captured inside each MPI process
+    expected_solution: run one same-Checker-authorized final asset_stage attempt that first emits exact old expected/actual real-model identities, then rebuilds both immutable bootstraps under an exact clean producer commit while hard-link reusing all four validated datasets; no L2 or larger run is authorized
+    correction_commit: 1cb2ef7e2f552329134a6985a339781652f18dd6
   attempt_budget: {asset_stage: 2, red: 1, targeted: 4, reproduction_preflight: 2, l1_real: 2, l2_real: 3, formal_l3_9n: 2, formal_l4_long: 2}
   attempt_budget_amendments:
+    - recorded_at_utc: 2026-07-15T20:42:48Z
+      budget_class: asset_stage
+      registered_budget: 2
+      consumed_before_correction: 1
+      consumed_attempts: [2389469.opbs]
+      reason: The original successful asset materialization did not bind its producer commit and is incompatible with the current real-model registry or fragment map. The already-registered second asset-stage attempt is the smallest check that can diagnose the exact digest difference and rebuild the immutable bootstraps without running a learner or syncer.
+      scope: Exactly one final one-node asset compatibility diagnosis and rebuild. Reuse all four validated dataset trees, keep the Hub offline, validate both rebuilt workloads, and do not change or authorize any reproduction-preflight, L2, 9N, long-smoke, or formal-run budget.
+      authorization_gate: The same S1-13 Checker must review the failed L2 package, correction commit, static evidence, exact old identities, and this scope before the asset job is submitted.
     - amended_at_utc: 2026-07-15T19:18:02Z
       prior_targeted_budget: 3
       amended_targeted_budget: 4
@@ -116,13 +136,14 @@ preflight:
   package_validator_command: fsbdd evidence validate runtime_runs/S1-13/formal-9n and runtime_runs/S1-13/formal-long
   package_validator_result: pending
   reduced_reproduction_contract: reports/stage1/S1-13-reproduction-contract.json
-  reduced_reproduction_contract_sha256: bc6b8479bdc9a61e813f571fdefe839d7856dc41ef14a5475499a31231948fb7
-  reduced_reproduction_preflight_command: python -m fsbdd.auxiliary.stage1.reproduction preflight --project-root <clean-worktree> --config configs/stage1/s1_13_nine_node_resolved.json --asset-root runtime_runs/S1-13/assets-2389469.opbs --gate-contract reports/stage1/S1-13-gate-contract.json --reproduction-contract reports/stage1/S1-13-reproduction-contract.json --expected-commit <commit> --expected-reproduction-contract-sha256 bc6b8479bdc9a61e813f571fdefe839d7856dc41ef14a5475499a31231948fb7 --output <preflight-output>/preflight-validator.json
-  reduced_reproduction_preflight_result: job 2392830 passed all 10 selected tests in 0.33 seconds, frozen package validator returned admissible, scheduler exit status 0; same-Checker Phase B review pending before any L2 request
+  reduced_reproduction_contract_sha256: 701d67f57a6964e583272a674e08f8dd2ee44f05b199bc16cba135b9da3707ee
+  historical_l2_reproduction_contract_sha256: bc6b8479bdc9a61e813f571fdefe839d7856dc41ef14a5475499a31231948fb7
+  reduced_reproduction_preflight_command: pending refreeze against the rebuilt asset marker and resolved config; both prior preflight attempts are consumed and any new preflight requires a reasoned budget amendment plus same-Checker exact-commit authorization
+  reduced_reproduction_preflight_result: historical job 2392830 passed all 10 selected tests and its frozen package validator, then same-Checker Phase B passed and authorized job 2392852; the package is not reusable because the real-model run proved the old asset incompatible
   reduced_reproduction_validator_command: python -m fsbdd.auxiliary.stage1.reproduction validate --result-root <result-root> --reproduction-contract reports/stage1/S1-13-reproduction-contract.json
-  reduced_reproduction_validator_result: pending
+  reduced_reproduction_validator_result: job 2392852 stopped at learner initialization before the analyzer or package validator; no correction-reproduction gate result exists
   checker_phase_a: required
-  asset_freeze: pending visibility-last S1-13 marker binding the S1-06 raw identities plus deterministic GPT-2 train/validation and Pythia one-billion-token materializations
+  asset_freeze: old bundle 2389469 is rejected by current real-model compatibility and lacks producer identity; exact-clean offline diagnosis and visibility-last rebuild are pending same-Checker authorization
   runtime_budget: nine-node 1200 active seconds absolute ceiling pending tighter compatible value from real smokes; long-run 21600 active seconds
 red:
   command: PYTHONPATH=src .venv/bin/python tests/red_cases/s1_13_naive_gate_analyzer.py
@@ -133,12 +154,12 @@ green:
   evidence_path: reports/stage1/S1-13-experiment-failures.json
 harden:
   commands: [bash -n every active S1-13 PBS script and failure helper, jq empty failure and evidence contracts, git diff --check]
-  evidence_paths: [runtime_runs/S1-13/targeted-f0bb4fb-20260715T180720Z, runtime_runs/S1-13/targeted-681e013-20260715T182501Z, runtime_runs/S1-13/targeted-focus-a026505-20260715T191211Z, runtime_runs/S1-13/targeted-bac11ae-20260715T192015Z, runtime_runs/S1-13/reproduction-preflight-d9c3f01-20260715T201400Z, runtime_runs/S1-13/reproduction-preflight-6a4e465-20260715T201715Z, evidence/indexes/S1-13.md]
+  evidence_paths: [runtime_runs/S1-13/targeted-f0bb4fb-20260715T180720Z, runtime_runs/S1-13/targeted-681e013-20260715T182501Z, runtime_runs/S1-13/targeted-focus-a026505-20260715T191211Z, runtime_runs/S1-13/targeted-bac11ae-20260715T192015Z, runtime_runs/S1-13/reproduction-preflight-d9c3f01-20260715T201400Z, runtime_runs/S1-13/reproduction-preflight-6a4e465-20260715T201715Z, runtime_runs/S1-13/reproduction-2n-s1-13-corrected-2n-20260715T202343Z-6a4e465, evidence/indexes/S1-13.md]
 nine_node_gate: {required: true, run_id: null, topology_gate: null, loss_gate: null, runtime_gate: null}
 checker:
   context_id: s1_13_checker
   maker_chat_inherited: false
-  phase_a_verdict: candidate 6a4e465 was admitted for the second and final one-node reproduction preflight after the first attempt's reviewed fixture failure and explicit budget amendment; job 2392830 passed all 10 selected tests and the frozen package validator returned admissible; no L2 runtime run is yet authorized
+  phase_a_verdict: same-Checker Phase B passed preflight job 2392830 and authorized exactly one third-and-final L2 run at runtime commit 6a4e465; job 2392852 consumed that authorization and failed before training on the old asset compatibility boundary; no subsequent compute run is authorized
   verdict: null
   report_path: reports/checkers/S1-13.md
   cycles:
@@ -171,13 +192,13 @@ checker:
       verdict: ADMISSIBLE for exactly one one-node reproduction_preflight; no L2 or larger run authorized
       result: job 2392798 failed one positive miniature-repository fixture after nine selected tests passed; automatic raw failure captured, reviewed cause and expected solution recorded, and no learner/syncer workload ran
     - candidate: 6a4e465ce43830c28a56508ca66304cb43fb62b5
-      verdict: ADMISSIBLE for exactly one second one-node reproduction_preflight; no L2 or larger run authorized
-      result: job 2392830 passed all 10 selected tests, frozen package validator returned admissible, scheduler exit status 0, and no learner/syncer workload ran
+      verdict: ADMISSIBLE for exactly one second one-node reproduction_preflight; after job 2392830 passed, Phase B PASS and Phase A ADMISSIBLE for exactly one third-and-final L2 attempt at this runtime commit; no retry or larger run authorized
+      result: preflight job 2392830 passed; authorized L2 job 2392852 failed during learner initialization on immutable asset registry/fragment-map incompatibility, with no learner readiness, proposal, update, or training
 persist:
   evidence_index: evidence/indexes/S1-13.md
   raw_evidence_root: runtime_runs/S1-13
   acceptance_traceability_updated: false
   next_gap: Stage 2 asynchronous GPU to CPU to filesystem publication pipeline
   handoff: >-
-    Checker authorized the reasoned second and final one-node preflight at 6a4e465. Job 2392830 passed all 10 selected analyzer, validator, MPI-dispatch, and static-contract tests in 0.33 seconds; the exact-clean frozen-package validator returned admissible; scheduler exit status was 0 with no abnormal node and empty stderr. Persist the evidence and return it to the same Checker for Phase B. Do not request or submit L2 until that review explicitly authorizes it.
-blocker: Same-Checker Phase B review of passing preflight job 2392830 is required before any L2 request. No two-node reproduction, 9N, long smoke, or formal long submission is currently authorized.
+    Same-Checker Phase B passed preflight 2392830 and authorized the final L2 at 6a4e465. Job 2392852 failed before training because old asset bundle 2389469 does not match the current real-model registry or fragment map and records no producer commit; its reviewed failure and exact evidence are persisted. Correction 1cb2ef7 adds an exclusive real-model compatibility report, exact expected/actual learner error, producer-commit chain, offline hard-link asset rebuild, post-rebuild checks for both workloads, and effective per-rank MPI affinity evidence. Login static gates pass. Request only the remaining second/final asset_stage attempt from the same Checker; no L2, preflight, 9N, long-smoke, or formal run is authorized.
+blocker: Same-Checker review and exact-commit authorization are required for the remaining second/final asset_stage attempt. All reproduction-preflight and L2 budgets are exhausted, and no two-node, 9N, long-smoke, or formal long submission is authorized.

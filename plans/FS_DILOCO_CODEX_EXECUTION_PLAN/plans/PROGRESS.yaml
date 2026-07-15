@@ -365,7 +365,7 @@ loops:
   result_commit: null
   evidence_index: evidence/indexes/S1-13.md
   checker_verdict: null
-  blocker: Checker authorized the reasoned second and final one-node preflight at 6a4e465. Job 2392830 passed all 10 selected tests, the exact-clean frozen-package validator returned admissible, and scheduler exit status was 0 with no abnormal node or stderr. Same-Checker Phase B review of the complete evidence is required before any L2 request; no two-node, 9N, long-smoke, or formal run is currently authorized.
+  blocker: Same-Checker Phase B passed preflight 2392830 and authorized the final L2 at 6a4e465, but job 2392852 failed before training because old asset bundle 2389469 has incompatible real-model registry/fragment-map identity and no producer commit. Correction 1cb2ef7 passes login static gates. Only the already-budgeted second/final one-node asset compatibility diagnosis and rebuild may be requested next; no reproduction-preflight, L2, 9N, long-smoke, or formal run is authorized.
 - id: S2-01
   stage: stage2
   title: 异步 GPU→CPU→FS Publication Pipeline
