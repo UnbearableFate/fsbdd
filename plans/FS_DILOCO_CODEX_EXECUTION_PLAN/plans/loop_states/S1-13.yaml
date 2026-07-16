@@ -432,6 +432,23 @@ long_smoke:
   loss_gate: pass in non-formal diagnostic mode; every stream finite, positive, contiguous, and counter-reconciled; aggregate final/initial 0.993717157353977; robust slope -0.000028332695364952087
   runtime_gate: pass; 539.716323747 active seconds of 1200, heartbeat/pending/durability assertions pass
   protocol_gate: pass; global cycle 60 >= 58, publication-opportunity margin, bounded/classified inventory, reclamation, progress reconciliation, fragment-only byte accounting, and forbidden-runtime assertions pass
+formal_long:
+  status: running
+  run_id: s1-13-formal-long-20260716T025218Z-4354da0
+  pbs_job_id: 2394870.opbs
+  code_commit: 4354da018789498f5b3e1d05a7f0657a1fedb858
+  clean_worktree: /work/xg24i002/x10041/fsbdd-s1-13-formal-long-4354da0
+  requested_queue: regular-g
+  effective_queue: small-g
+  qtime_utc: 2026-07-16T02:52:18Z
+  started_at_utc: 2026-07-16T02:52:41Z
+  hosts: [mg0921, mg1034, mg1040, mg1042, mg1055]
+  result_root: runtime_runs/S1-13/results-s1-13-formal-long-20260716T025218Z-4354da0
+  shared_root: runtime_runs/S1-13/shared-s1-13-formal-long-20260716T025218Z-4354da0
+  evidence_root: runtime_runs/S1-13/formal-long-s1-13-formal-long-20260716T025218Z-4354da0
+  scheduler_request: five nodes and 28800 seconds walltime
+  formal_contract: four learners at 122071 optimizer steps, expected aggregate 1000005632 input tokens, minimum global cycle 2400, formal final-to-initial loss ratio at most 0.99, negative robust slope, active runtime at most 21600 seconds
+  initial_result: 367 Stage 1 tests passed in 32.10 seconds; all four learners and the CPU-only syncer entered the real runtime
 checker:
   context_id: s1_13_checker
   maker_chat_inherited: false
@@ -503,5 +520,5 @@ persist:
   acceptance_traceability_updated: false
   next_gap: Stage 2 asynchronous GPU to CPU to filesystem publication pipeline
   handoff: >-
-    Corrected five-node job 2394619 passed at commit 6bc43ed9bd9ad06dd3fbd675c56ffcd01a61de3a: 367 tests, all five roles, four learners at 3000 steps/6144000 tokens, 240 updates and [60,60,60,60], all topology/loss/runtime/protocol gates, scheduler exit 0/no abnormal node. Persist this passing smoke, then create a clean committed worktree and submit the sole remaining formal M=4/Pythia-160M/FineWeb-Edu run for at least one billion aggregate input tokens and minimum global cycle 2400. After it passes, run the independent final Checker and Stage 1 closure audit.
-blocker: The corrected smoke is complete. Stage 1 now awaits the formal one-billion-token long run from a clean committed worktree, its immutable post-run evidence package, and the independent final Checker/closure audit.
+    Corrected five-node job 2394619 passed every gate. Formal job 2394870 is running from clean detached commit 4354da018789498f5b3e1d05a7f0657a1fedb858 with run ID s1-13-formal-long-20260716T025218Z-4354da0 on hosts mg0921, mg1034, mg1040, mg1042, and mg1055. Its 367-test preflight passed and all five roles entered runtime. Monitor to terminal state. Any failure must be captured and reviewed before another experiment; a pass proceeds to package validation, independent final Checker, acceptance traceability, checkpoint, and Stage 1 closure audit.
+blocker: Formal long job 2394870.opbs is running. Stage 1 cannot close until the formal run, immutable package, independent final Checker, and closure audit pass.

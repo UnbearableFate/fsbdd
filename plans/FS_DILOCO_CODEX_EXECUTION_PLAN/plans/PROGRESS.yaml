@@ -365,7 +365,7 @@ loops:
   result_commit: null
   evidence_index: evidence/indexes/S1-13.md
   checker_verdict: null
-  blocker: Corrected five-node smoke 2394619.opbs passed from commit 6bc43ed9bd9ad06dd3fbd675c56ffcd01a61de3a. All 367 tests and five roles passed; each learner completed 3000 steps/6144000 tokens, the CPU-only syncer completed 240 updates at [60,60,60,60], all topology/loss/runtime/protocol gates passed, and scheduler exit was 0 with no abnormal node. The remaining Stage 1 blocker is the formal M=4/Pythia-160M/FineWeb-Edu/real-FS run with at least one billion aggregate input tokens, formal loss trend, minimum global cycle 2400, clean-worktree evidence package, and final independent Checker/closure audit.
+  blocker: Corrected five-node smoke 2394619.opbs passed all gates. Formal long job 2394870.opbs is running from clean detached worktree commit 4354da018789498f5b3e1d05a7f0657a1fedb858 with run ID s1-13-formal-long-20260716T025218Z-4354da0 on five distinct hosts. It must still complete at least one billion aggregate input tokens, formal loss trend, minimum global cycle 2400, all topology/runtime/protocol/package gates, scheduler success, and the final independent Checker/closure audit.
 - id: S2-01
   stage: stage2
   title: 异步 GPU→CPU→FS Publication Pipeline
