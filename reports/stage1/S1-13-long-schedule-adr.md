@@ -107,3 +107,20 @@ gap bounded by active writers and additionally enforces the history-independent
 orphan bound `retained_recent + visibility_records * inventory_interval`.
 Scheduler qtime is explicitly passed to every MPI rank. Job `2394333` is not
 retroactively passed; one replacement smoke must pass before formal submission.
+
+## 2026-07-16 corrected smoke result
+
+Replacement job `2394619.opbs` passed from commit
+`6bc43ed9bd9ad06dd3fbd675c56ffcd01a61de3a`. All 367 tests and five roles
+completed on distinct hosts. Each learner reached 3,000 optimizer steps and
+6,144,000 input tokens; the syncer completed 240 updates at final vector
+`[60,60,60,60]`. Topology, non-formal loss validity, runtime, and protocol
+gates all pass, including identical propagated PBS qtime on every rank and the
+active-writer/history-independent inventory bounds. Scheduler exit was 0 after
+605 seconds with no abnormal node.
+
+This prospectively validates the 58-of-60 non-formal schedule and analyzer
+amendments. It does not change the formal minimum cycle 2,400, aggregate token
+budget of at least one billion, formal loss ratio/slope threshold, model/data
+identity, active runtime budget, or evidence-package requirements. The formal
+long run is now the next admissible experiment.

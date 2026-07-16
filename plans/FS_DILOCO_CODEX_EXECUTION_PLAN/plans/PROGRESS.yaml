@@ -365,7 +365,7 @@ loops:
   result_commit: null
   evidence_index: evidence/indexes/S1-13.md
   checker_verdict: null
-  blocker: Job 2394333.opbs passed all 365 tests and all five runtime roles, completed four learners at 3000 steps/6144000 tokens each, reached [58,58,58,58], and passed the runtime gate in 536.81522485 active seconds. It remains failed because post-run topology/loss/protocol support checks exposed missing remote MPI qtime propagation, a formal loss trend incorrectly applied to the non-formal 24.576M-token capacity window, and impossible pointwise marker equality during one concurrent inventory sample. Scheduler exit was 1 after 10 minutes with no abnormal node. Automatic/reviewed failure, scheduler summary, and ledger entry 13 are complete. The qtime/non-formal-loss/writer-bounded-history-independent-inventory correction and regressions passed all login static gates at 2026-07-16T02:31:26Z; commit before one replacement smoke. Formal minimum 2400, formal quality threshold, and one-billion-token budget are unchanged; formal long remains blocked until the smoke passes.
+  blocker: Corrected five-node smoke 2394619.opbs passed from commit 6bc43ed9bd9ad06dd3fbd675c56ffcd01a61de3a. All 367 tests and five roles passed; each learner completed 3000 steps/6144000 tokens, the CPU-only syncer completed 240 updates at [60,60,60,60], all topology/loss/runtime/protocol gates passed, and scheduler exit was 0 with no abnormal node. The remaining Stage 1 blocker is the formal M=4/Pythia-160M/FineWeb-Edu/real-FS run with at least one billion aggregate input tokens, formal loss trend, minimum global cycle 2400, clean-worktree evidence package, and final independent Checker/closure audit.
 - id: S2-01
   stage: stage2
   title: 异步 GPU→CPU→FS Publication Pipeline

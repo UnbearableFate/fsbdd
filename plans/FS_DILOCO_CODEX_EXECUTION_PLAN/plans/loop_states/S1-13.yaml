@@ -18,7 +18,7 @@ dependencies: [S1-12]
 requirements: [INV-01, INV-08, PROG-02, TEL-01, TEL-02, TEL-03, TEL-04]
 acceptance_ids: [A-LEARN-01, A-PERF-01]
 orient:
-  unique_failing_gap: The formal nine-node gate and corrected publication capacity pass. Job 2394333 passed all runtime capacity facts at [58,58,58,58] but failed three auxiliary post-run checks covering remote MPI qtime propagation, a formal loss trend incorrectly applied to the non-formal capacity window, and pointwise marker equality during concurrent inventory. The reviewed correction requires static gates, one replacement smoke, then the formal one-billion-token run.
+  unique_failing_gap: The formal nine-node gate and corrected five-node capacity/analyzer smoke pass. The only remaining runtime gap is the formal M=4 Pythia-160M/FineWeb-Edu real-filesystem run with at least one billion aggregate input tokens, minimum global cycle 2400, the formal loss trend, and a complete evidence package, followed by the independent final Checker and Stage 1 closure audit.
   non_goals: [stale proposals, S_max one, matched-token quality comparison, Stage 2 goodput threshold, DDP NCCL RPC parameter server, mutable Hub revisions]
   planned_files: [src/fsbdd/diloco/, src/fsbdd/auxiliary/stage1/, src/fsbdd/auxiliary/stress/, configs/stage1/s1_13_stage1_close.json, tests/stage1/test_s1_13_close.py, tests/stage1/test_s1_13_reproduction.py, tests/stage1/test_s1_13_static.py, tests/stage1/test_source_architecture.py, tests/red_cases/s1_13_naive_gate_analyzer.py, pbs/stage1_s1_13_assets.pbs, pbs/stage1_s1_13_targeted.pbs, pbs/stage1_s1_13_targeted_focus.pbs, pbs/stage1_s1_13_reproduction_preflight.pbs, pbs/stage1_s1_13_smoke_1n.pbs, pbs/stage1_s1_13_smoke_2n.pbs, pbs/stage1_s1_13_numpy_correction.pbs, pbs/stage1_s1_13_formal_9n.pbs, pbs/stage1_s1_13_long_smoke.pbs, pbs/stage1_s1_13_formal_long.pbs, reports/stage1/S1-13-requirement-matrix.csv, reports/stage1/S1-13-evidence-contract.json, reports/stage1/S1-13-gate-contract.json, reports/stage1/S1-13-reproduction-contract.json, reports/stage1/S1-13-capacity-preflight-contract.json, reports/stage1/S1-13-publication-capacity-code-review.md, reports/stage1/S1-13-experiment-failures.json]
   model_data_profile: Immutable pretrained GPT-2 small plus WikiText-2 raw packed-512 for the 8+1 gate and immutable pretrained Pythia-160m plus FineWeb-Edu canonical packed-512 prefix for the M=4 aggregate-at-least-one-billion-input-token long run.
@@ -159,6 +159,17 @@ orient:
     reviewed_ledger: reports/stage1/S1-13-experiment-failures.json entry 13
     cause: PBS_QTIME_UTC was not explicitly propagated to remote MPI ranks; the non-formal 24.576M-token capacity smoke inherited the formal loss-trend threshold; and concurrent proposal inventory required exact marker/orphan equality despite one bounded in-progress classification at cycle 30
     expected_solution: explicitly propagate qtime, retain strict basic non-formal loss validation but reserve trend enforcement for formal evidence, enforce active-writer-bounded classification plus a history-independent orphan bound, add regressions, and pass static gates before one replacement smoke
+  latest_corrected_smoke_pass:
+    experiment_id: s1-13-long-smoke-analyzer-corrected-20260716T023518Z-6bc43ed
+    pbs_job_id: 2394619.opbs
+    code_commit: 6bc43ed9bd9ad06dd3fbd675c56ffcd01a61de3a
+    result: all 367 tests and five roles passed; four learners completed 3000 steps/6144000 tokens each; syncer completed 240 updates at [60,60,60,60]; topology/loss/runtime/protocol gates passed; scheduler exit 0, walltime 605 seconds, no abnormal node
+    raw_evidence_root: runtime_runs/S1-13/s1-13-long-smoke-analyzer-corrected-20260716T023518Z-6bc43ed
+    shared_evidence_root: runtime_runs/S1-13/shared-s1-13-long-smoke-analyzer-corrected-20260716T023518Z-6bc43ed
+    active_runtime_seconds: 539.716323747
+    aggregate_processed_input_tokens: 24576000
+    non_formal_loss_diagnostic: finite positive contiguous and counter-reconciled on all learners; aggregate final/initial 0.993717157353977 and robust slope -0.000028332695364952087; formal threshold intentionally not enforced
+    analyzer_result: all four gates pass; five identical propagated PBS qtimes; cycle-30 single in-progress proposal classified within active-writer and history-independent orphan bounds
   attempt_budget: {asset_stage: 3, red: 1, targeted: 5, reproduction_preflight: 3, capacity_preflight: 1, l1_real: 2, l2_real: 4, formal_l3_9n: 2, formal_l4_long: 4}
   attempt_budget_amendments:
     - recorded_at_utc: 2026-07-15T20:42:48Z
@@ -348,7 +359,11 @@ orient:
       authorization_gate: User-approved recovery ADR; no per-candidate Checker, caller-supplied repository-file hash, or routine full checksum inventory. Failure ledger entry 13 and static gates must be complete before qsub.
       authorization_commit: actual qsub commit captured by the run; no predeclared authorization commit under the recovery ADR
       checker_verdict: not required by the user-approved recovery ADR
-      final_attempt: pending
+      final_attempt: 2394619.opbs
+      run_id: s1-13-long-smoke-analyzer-corrected-20260716T023518Z-6bc43ed
+      result_root: runtime_runs/S1-13/s1-13-long-smoke-analyzer-corrected-20260716T023518Z-6bc43ed
+      shared_root: runtime_runs/S1-13/shared-s1-13-long-smoke-analyzer-corrected-20260716T023518Z-6bc43ed
+      final_attempt_result: pass; 367 tests; four 3000-step learners; 24,576,000 aggregate tokens; 240 updates and [60,60,60,60]; topology/loss/runtime/protocol gates pass; scheduler exit 0/no abnormal node
   failure_ladder: preserve the first expensive failure then reproduce its failing role or analyzer at the smallest one-node or two-node topology before an authorized retry
   nine_node_gate_required: true
   goal_tokens_start: 5924432
@@ -386,7 +401,7 @@ green:
 harden:
   commands: [bash -n every active S1-13 PBS script and failure helper, jq empty failure and evidence contracts, git diff --check]
   evidence_paths: [runtime_runs/S1-13/targeted-f0bb4fb-20260715T180720Z, runtime_runs/S1-13/targeted-681e013-20260715T182501Z, runtime_runs/S1-13/targeted-focus-a026505-20260715T191211Z, runtime_runs/S1-13/targeted-bac11ae-20260715T192015Z, runtime_runs/S1-13/reproduction-preflight-d9c3f01-20260715T201400Z, runtime_runs/S1-13/reproduction-preflight-6a4e465-20260715T201715Z, runtime_runs/S1-13/reproduction-2n-s1-13-corrected-2n-20260715T202343Z-6a4e465, evidence/indexes/S1-13.md]
-  latest_result: pass at 2026-07-16T02:31:26Z; Bash, JSON/YAML, explicit qtime propagation, non-formal/formal loss, writer/orphan bounds, current/formal thresholds, architecture, runtime-path, external marker, and diff gates all pass
+  latest_result: corrected five-node job 2394619 passed 367 tests, all five roles, every topology/loss/runtime/protocol analyzer gate, and scheduler completion at commit 6bc43ed9bd9ad06dd3fbd675c56ffcd01a61de3a; formal long remains unrun
 nine_node_gate:
   required: true
   run_id: s1-13-formal-9n-20260715T220641Z-e850f51
@@ -403,6 +418,20 @@ nine_node_gate:
   protocol_gate: pass; final version vector [10, 10, 11, 10], 9226240 aggregate input tokens, contiguous fragment versions, bounded/classified inventories, fresh-only Q=8 selections
   package_validator: admissible; exact 179-file coverage
   checker_phase_b: pass; same Checker independently verified scheduler completion, all 179 package checksums, raw topology/loss/runtime/protocol facts, and the first formal_l3_9n attempt was consumed successfully with no retry warranted
+long_smoke:
+  run_id: s1-13-long-smoke-analyzer-corrected-20260716T023518Z-6bc43ed
+  pbs_job_id: 2394619.opbs
+  code_commit: 6bc43ed9bd9ad06dd3fbd675c56ffcd01a61de3a
+  result_root: runtime_runs/S1-13/s1-13-long-smoke-analyzer-corrected-20260716T023518Z-6bc43ed
+  shared_root: runtime_runs/S1-13/shared-s1-13-long-smoke-analyzer-corrected-20260716T023518Z-6bc43ed
+  scheduler_result: exit 0 after 605 seconds on five distinct hosts mg0017, mg0019, mg0020, mg0021, and mg0022; no abnormal node
+  test_result: 367 Stage 1 tests passed in 32.63 seconds
+  learner_result: four learners completed 3000 optimizer steps and 6144000 input tokens each; aggregate 24576000 tokens
+  syncer_result: 240 fresh-only fragment updates; final version vector [60, 60, 60, 60]; all bounded-state and reclamation assertions pass
+  topology_gate: pass; four GPU learners on distinct hosts plus CPU-only syncer; five identical propagated PBS qtimes and one shared-filesystem identity
+  loss_gate: pass in non-formal diagnostic mode; every stream finite, positive, contiguous, and counter-reconciled; aggregate final/initial 0.993717157353977; robust slope -0.000028332695364952087
+  runtime_gate: pass; 539.716323747 active seconds of 1200, heartbeat/pending/durability assertions pass
+  protocol_gate: pass; global cycle 60 >= 58, publication-opportunity margin, bounded/classified inventory, reclamation, progress reconciliation, fragment-only byte accounting, and forbidden-runtime assertions pass
 checker:
   context_id: s1_13_checker
   maker_chat_inherited: false
@@ -474,5 +503,5 @@ persist:
   acceptance_traceability_updated: false
   next_gap: Stage 2 asynchronous GPU to CPU to filesystem publication pipeline
   handoff: >-
-    Job 2394333 passed all 365 tests, all runtime roles, 24,576,000 tokens, [58,58,58,58], and the runtime gate, then failed auxiliary topology/loss/protocol analysis. Automatic/reviewed failure, scheduler summary, and ledger entry 13 are complete. The qtime propagation, non-formal loss semantics, and concurrent inventory bounds are corrected with regressions; all login static gates pass at 2026-07-16T02:31:26Z. Commit before one replacement smoke. Formal long remains blocked until that smoke passes.
-blocker: Job 2394333 failure review, ledger entry 13, and all static correction gates are complete. Commit the MPI qtime, non-formal loss, concurrent inventory, and formal-script correction before one replacement five-node smoke; no formal long may run first.
+    Corrected five-node job 2394619 passed at commit 6bc43ed9bd9ad06dd3fbd675c56ffcd01a61de3a: 367 tests, all five roles, four learners at 3000 steps/6144000 tokens, 240 updates and [60,60,60,60], all topology/loss/runtime/protocol gates, scheduler exit 0/no abnormal node. Persist this passing smoke, then create a clean committed worktree and submit the sole remaining formal M=4/Pythia-160M/FineWeb-Edu run for at least one billion aggregate input tokens and minimum global cycle 2400. After it passes, run the independent final Checker and Stage 1 closure audit.
+blocker: The corrected smoke is complete. Stage 1 now awaits the formal one-billion-token long run from a clean committed worktree, its immutable post-run evidence package, and the independent final Checker/closure audit.

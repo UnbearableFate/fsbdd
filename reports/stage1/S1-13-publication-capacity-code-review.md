@@ -234,3 +234,16 @@ YAML parsing, explicit qtime propagation, non-formal/formal loss separation,
 writer/orphan bound checks, current 58-versus-formal-2,400 checks, production
 dependency/runtime-path audits, external marker validation, and
 `git diff --check`. No project test or runtime ran on the login node.
+
+Corrected replacement job `2394619.opbs` then passed from commit
+`6bc43ed9bd9ad06dd3fbd675c56ffcd01a61de3a`. All 367 Stage 1 tests and five
+runtime roles passed on five distinct hosts. The four learners completed 3,000
+steps and 6,144,000 input tokens each; the syncer completed 240 updates at
+`[60,60,60,60]`. Topology, non-formal loss validity, runtime, and protocol
+gates all pass. All five roles carry the same propagated PBS queue timestamp;
+the cycle-30 single in-progress proposal is classified within the active-writer
+bound; every inventory remains below the history-independent bound. Scheduler
+exit was 0 after 605 seconds with no abnormal node and empty stderr. This
+runtime result closes CR-07 and the publication-capacity recovery ladder. It
+does not replace or relax the pending formal one-billion-token loss, cycle, or
+evidence-package gates.
