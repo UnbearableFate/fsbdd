@@ -12,28 +12,14 @@ install_experiment_failure_traps
 : "${PROJECT_ROOT:?PROJECT_ROOT is required}"
 : "${MAIN_ROOT:=/work/xg24i002/x10041/fsbdd}"
 : "${HF_HOME:=/work/xg24i002/x10041/hf_home}"
-: "${EXPECTED_COMMIT:?EXPECTED_COMMIT is required}"
 : "${RESOLVED_CONFIG:?RESOLVED_CONFIG is required}"
-: "${CONFIG_SHA256:?CONFIG_SHA256 is required}"
-: "${ASSET_MARKER_SHA256:?ASSET_MARKER_SHA256 is required}"
 : "${GATE_CONTRACT:?GATE_CONTRACT is required}"
-: "${GATE_CONTRACT_SHA256:?GATE_CONTRACT_SHA256 is required}"
 : "${SHARED_ROOT:?SHARED_ROOT is required}"
 : "${RESULT_ROOT:?RESULT_ROOT is required}"
 : "${RUN_ID:?RUN_ID is required}"
 
 PYTHON="$MAIN_ROOT/.venv/bin/python"
 module load nv-hpcx/25.9
-if [[ "$(git -C "$PROJECT_ROOT" rev-parse HEAD)" != "$EXPECTED_COMMIT" ]] || \
-   [[ -n "$(git -C "$PROJECT_ROOT" status --porcelain)" ]]; then
-  echo "long-smoke clean worktree identity mismatch" >&2
-  exit 65
-fi
-if [[ "$(sha256sum "$RESOLVED_CONFIG" | awk '{print $1}')" != "$CONFIG_SHA256" ]] || \
-   [[ "$(sha256sum "$GATE_CONTRACT" | awk '{print $1}')" != "$GATE_CONTRACT_SHA256" ]]; then
-  echo "long-smoke config or gate-contract identity mismatch" >&2
-  exit 65
-fi
 if [[ -e "$SHARED_ROOT" || -e "$RESULT_ROOT" ]]; then
   echo "refusing to reuse long-smoke roots" >&2
   exit 73
@@ -56,6 +42,17 @@ qstat -f "$PBS_JOBID" > "$RESULT_ROOT/env/qstat.txt"
 module -t list > "$RESULT_ROOT/env/modules.txt" 2>&1
 findmnt -T "$SHARED_ROOT" > "$RESULT_ROOT/env/findmnt.txt"
 cp "$PROJECT_ROOT/pbs/stage1_s1_13_long_smoke.pbs" "$RESULT_ROOT/env/pbs-script.pbs"
+cp "$RESOLVED_CONFIG" "$RESULT_ROOT/env/resolved-config.json"
+cp "$GATE_CONTRACT" "$RESULT_ROOT/env/gate-contract.json"
+RESOLVED_CONFIG="$RESULT_ROOT/env/resolved-config.json"
+GATE_CONTRACT="$RESULT_ROOT/env/gate-contract.json"
+CONFIG_SHA256="$(sha256sum "$RESOLVED_CONFIG" | awk '{print $1}')"
+GATE_CONTRACT_SHA256="$(sha256sum "$GATE_CONTRACT" | awk '{print $1}')"
+ASSET_MARKER_SHA256="$(jq -er '.resolved_runtime_fields.asset_marker_sha256' \
+  "$RESOLVED_CONFIG")"
+git rev-parse HEAD > "$RESULT_ROOT/env/commit.txt"
+git status --short > "$RESULT_ROOT/env/worktree-status.txt"
+git diff --binary > "$RESULT_ROOT/env/worktree.patch"
 ROLE_QTIME_RAW="$(awk -F' = ' '/^[[:space:]]*qtime =/{print $2}' "$RESULT_ROOT/env/qstat.txt")"
 export PBS_QTIME_UTC="$(date -u -d "$ROLE_QTIME_RAW JST" '+%Y-%m-%dT%H:%M:%SZ')"
 # Sequential supervisor ceilings total 1590 seconds (60 + 120 + 1350 + 60).
@@ -92,6 +89,3 @@ if find "$RESULT_ROOT/stderr" -type f -size +0c -print -quit | grep -q .; then
   find "$RESULT_ROOT/stderr" -type f -size +0c -print >&2
   exit 1
 fi
-find "$RESULT_ROOT" -type f ! -name checksums.sha256 -printf '%P\0' \
-  | sort -z | xargs -0 -I{} sha256sum "$RESULT_ROOT/{}" \
-  > "$RESULT_ROOT/checksums.sha256"

@@ -56,6 +56,12 @@ def test_formal_topologies_freeze_independent_9n_and_coallocated_4_plus_1() -> N
     assert "timeout --signal=TERM --kill-after=15s 120s" in smoke
     assert smoke.count("timeout --signal=TERM --kill-after=15s 60s") == 2
     assert "pytest -vv --durations=20 -o faulthandler_timeout=60" in smoke
+    assert "EXPECTED_COMMIT" not in smoke
+    assert ': "${CONFIG_SHA256' not in smoke
+    assert ': "${GATE_CONTRACT_SHA256' not in smoke
+    assert "checksums.sha256" not in smoke
+    assert "worktree-status.txt" in smoke
+    assert "worktree.patch" in smoke
     targeted = (ROOT / "pbs/stage1_s1_13_targeted.pbs").read_text(encoding="utf-8")
     assert "EXPECTED_COMMIT" in targeted
     assert 'if [[ -e "$OUTPUT_ROOT" ]]' in targeted

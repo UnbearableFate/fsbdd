@@ -243,12 +243,13 @@ orient:
       budget_class: capacity_preflight
       registered_budget: 1
       consumed_before_registration: 0
-      reason: Five-node job 2393139 supplied full real-model evidence that the remaining failure is large-payload publication capacity. The correction changes a production storage primitive, so the smallest attribution is one CPU-only one-node shared-filesystem comparison at the exact failed-run successor sizes before another five-node allocation.
-      scope: Exactly one exact-clean one-node run using only pbs/stage1_s1_13_numpy_correction.pbs and the frozen S1-13 capacity contract. It compares the corrected source-SHA complete-write mode with the former post-write readback control at 309,071,808 and 340,239,052 bytes, validates every payload, imports no Torch, uses no CUDA, and does not execute a learner or multi-node syncer.
-      authorization_gate: The same S1-13 Checker must pass job 2393139 failure attribution, the complete corrective code review, storage correctness regressions, component telemetry, exact-size contract, PBS script, static gates, and an exact clean candidate before qsub. This registration does not authorize compute.
-      authorization_commit: 24cc55996957a745c40b50020fa1e1e1a4eb013c
-      checker_verdict: pending
-      final_attempt: pending
+      reason: Five-node job 2393139 supplied full real-model evidence that the remaining failure is large-payload publication capacity. The smallest direct attribution is one CPU-only one-node shared-filesystem run of the real NumPy merge plus atomic commit at both exact failed-run fragment sizes before another five-node allocation.
+      scope: Exactly one lightweight one-node run using pbs/stage1_s1_13_numpy_correction.pbs and the S1-13 capacity contract. It runs the complete Stage 1 suite, measures 154,533,888- and 170,115,072-byte NumPy merge-plus-commit updates, performs no post-write payload readback, imports no Torch, uses no CUDA, and executes no learner or multi-node syncer.
+      authorization_gate: User-approved recovery ADR; login-node static gates passed. No per-candidate Checker, caller-supplied hash, or full checksum inventory is required.
+      authorization_commit: 377516858fea2437fc7c3f92aee638632bf315ca
+      checker_verdict: not required by the user-approved recovery ADR
+      final_attempt: 2393404.opbs
+      final_attempt_result: pass; scheduler exit 0 on mg0010 with no abnormal node; 364 Stage 1 tests passed in 34.21 seconds; exact-size real NumPy merge-plus-commit totals 0.946533369 and 0.973654636 seconds against the 1.355-second ceiling; Torch absent and CUDA disabled
     - amended_at_utc: 2026-07-15T23:38:23Z
       prior_formal_l4_long_budget: 3
       amended_formal_l4_long_budget: 4
@@ -282,8 +283,8 @@ preflight:
   checker_phase_a: explicitly waived by the user for the remaining recovery and formal-long submissions; one independent final Checker reviews the completed formal run and Stage 1 closure
   capacity_preflight_contract: reports/stage1/S1-13-capacity-preflight-contract.json
   capacity_preflight_contract_sha256: informational value captured by the run; no caller-supplied hash gate
-  capacity_preflight_command: pending static gates for one lightweight one-node pbs/stage1_s1_13_numpy_correction.pbs run under reports/stage1/S1-13-recovery-process-adr.md
-  capacity_preflight_result: pending
+  capacity_preflight_command: completed by job 2393404.opbs from implementation commit 377516858fea2437fc7c3f92aee638632bf315ca under reports/stage1/S1-13-recovery-process-adr.md
+  capacity_preflight_result: pass; scheduler exit 0/no abnormal node; 364 tests; direct exact-size NumPy merge-plus-commit maximum 0.973654636 seconds <= 1.355 seconds; result root runtime_runs/S1-13/s1-13-capacity-preflight-20260716T003019Z-3775168
   asset_freeze: exact-clean offline job 2392989 passed at producer commit 240084d17e9e609104715c9073aac395034fd9d1 and same-Checker Phase B passed; tracked nine-node identity is f956cd698f14d52788ac54a7a5c20615f57a4a18b5a7a5053499583fb714a7ff and tracked long identity is 3c0990fb05f639dbfef3792434010e2bdb261410e727d08f103e163841fbe355 with the accepted aligned-zero overlay preserved
   runtime_budget: nine-node 1200 active seconds absolute ceiling pending tighter compatible value from real smokes; long-run 21600 active seconds
 red:
@@ -297,7 +298,7 @@ green:
 harden:
   commands: [bash -n every active S1-13 PBS script and failure helper, jq empty failure and evidence contracts, git diff --check]
   evidence_paths: [runtime_runs/S1-13/targeted-f0bb4fb-20260715T180720Z, runtime_runs/S1-13/targeted-681e013-20260715T182501Z, runtime_runs/S1-13/targeted-focus-a026505-20260715T191211Z, runtime_runs/S1-13/targeted-bac11ae-20260715T192015Z, runtime_runs/S1-13/reproduction-preflight-d9c3f01-20260715T201400Z, runtime_runs/S1-13/reproduction-preflight-6a4e465-20260715T201715Z, runtime_runs/S1-13/reproduction-2n-s1-13-corrected-2n-20260715T202343Z-6a4e465, evidence/indexes/S1-13.md]
-  latest_result: pass at 2026-07-16T00:28:14Z; every active S1-13 PBS script and failure helper has valid Bash syntax, tracked Stage 1 JSON and current YAML parse, production has no auxiliary import, and diff checks are clean
+  latest_result: pass at 2026-07-16T00:31:11Z; job 2393404 passed all 364 Stage 1 tests and both exact-size real NumPy merge-plus-commit gates, with scheduler exit 0 and no abnormal node
 nine_node_gate:
   required: true
   run_id: s1-13-formal-9n-20260715T220641Z-e850f51
@@ -385,5 +386,5 @@ persist:
   acceptance_traceability_updated: false
   next_gap: Stage 2 asynchronous GPU to CPU to filesystem publication pipeline
   handoff: >-
-    Replacement capacity smoke 2393139 passed all tests and learner work but failed at global cycle 46 of 59; Checker Phase B passed. Review found a redundant complete post-write payload readback, and the production correction removes it while retaining source-SHA, exact complete write/fstat, atomic visibility, and read-side validation. The user-approved recovery ADR removes per-candidate Checker/manual-hash/full-inventory gates. The lightweight preflight now runs the complete Stage 1 suite and directly measures exact-size real NumPy merge plus commit. Finish static gates, commit, and submit exactly one one-node preflight.
-blocker: Lightweight preflight changes passed login-node static gates and require one tracked implementation commit before qsub. No five-node retry or formal long is allowed before the one-node result.
+    Replacement capacity smoke 2393139 failed only the capacity threshold and Checker Phase B passed. The production correction removes redundant post-write payload readback. Lightweight preflight 2393404 passed 364 tests and direct exact-size NumPy merge-plus-commit totals 0.946533369/0.973654636 seconds versus the 1.355-second limit, with no Torch/CUDA, scheduler exit 0, and no abnormal node. Under the recovery ADR, prepare and submit exactly one five-node non-formal capacity smoke; any failure must be reviewed and recorded before another experiment.
+blocker: One five-node capacity smoke is next under the recovery ADR after the simplified smoke script passes login-node static gates. Formal long remains blocked until that smoke passes.
