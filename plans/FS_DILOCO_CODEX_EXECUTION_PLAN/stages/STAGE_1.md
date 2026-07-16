@@ -74,12 +74,17 @@
 - A-ALG-01
 - A-EVAL-01
 
-另需完成 source 规定的 160M、M=4、真实 FS、≥1B token run。`S1-13` 的 9 节点 50×10 不替代它。
+默认另需完成 source 规定的 160M、M=4、真实 FS、≥1B token run。`S1-13` 的
+9 节点 50×10 不替代它。2026-07-16 用户批准的单次 S1-13 early-close 例外允许以
+已通过的 9N、完整五节点同 profile smoke 和 job `2394870.opbs` 的部分
+loss/runtime 观测关闭；它不构成完成的 1B-token evidence。
 
 ## 基础能力标记
 
-只有全部 Stage 1 acceptance、M=4/160M/真实 FS/≥1B-token long run、首次 9N gate
-和 Stage 1 Checker 都通过，`S1-13` 才能标记 PASS 并写入：
+只有全部 Stage 1 acceptance、默认 M=4/160M/真实 FS/≥1B-token long run、首次
+9N gate 和 Stage 1 Checker 都通过，`S1-13` 才能标记 PASS 并写入；本次仅可按
+`reports/stage1/S1-13-early-close-adr.md` 的用户批准例外，用明确标注为 partial 的
+正式观测替代 long-run completion：
 
 ```yaml
 capability:
@@ -100,5 +105,7 @@ capability:
 - 9 节点 runtime baseline 与兼容 key 已冻结；
 - independent-jobs 8+1 运行至少一次，或若队列暂不支持，有明确 Stage 3 前补跑 blocker；
 - Checker 允许关闭。
+- 若使用一次性 early-close 例外，checkpoint 必须列出全部原 long-run 未通过项，
+  且不得声称完成 1B token。
 - Stage 1 checkpoint 报告 attempts、queue/active time、Checker cycles、返工根因及
   context/token 改进是否生效。

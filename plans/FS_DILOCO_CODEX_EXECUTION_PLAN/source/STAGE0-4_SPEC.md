@@ -1,6 +1,6 @@
 ---
 title: FS-Based Decoupled DiLoCo Stage 0–4 需求与设计规格
-version: 2.0-draft
+version: 2.1-draft
 date: 2026-07-14
 status: Review Draft
 governs: plans/01/RESEARCH_PLAN.md 的 Stage 0 至 Stage 4
@@ -291,7 +291,17 @@ Stage 5–6 与 Phase 2 不在本文范围内，其实验设计见 RESEARCH_PLAN
 | A-ALG-01 | direct merge 与 oracle 一致 | 单次 update 相对 L2 误差 ≤ 1e-6（fp32 累加），连续 50 updates 无漂移放大 |
 | A-EVAL-01 | evaluation 使用冻结 version vector | snapshot manifest + report |
 
-另须完成：160M 模型、M=4、真实共享 FS 上 ≥ 1B token 的端到端 run，loss 趋势合理（不要求 matched 对照）。
+默认另须完成：160M 模型、M=4、真实共享 FS 上 ≥ 1B token 的端到端 run，loss
+趋势合理（不要求 matched 对照）。
+
+**S1-13 一次性用户批准例外（2026-07-16）**：用户明确要求以 job
+`2394870.opbs` 的当前部分观测关闭 Stage 1。该 run 不得表述为完成 ≥1B token，原
+token/cycle/ratio/scheduler/package gate 均保留为未通过；只允许结合已通过的 9N
+baseline、完整五节点同 profile smoke，以及落盘的有限正 loss、连续 step、负稳健
+slope 和预算内 projected runtime，支持“真实训练已发生且当前趋势/时间合理”这一
+较窄结论。例外仅适用于本次 S1-13 closure，不得复用于后续 stage 或声称原 1B
+evidence 已完成。权威记录为 `reports/stage1/S1-13-early-close-adr.md` 与
+`reports/stage1/S1-13-partial-formal-observation.json`。
 
 ---
 
@@ -449,4 +459,9 @@ telemetry 为 best-effort（INV-10），但验收必须能收集以下指标。
 
 ## 13. 变更记录
 
+- **v2.1（2026-07-16）**：按用户显式指令加入一次性 S1-13 closure 例外。保留
+  job `2394870.opbs` 原 formal contract 的未通过事实，不声称完成 1B token；允许以
+  已通过的 9N/五节点 smoke 与该 job 的部分 loss/runtime 观测支持较窄的 Stage 1
+  “训练已发生”结论。算法、协议不变量、Stage 1 acceptance IDs 与后续 stage gate
+  均未改变。
 - **v2.0（2026-07-14）**：取代 `FS_BASED_DECOUPLED_DILOCO_V1_REQUIREMENTS_AND_DESIGN_SPEC.md`，按 RESEARCH_PLAN v1.1 重组为 Stage 0–4 契约。主要变化：新增 Stage 0-A 仿真规格（§2）、Stage 0-B 存储微基准规格（§3，原 FS-08 升级并给出阈值）、Stage 3 崩溃一致性与恢复规格（§7，原"故障恢复不属于验收"决定被推翻）；新增实现纪律 DISC-01..03（接口通用、行为先收窄）与存储原语抽象 STOR-01；stale 支持改为必选特性（Stage 1 落地接口、Stage 4 启用）；RDA 对照（原 OPT-03）与长跑/多 syncer 内容移出本文范围（RESEARCH_PLAN Stage 5 / Phase 2）；新增 PERF-07 可见性延迟注入能力。

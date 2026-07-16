@@ -1,0 +1,165 @@
+{
+  "schema_version": 1,
+  "loop_id": "S1-13",
+  "status": "accepted_user_directed_partial_observation",
+  "captured_at_utc": "2026-07-16T03:21:27Z",
+  "decision": {
+    "adr": "reports/stage1/S1-13-early-close-adr.md",
+    "classification": "terminated_by_user_after_accepted_partial_observation",
+    "formal_gate_pass": false,
+    "stage1_closure_allowed": true,
+    "one_billion_token_claim_allowed": false
+  },
+  "job": {
+    "run_id": "s1-13-formal-long-20260716T025218Z-4354da0",
+    "pbs_job_id": "2394870.opbs",
+    "code_commit": "4354da018789498f5b3e1d05a7f0657a1fedb858",
+    "clean_worktree": "/work/xg24i002/x10041/fsbdd-s1-13-formal-long-4354da0",
+    "requested_queue": "regular-g",
+    "effective_queue": "small-g",
+    "qtime_utc": "2026-07-16T02:52:18Z",
+    "started_at_utc": "2026-07-16T02:52:41Z",
+    "delete_requested_at_utc": "2026-07-16T03:21:35Z",
+    "finished_at_utc": "2026-07-16T03:21:57Z",
+    "scheduler_exit_status": 271,
+    "scheduler_walltime": "00:29:09",
+    "abnormal_nodes": "none",
+    "hosts": ["mg0921", "mg1034", "mg1040", "mg1042", "mg1055"],
+    "preworkload_tests": "367 passed in 32.10s",
+    "stderr_bytes": {
+      "pytest.log": 0,
+      "requirements.log": 0,
+      "mpirun.log": 0
+    }
+  },
+  "workload": {
+    "model": "EleutherAI/pythia-160m@50f5173d932e8e61f858120bcb800b97af589f46",
+    "dataset": "HuggingFaceFW/fineweb-edu@87f09149ef4734204d70ed1d046ddc9ca3f2b8f9/sample/10BT",
+    "learners": 4,
+    "syncers": 1,
+    "sequence_length": 512,
+    "batch_size": 4,
+    "processed_input_tokens_per_step": 2048,
+    "H": 50,
+    "S_max": 0
+  },
+  "observed_learners": [
+    {
+      "learner_id": "learner-00",
+      "optimizer_steps": 9219,
+      "processed_input_tokens": 18880512,
+      "loss_bearing_target_tokens": 18843636,
+      "finite_positive_loss": true,
+      "contiguous_steps": true,
+      "observed_span_seconds": 1623.638983521,
+      "projected_full_span_seconds": 21501.151086831032,
+      "mean_recorded_step_latency_seconds": 0.16050510637834944,
+      "last_timestamp_utc": "2026-07-16T03:20:52.328527Z"
+    },
+    {
+      "learner_id": "learner-01",
+      "optimizer_steps": 9217,
+      "processed_input_tokens": 18876416,
+      "loss_bearing_target_tokens": 18839548,
+      "finite_positive_loss": true,
+      "contiguous_steps": true,
+      "observed_span_seconds": 1625.784273693,
+      "projected_full_span_seconds": 21534.23245330995,
+      "mean_recorded_step_latency_seconds": 0.16061509733948062,
+      "last_timestamp_utc": "2026-07-16T03:20:54.827540Z"
+    },
+    {
+      "learner_id": "learner-02",
+      "optimizer_steps": 9217,
+      "processed_input_tokens": 18876416,
+      "loss_bearing_target_tokens": 18839548,
+      "finite_positive_loss": true,
+      "contiguous_steps": true,
+      "observed_span_seconds": 1628.715367976,
+      "projected_full_span_seconds": 21573.05609470815,
+      "mean_recorded_step_latency_seconds": 0.16059505074644642,
+      "last_timestamp_utc": "2026-07-16T03:20:57.761731Z"
+    },
+    {
+      "learner_id": "learner-03",
+      "optimizer_steps": 9217,
+      "processed_input_tokens": 18876416,
+      "loss_bearing_target_tokens": 18839548,
+      "finite_positive_loss": true,
+      "contiguous_steps": true,
+      "observed_span_seconds": 1627.505499306,
+      "projected_full_span_seconds": 21557.03084855506,
+      "mean_recorded_step_latency_seconds": 0.16059541172170952,
+      "last_timestamp_utc": "2026-07-16T03:20:56.439223Z"
+    }
+  ],
+  "aggregate_observation": {
+    "common_optimizer_steps": 9217,
+    "aggregate_processed_input_tokens": 75509760,
+    "loss_formula": "target-token-weighted common-step aggregate; discard 100 warmup points; 20-point rolling median; first and last 5 percent medians; fixed-lag median slope",
+    "initial_fraction_count": 455,
+    "initial_rolling_median": 4.355180000000001,
+    "final_rolling_median": 4.32901,
+    "final_to_initial_ratio": 0.9939910635151703,
+    "robust_lag": 909,
+    "robust_slope": -4.257425742575278e-06,
+    "projected_runtime_budget_seconds": 21600,
+    "all_projected_learner_spans_within_budget": true,
+    "authoritative_global_version_vector_after_termination": [169, 167, 166, 168],
+    "minimum_authoritative_global_version": 166
+  },
+  "original_contract": {
+    "expected_aggregate_processed_input_tokens": 1000005632,
+    "minimum_aggregate_processed_input_tokens": 1000000000,
+    "minimum_global_cycle": 2400,
+    "maximum_final_to_initial_ratio": 0.99,
+    "negative_robust_slope_required": true,
+    "maximum_active_runtime_seconds": 21600,
+    "token_gate_pass": false,
+    "cycle_gate_pass": false,
+    "ratio_gate_pass": false,
+    "slope_gate_pass": true,
+    "projected_runtime_gate_pass": true,
+    "scheduler_gate_pass": false,
+    "complete_formal_package_exists": false
+  },
+  "raw_evidence": {
+    "result_root": "runtime_runs/S1-13/results-s1-13-formal-long-20260716T025218Z-4354da0",
+    "shared_root": "runtime_runs/S1-13/shared-s1-13-formal-long-20260716T025218Z-4354da0",
+    "learner_logs": [
+      {
+        "path": "logs/learner-00.jsonl",
+        "bytes": 20262693,
+        "sha256": "871da44f96117a658c1450a64c1a64e80b7487b0cdb5871ee6d5d0833fe63138"
+      },
+      {
+        "path": "logs/learner-01.jsonl",
+        "bytes": 20245202,
+        "sha256": "1f3fdaf4b1704b5e53e12cfd47859ad44622638fdbf60bbcd6d9d64467a0c93e"
+      },
+      {
+        "path": "logs/learner-02.jsonl",
+        "bytes": 20294621,
+        "sha256": "2bf8f98e570d75ba0d7bef7fb5217964b6c7a17a176115f90c8340bbf569e6e9"
+      },
+      {
+        "path": "logs/learner-03.jsonl",
+        "bytes": 20300823,
+        "sha256": "1e35b094c709c0a5c708e760a4342c5a55707dfac10691dcfaa8fb8a0003cc5e"
+      }
+    ],
+    "global_current_record_sha256": [
+      "f141f088ad61fa91f0a91f89c6a6e462170844ed51584d58357edd11c6d6eac7",
+      "34fb81c1145e7c0577a62a5b4013922ac18a950e97b39efc99629c985ad66efb",
+      "eb939ccee8e83741e27d4090ddd275f93b91f3095efb4d1da3ac332bbde9a2e9",
+      "065bbcb65073509917e7ac8e802800d6d896197221ff69f0af368986f61944b9"
+    ],
+    "checksum_scope": "Only the four source learner logs and four final current visibility records are hashed. No routine full 60 GiB payload inventory was performed."
+  },
+  "limitations": [
+    "This is not a completed one-billion-token run.",
+    "The original strict loss-ratio threshold did not pass at the accepted observation point.",
+    "The user-requested deletion prevented normal role finalization and final package generation.",
+    "The partial observation may support only the claim that real training occurred with a decreasing observed trend and an in-budget runtime projection."
+  ]
+}

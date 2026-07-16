@@ -937,6 +937,57 @@
         "pytest": "stdout/pytest.log",
         "syncer": "roles/syncer.json"
       }
+    },
+    {
+      "experiment_id": "s1-13-formal-long-20260716T025218Z-4354da0",
+      "analysis_status": "reviewed_user_authorized_early_termination",
+      "workload": "five-node four-learner Pythia-160M/FineWeb-Edu formal long run",
+      "pbs_job_id": "2394870.opbs",
+      "code_commit": "4354da018789498f5b3e1d05a7f0657a1fedb858",
+      "queued_at_utc": "2026-07-16T02:52:18Z",
+      "failed_at_utc": "2026-07-16T03:21:57Z",
+      "raw_evidence_root": "runtime_runs/S1-13/results-s1-13-formal-long-20260716T025218Z-4354da0",
+      "shared_evidence_root": "runtime_runs/S1-13/shared-s1-13-formal-long-20260716T025218Z-4354da0",
+      "attempt_consumed": true,
+      "failure": {
+        "summary": "The user directed Stage 1 closure at the current partial observation and the job was deleted before satisfying its original formal token, cycle, ratio, scheduler, and package gates.",
+        "exit_code": 271,
+        "learner_steps": [9219, 9217, 9217, 9217],
+        "learner_processed_input_tokens": [18880512, 18876416, 18876416, 18876416],
+        "aggregate_processed_input_tokens": 75509760,
+        "common_loss_points": 9217,
+        "final_version_vector": [169, 167, 166, 168],
+        "minimum_global_cycle": 166,
+        "partial_final_to_initial_loss_ratio": 0.9939910635151703,
+        "partial_robust_loss_slope": -4.257425742575278e-06,
+        "projected_full_runtime_seconds_by_learner": [21501.151086831032, 21534.23245330995, 21573.05609470815, 21557.03084855506],
+        "scheduler_exit_status": 271,
+        "scheduler_walltime": "00:29:09",
+        "abnormal_nodes": "none",
+        "allocated_hosts": ["mg0921", "mg1034", "mg1040", "mg1042", "mg1055"],
+        "original_failed_gates": ["minimum_aggregate_tokens", "minimum_global_cycle", "maximum_loss_ratio", "scheduler_success", "complete_formal_package"]
+      },
+      "cause": {
+        "status": "intentional_user_directed_scope_change_not_runtime_defect",
+        "summary": "After reviewing the live loss and runtime observations, the user explicitly directed the agent to close Stage 1 at the current state and preserve the evidence. The agent froze the observation and requested PBS deletion.",
+        "scope": "The early stop changes only the S1-13 Stage 1 closure evidence policy. It does not alter the production protocol or relabel the partial run as a passing original formal run."
+      },
+      "expected_solution": {
+        "status": "no_retry_required_under_user_approved_early_close_adr",
+        "changes": [
+          "Record the original unpassed gates and scheduler deletion without hiding or relabeling them.",
+          "Use the partial run only for finite/contiguous training-loss, decreasing observed trend, and projected-runtime evidence together with the passing 9N gate and complete five-node smoke.",
+          "If a later claim requires completed one-billion-token evidence, launch a new uniquely rooted run under the unchanged original formal contract."
+        ]
+      },
+      "evidence": {
+        "reviewed_observation": "reports/stage1/S1-13-partial-formal-observation.json",
+        "decision_adr": "reports/stage1/S1-13-early-close-adr.md",
+        "learner_logs": "logs/learner-00.jsonl through logs/learner-03.jsonl",
+        "global_current_records": "protocol/global/visibility/global-current-000000.json through global-current-000003.json",
+        "pytest": "stdout/pytest.log",
+        "scheduler": "PBS qstat -H and tracejob terminal record retained in the reviewed observation"
+      }
     }
   ]
 }

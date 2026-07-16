@@ -1,6 +1,6 @@
 ---
 title: FS-Based Decoupled DiLoCo 研究总计划（Research Master Plan）
-version: 1.2-draft
+version: 1.3-draft
 date: 2026-07-14
 status: Review Draft
 spec: plans/01/STAGE0-4_SPEC.md（Stage 0–4 需求与设计规格，下称 Spec）
@@ -211,7 +211,12 @@ S_max、λ、Q_fresh 自本阶段起进入冻结配置与实验记录，保证�
 1. **Profile A 通过**（Spec §5.11）：Q=M、grace=0 配置下，端到端数值与 Stage 0-C oracle 一致——单次 update 相对 L2 误差 ≤ 1e-6（fp32 累加），连续 50 updates 无漂移放大；
 2. **A-PERF-01**：byte accounting 证明稳态无完整模型传输；
 3. **INV-01 证据**：注入单 learner ×0.5 减速，其余 learner 吞吐变化 ≤ 2%（timing trace）；
-4. 160M 模型、M=4、真实 FS 上完成一次 ≥ 1B token 的训练，loss 曲线与单机 AdamW 基线趋势合理（此处不要求 matched 对照，只要求"训练在发生"）；
+4. 默认由 160M 模型、M=4、真实 FS 上一次 ≥ 1B token 的训练证明 loss 曲线与
+   单机 AdamW 基线趋势合理（此处不要求 matched 对照，只要求“训练在发生”）。
+   2026-07-16 用户为 S1-13 批准一次性早停例外：job `2394870.opbs` 的原 1B
+   contract 明确保留为未完成，只以已通过的 9N/五节点 smoke 和部分
+   loss/runtime 观测支持较窄的“训练已发生”结论；不得将其报告为 1B-token
+   evidence，详见 `reports/stage1/S1-13-early-close-adr.md`；
 5. Spec 验收矩阵中 A-FRAG-01..03、A-PROP-01..03、A-GLOBAL-01..02、A-LEARN-01..03 全部有自动化证据。
 
 ---
@@ -360,6 +365,10 @@ S_max、λ、Q_fresh 自本阶段起进入冻结配置与实验记录，保证�
 
 ## 附:变更记录
 
+- **v1.3(2026-07-16)**:按用户显式指令加入一次性 S1-13 early-close 例外。原
+  1B-token、cycle、loss-ratio、scheduler 和 package 未通过事实完整保留；论文或
+  后续阶段不得把部分 run 写成完成的 1B-token evidence。算法、Stage 1 acceptance
+  IDs 与后续研究方法学不变。
 - **v1.2(2026-07-14)**:实现契约切换——原上游文档(V1 SPEC 与 v1.md)废弃并移除,新契约为 STAGE0-4_SPEC.md(v2.0),按最新计划直接产出 Stage 0–4 详细规格;§0 重写为独立的"三项关键设计决定",不再引用旧文档;全文条款引用同步更新(S1-xx 子阶段编号取消、恢复语义改用 REC-xx、Profile 与验收指向新 Spec 章节)。
 - **v1.1(2026-07-14)**:采纳"高延迟环境一般化"假设与"S_max=0 先行、接口通用"实现策略——(1) 裁决 1 改写:stale 为必选实现,Stage 4 无条件执行,Stage 0-A 从 Go/No-Go 改为参数选型与接受率预测;(2) §1.1 场景重构为"HPC 主场景 + 存储原语抽象的次级主张",并明确与 Decoupled DiLoCo WAN 场景的切割;(3) 新增 RQ5/H5 与 Stage 5 注入式可见性延迟扫描(必需项);(4) Stage 1 新增"接口通用、行为先收窄"实现纪律与五个 stale-ready 要素;(5) Stage 4 收敛为四项新增工作并加入消融矩阵;(6) Stage 0-B 增加可选对象存储微基准;风险表相应更新。
 - **v1.0(2026-07-14)**:初版。

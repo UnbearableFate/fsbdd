@@ -2,11 +2,11 @@ schema_version: 2
 loop_id: S1-13
 title: Stage 1 closure and first Miyabi 8+1 baseline
 stage: stage1
-status: implementation
+status: check
 source_hashes:
-  research_plan: 2c0db3148110da10ea62f445c189d2d53b405527d8da264b9af9817f5ca9d835
-  stage0_4_spec: 1ea71fb6e34fef0d7b5558d8e7999dfdedeb82957f4331afcf6f80279d1f5a7d
-  loop_card: 36cf1b451c8c93f5d282f045ba37e407f478ac5e324e6f0ff6656e43a05624b3
+  research_plan: 1d25f18390f81906ad6b944e231e4cfd4ef83639efc0395c8681efdfd4e54739
+  stage0_4_spec: 7a038a408bc51f3b225431868960231f4f5a404f7259de743799477803d92ad8
+  loop_card: d4bf7fee505b68483d13a8b092c78b46cfbeab96787e158a4b5351f11ca0913a
 git:
   integration_branch: master
   branch: codex/S1-13-stage1-close-9n
@@ -18,7 +18,7 @@ dependencies: [S1-12]
 requirements: [INV-01, INV-08, PROG-02, TEL-01, TEL-02, TEL-03, TEL-04]
 acceptance_ids: [A-LEARN-01, A-PERF-01]
 orient:
-  unique_failing_gap: The formal nine-node gate and corrected five-node capacity/analyzer smoke pass. The only remaining runtime gap is the formal M=4 Pythia-160M/FineWeb-Edu real-filesystem run with at least one billion aggregate input tokens, minimum global cycle 2400, the formal loss trend, and a complete evidence package, followed by the independent final Checker and Stage 1 closure audit.
+  unique_failing_gap: The formal nine-node gate and corrected five-node capacity/analyzer smoke pass. The user explicitly replaced the remaining S1-13 one-billion-token completion condition with the retained partial observation from job 2394870.opbs. The original formal gates remain recorded as unpassed; only the independent final Checker and Stage 1 closure audit remain.
   non_goals: [stale proposals, S_max one, matched-token quality comparison, Stage 2 goodput threshold, DDP NCCL RPC parameter server, mutable Hub revisions]
   planned_files: [src/fsbdd/diloco/, src/fsbdd/auxiliary/stage1/, src/fsbdd/auxiliary/stress/, configs/stage1/s1_13_stage1_close.json, tests/stage1/test_s1_13_close.py, tests/stage1/test_s1_13_reproduction.py, tests/stage1/test_s1_13_static.py, tests/stage1/test_source_architecture.py, tests/red_cases/s1_13_naive_gate_analyzer.py, pbs/stage1_s1_13_assets.pbs, pbs/stage1_s1_13_targeted.pbs, pbs/stage1_s1_13_targeted_focus.pbs, pbs/stage1_s1_13_reproduction_preflight.pbs, pbs/stage1_s1_13_smoke_1n.pbs, pbs/stage1_s1_13_smoke_2n.pbs, pbs/stage1_s1_13_numpy_correction.pbs, pbs/stage1_s1_13_formal_9n.pbs, pbs/stage1_s1_13_long_smoke.pbs, pbs/stage1_s1_13_formal_long.pbs, reports/stage1/S1-13-requirement-matrix.csv, reports/stage1/S1-13-evidence-contract.json, reports/stage1/S1-13-gate-contract.json, reports/stage1/S1-13-reproduction-contract.json, reports/stage1/S1-13-capacity-preflight-contract.json, reports/stage1/S1-13-publication-capacity-code-review.md, reports/stage1/S1-13-experiment-failures.json]
   model_data_profile: Immutable pretrained GPT-2 small plus WikiText-2 raw packed-512 for the 8+1 gate and immutable pretrained Pythia-160m plus FineWeb-Edu canonical packed-512 prefix for the M=4 aggregate-at-least-one-billion-input-token long run.
@@ -170,6 +170,17 @@ orient:
     aggregate_processed_input_tokens: 24576000
     non_formal_loss_diagnostic: finite positive contiguous and counter-reconciled on all learners; aggregate final/initial 0.993717157353977 and robust slope -0.000028332695364952087; formal threshold intentionally not enforced
     analyzer_result: all four gates pass; five identical propagated PBS qtimes; cycle-30 single in-progress proposal classified within active-writer and history-independent orphan bounds
+  latest_formal_long_early_stop:
+    experiment_id: s1-13-formal-long-20260716T025218Z-4354da0
+    pbs_job_id: 2394870.opbs
+    code_commit: 4354da018789498f5b3e1d05a7f0657a1fedb858
+    result: user-requested early termination after 9217 common learner steps and 75509760 aggregate input tokens; scheduler exit 271, walltime 00:29:09, no abnormal node
+    original_contract_result: fail; token 75509760 < 1000000000, minimum global version 166 < 2400, partial ratio 0.9939910635151703 > 0.99, scheduler exit nonzero, no normal final package
+    accepted_partial_result: all four streams finite/positive/contiguous; initial/final rolling medians 4.355180000000001/4.32901, negative robust slope -4.257425742575278e-06, projected learner spans 21501.151086831032 to 21573.05609470815 seconds <= 21600
+    decision_adr: reports/stage1/S1-13-early-close-adr.md
+    reviewed_observation: reports/stage1/S1-13-partial-formal-observation.json
+    reviewed_ledger: reports/stage1/S1-13-experiment-failures.json entry 14
+    expected_solution: no retry under the one-time user-approved closure amendment; a future original 1B claim requires a fresh uniquely rooted full run
   attempt_budget: {asset_stage: 3, red: 1, targeted: 5, reproduction_preflight: 3, capacity_preflight: 1, l1_real: 2, l2_real: 4, formal_l3_9n: 2, formal_l4_long: 4}
   attempt_budget_amendments:
     - recorded_at_utc: 2026-07-15T20:42:48Z
@@ -375,7 +386,7 @@ preflight:
   package_contract: reports/stage1/S1-13-evidence-contract.json
   model_data_adr: reports/stage1/S1-06-model-data-adr.md
   package_validator_command: fsbdd evidence validate runtime_runs/S1-13/formal-9n and runtime_runs/S1-13/formal-long
-  package_validator_result: pending
+  package_validator_result: original formal-long package not produced because job 2394870 was user-terminated; accepted partial evidence uses the narrow reviewed observation instead and makes no formal-package-pass claim
   reduced_reproduction_contract: reports/stage1/S1-13-reproduction-contract.json
   reduced_reproduction_contract_sha256: historical completed-recovery identity; not rebound to the current gate and not an active submission gate
   historical_l2_reproduction_contract_sha256: bc6b8479bdc9a61e813f571fdefe839d7856dc41ef14a5475499a31231948fb7
@@ -401,7 +412,7 @@ green:
 harden:
   commands: [bash -n every active S1-13 PBS script and failure helper, jq empty failure and evidence contracts, git diff --check]
   evidence_paths: [runtime_runs/S1-13/targeted-f0bb4fb-20260715T180720Z, runtime_runs/S1-13/targeted-681e013-20260715T182501Z, runtime_runs/S1-13/targeted-focus-a026505-20260715T191211Z, runtime_runs/S1-13/targeted-bac11ae-20260715T192015Z, runtime_runs/S1-13/reproduction-preflight-d9c3f01-20260715T201400Z, runtime_runs/S1-13/reproduction-preflight-6a4e465-20260715T201715Z, runtime_runs/S1-13/reproduction-2n-s1-13-corrected-2n-20260715T202343Z-6a4e465, evidence/indexes/S1-13.md]
-  latest_result: corrected five-node job 2394619 passed 367 tests, all five roles, every topology/loss/runtime/protocol analyzer gate, and scheduler completion at commit 6bc43ed9bd9ad06dd3fbd675c56ffcd01a61de3a; formal long remains unrun
+  latest_result: corrected five-node job 2394619 passed 367 tests, all five roles, every topology/loss/runtime/protocol analyzer gate, and scheduler completion at commit 6bc43ed9bd9ad06dd3fbd675c56ffcd01a61de3a; job 2394870 then supplied the user-accepted partial long-profile observation but did not pass its original formal gates
 nine_node_gate:
   required: true
   run_id: s1-13-formal-9n-20260715T220641Z-e850f51
@@ -433,7 +444,7 @@ long_smoke:
   runtime_gate: pass; 539.716323747 active seconds of 1200, heartbeat/pending/durability assertions pass
   protocol_gate: pass; global cycle 60 >= 58, publication-opportunity margin, bounded/classified inventory, reclamation, progress reconciliation, fragment-only byte accounting, and forbidden-runtime assertions pass
 formal_long:
-  status: running
+  status: terminated_by_user_accepted_partial_observation
   run_id: s1-13-formal-long-20260716T025218Z-4354da0
   pbs_job_id: 2394870.opbs
   code_commit: 4354da018789498f5b3e1d05a7f0657a1fedb858
@@ -449,6 +460,15 @@ formal_long:
   scheduler_request: five nodes and 28800 seconds walltime
   formal_contract: four learners at 122071 optimizer steps, expected aggregate 1000005632 input tokens, minimum global cycle 2400, formal final-to-initial loss ratio at most 0.99, negative robust slope, active runtime at most 21600 seconds
   initial_result: 367 Stage 1 tests passed in 32.10 seconds; all four learners and the CPU-only syncer entered the real runtime
+  terminal_scheduler_result: user requested deletion at 2026-07-16T03:21:35Z; finished 2026-07-16T03:21:57Z with exit 271, walltime 00:29:09, and no abnormal node
+  learner_steps: [9219, 9217, 9217, 9217]
+  learner_input_tokens: [18880512, 18876416, 18876416, 18876416]
+  aggregate_input_tokens: 75509760
+  authoritative_final_version_vector: [169, 167, 166, 168]
+  partial_loss_observation: 9217 common points; initial/final medians 4.355180000000001/4.32901; ratio 0.9939910635151703; robust slope -4.257425742575278e-06
+  projected_runtime_seconds: [21501.151086831032, 21534.23245330995, 21573.05609470815, 21557.03084855506]
+  original_contract_status: fail; the run is not a completed one-billion-token run and has no normal final package
+  closure_amendment: one-time explicit user approval in reports/stage1/S1-13-early-close-adr.md; accepted evidence in reports/stage1/S1-13-partial-formal-observation.json
 checker:
   context_id: s1_13_checker
   maker_chat_inherited: false
@@ -520,5 +540,5 @@ persist:
   acceptance_traceability_updated: false
   next_gap: Stage 2 asynchronous GPU to CPU to filesystem publication pipeline
   handoff: >-
-    Corrected five-node job 2394619 passed every gate. Formal job 2394870 is running from clean detached commit 4354da018789498f5b3e1d05a7f0657a1fedb858 with run ID s1-13-formal-long-20260716T025218Z-4354da0 on hosts mg0921, mg1034, mg1040, mg1042, and mg1055. Its 367-test preflight passed and all five roles entered runtime. Monitor to terminal state. Any failure must be captured and reviewed before another experiment; a pass proceeds to package validation, independent final Checker, acceptance traceability, checkpoint, and Stage 1 closure audit.
-blocker: Formal long job 2394870.opbs is running. Stage 1 cannot close until the formal run, immutable package, independent final Checker, and closure audit pass.
+    Corrected five-node job 2394619 passed every gate. Formal job 2394870 supplied 9217 common steps and 75509760 aggregate input tokens before the user directed immediate Stage 1 closure. The job was deleted and retains original formal-gate FAIL status; the early-close ADR, partial observation, and failure-ledger entry 14 prohibit a 1B-token claim while accepting the narrower training/trend/runtime evidence. Independent final Checker and closure audit are the only remaining steps.
+blocker: Independent final Checker and Stage 1 closure audit are pending against the user-approved early-close candidate.

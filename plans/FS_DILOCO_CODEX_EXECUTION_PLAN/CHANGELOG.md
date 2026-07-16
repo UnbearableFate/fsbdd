@@ -1,5 +1,16 @@
 # 执行包变更记录
 
+## v1.2.1 — 2026-07-16
+
+- 按用户显式指令，以 job `2394870.opbs` 的当前部分观测关闭 S1-13/Stage 1。
+- 保留原 formal contract 的未通过事实：未完成 1B token、global cycle 2400、
+  loss ratio ≤0.99、scheduler exit 0 和正常 final package；不得将该 run 报告为完成的
+  1B-token evidence。
+- 一次性例外只接受有限正且连续的四 learner loss、下降的 partial aggregate trend、
+  预算内 projected runtime，并与已通过的 9N gate 和完整五节点 smoke 联合支撑
+  “训练已发生”这一较窄结论；不改变算法、协议、Stage 1 acceptance IDs 或后续
+  Stage 2–5 的独立实验义务。
+
 ## v1.2.0 — 2026-07-15
 
 - 按 Stage 0 复盘把执行改进落到全部 29 张 Stage 1–4 loop 卡：删除与

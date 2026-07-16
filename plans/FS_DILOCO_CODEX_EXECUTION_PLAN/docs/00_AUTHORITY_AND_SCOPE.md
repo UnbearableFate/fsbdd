@@ -89,6 +89,11 @@ run 从包含本包与 source 的 committed tracked baseline 创建 clean worktr
 - Stage 4 的 ≥3 seeds、matched-token H3 检验；
 - Stage 5 才收集的 A-PERF-03 1000+ updates 长跑证据。
 
+一次性例外：2026-07-16 用户明确要求以 job `2394870.opbs` 的部分观测关闭
+S1-13/Stage 1。该决定只替代上述 Stage 1 long-run closure 条件，不把部分 run
+改写成完成的 ≥1B-token evidence，也不放宽 Stage 2–5 的独立实验义务。原 contract
+与未通过项见 `reports/stage1/S1-13-early-close-adr.md`。
+
 ## 0.6 变更规则
 
 发现原规格与实现证据不兼容时：
