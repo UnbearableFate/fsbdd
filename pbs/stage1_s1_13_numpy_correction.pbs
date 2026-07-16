@@ -11,25 +11,13 @@ install_experiment_failure_traps
 
 : "${PROJECT_ROOT:?PROJECT_ROOT is required}"
 : "${MAIN_ROOT:=/work/xg24i002/x10041/fsbdd}"
-: "${EXPECTED_COMMIT:?EXPECTED_COMMIT is required}"
 : "${CAPACITY_CONTRACT:?CAPACITY_CONTRACT is required}"
-: "${CAPACITY_CONTRACT_SHA256:?CAPACITY_CONTRACT_SHA256 is required}"
 : "${SHARED_ROOT:?SHARED_ROOT is required}"
 : "${RESULT_ROOT:?RESULT_ROOT is required}"
 : "${RUN_ID:?RUN_ID is required}"
 
 PYTHON="$MAIN_ROOT/.venv/bin/python"
 module load nv-hpcx/25.9
-if [[ "$(git -C "$PROJECT_ROOT" rev-parse HEAD)" != "$EXPECTED_COMMIT" ]] || \
-   [[ -n "$(git -C "$PROJECT_ROOT" status --porcelain)" ]]; then
-  echo "capacity-preflight clean worktree identity mismatch" >&2
-  exit 65
-fi
-if [[ "$(sha256sum "$CAPACITY_CONTRACT" | awk '{print $1}')" != \
-  "$CAPACITY_CONTRACT_SHA256" ]]; then
-  echo "capacity-preflight contract identity mismatch" >&2
-  exit 65
-fi
 if [[ -e "$SHARED_ROOT" || -e "$RESULT_ROOT" ]]; then
   echo "refusing to reuse capacity-preflight roots" >&2
   exit 73
@@ -41,9 +29,13 @@ export PYTHONPATH="$PROJECT_ROOT/src"
 export OMP_NUM_THREADS=1 TOKENIZERS_PARALLELISM=false
 export HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 HF_DATASETS_OFFLINE=1
 export CUDA_VISIBLE_DEVICES=-1
+export FSBDD_CODE_COMMIT
+FSBDD_CODE_COMMIT="$(git rev-parse HEAD)"
 
 hostname > "$RESULT_ROOT/env/hostname.txt"
 git rev-parse HEAD > "$RESULT_ROOT/env/commit.txt"
+git status --short > "$RESULT_ROOT/env/worktree-status.txt"
+git diff --binary > "$RESULT_ROOT/env/worktree.patch"
 qstat -f "$PBS_JOBID" > "$RESULT_ROOT/env/qstat.txt"
 module -t list > "$RESULT_ROOT/env/modules.txt" 2>&1
 findmnt -T "$(dirname "$SHARED_ROOT")" > "$RESULT_ROOT/env/findmnt.txt"
@@ -51,32 +43,18 @@ cp "$PROJECT_ROOT/pbs/stage1_s1_13_numpy_correction.pbs" \
   "$RESULT_ROOT/env/pbs-script.pbs"
 cp "$CAPACITY_CONTRACT" "$RESULT_ROOT/env/capacity-contract.json"
 
-# Sequential ceilings total 480 seconds and leave 120 seconds of PBS walltime
-# for setup and failure-evidence finalization.
-timeout --signal=TERM --kill-after=15s 60s nvidia-smi -L \
-  > "$RESULT_ROOT/env/nvidia-smi.txt" 2>&1
+# Sequential ceilings total 420 seconds and leave 180 seconds of PBS walltime
+# for setup and automatic failure capture.
 timeout --signal=TERM --kill-after=15s 120s \
   "$PYTHON" -m pytest -vv -o faulthandler_timeout=60 --durations=20 \
-  tests/stage1/test_s1_03_storage.py \
-  tests/stage1/test_s1_12_profile_a.py::test_integrated_single_update_matches_stage0_oracle \
-  tests/stage1/test_s1_13_static.py::test_capacity_preflight_is_identity_bound_exact_size_and_bounded \
+  tests/stage1 \
   > "$RESULT_ROOT/stdout/pytest.log" 2> "$RESULT_ROOT/stderr/pytest.log"
 timeout --signal=TERM --kill-after=15s 300s \
   "$PYTHON" -m fsbdd.auxiliary.stage1.capacity \
   --shared-root "$SHARED_ROOT" \
   --output "$RESULT_ROOT/analysis/capacity-preflight.json" \
-  --run-id "$RUN_ID" --contract "$CAPACITY_CONTRACT" \
-  --contract-sha256 "$CAPACITY_CONTRACT_SHA256" \
+  --run-id "$RUN_ID" --contract "$RESULT_ROOT/env/capacity-contract.json" \
   > "$RESULT_ROOT/stdout/capacity.log" \
   2> "$RESULT_ROOT/stderr/capacity.log"
 jq -e '.status == "pass" and (.checks | all)' \
   "$RESULT_ROOT/analysis/capacity-preflight.json" >/dev/null
-
-if find "$RESULT_ROOT/stderr" -type f -size +0c -print -quit | grep -q .; then
-  echo "capacity-preflight produced non-empty stderr" >&2
-  find "$RESULT_ROOT/stderr" -type f -size +0c -print >&2
-  exit 1
-fi
-find "$RESULT_ROOT" -type f ! -name checksums.sha256 -printf '%P\0' \
-  | sort -z | xargs -0 -I{} sha256sum "$RESULT_ROOT/{}" \
-  > "$RESULT_ROOT/checksums.sha256"

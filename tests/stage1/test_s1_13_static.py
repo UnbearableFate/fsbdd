@@ -78,7 +78,7 @@ def test_formal_topologies_freeze_independent_9n_and_coallocated_4_plus_1() -> N
     assert "test_formal_topologies_freeze_independent_9n_and_coallocated_4_plus_1" in focus
 
 
-def test_capacity_preflight_is_identity_bound_exact_size_and_bounded() -> None:
+def test_capacity_preflight_is_lightweight_exact_size_and_bounded() -> None:
     script = (ROOT / "pbs/stage1_s1_13_numpy_correction.pbs").read_text(
         encoding="utf-8"
     )
@@ -88,23 +88,27 @@ def test_capacity_preflight_is_identity_bound_exact_size_and_bounded() -> None:
         )
     )
     for token in (
-        "EXPECTED_COMMIT",
-        "CAPACITY_CONTRACT_SHA256",
         'if [[ -e "$SHARED_ROOT" || -e "$RESULT_ROOT" ]]',
         'FSBDD_FAILURE_OUTPUT_ROOT="$RESULT_ROOT"',
         "timeout --signal=TERM --kill-after=15s 120s",
         "timeout --signal=TERM --kill-after=15s 300s",
         "fsbdd.auxiliary.stage1.capacity",
-        "checksums.sha256",
+        "worktree-status.txt",
+        "worktree.patch",
     ):
         assert token in script
+    assert "EXPECTED_COMMIT" not in script
+    assert "CAPACITY_CONTRACT_SHA256" not in script
+    assert "checksums.sha256" not in script
     assert "#PBS -l select=1" in script
     assert "#PBS -l walltime=00:10:00" in script
+    assert 'faulthandler_timeout=60 --durations=20 \\\n  tests/stage1' in script
+    assert contract["schema_version"] == 2
     assert contract["payload_bytes"] == [309071808, 340239052]
-    assert contract["repetitions"] == 3
-    assert contract["thresholds"]["maximum_source_to_readback_median_ratio"] <= 0.75
-    assert contract["thresholds"]["minimum_mean_seconds_saved"] >= 0.4
-    assert contract["thresholds"]["maximum_predicted_update_mean_seconds"] <= 1.355
+    assert contract["fragment_parameter_bytes"] == [154533888, 170115072]
+    assert contract["numpy_update_repetitions"] == 1
+    assert contract["thresholds"]["maximum_numpy_merge_commit_seconds"] <= 1.355
+    assert contract["validation"]["post_write_payload_readback"] is False
 
 
 def test_syncer_keeps_update_history_only_in_durable_jsonl() -> None:

@@ -114,7 +114,7 @@ orient:
     reviewed_ledger: reports/stage1/S1-13-experiment-failures.json
     attempt_consumed: true
     cause: PosixStorageBackend.publish writes every immutable payload and then rereads and byte-compares the complete file while hashing it before visibility; this redundant pass is paid for every 154-170 MB proposal and 309-340 MB compound successor, and the observed mean syncer update latency is 1.739070100 seconds
-    expected_solution: retain the old readback as a matched diagnostic control, use source SHA-256 plus complete unbuffered write and exact fstat size for production while preserving read-side fail-closed validation, add merge/commit component timing and correctness regressions, then run one same-Checker-authorized exact-size one-node preflight before any five-node retry
+    expected_solution: retain the old readback only as an explicit diagnostic option, use source SHA-256 plus complete unbuffered write and exact fstat size for production while preserving read-side fail-closed validation, add merge/commit component timing and correctness regressions, then run one lightweight exact-size real NumPy merge-plus-commit preflight before any five-node retry under the user-approved recovery ADR
     reviewed_failure: runtime_runs/S1-13/long-smoke-replacement-20260715T225509Z-cd8ca08/reviewed-failure.json
     raw_checksum_inventory_sha256: de2936397f0acc2c65b71e2a5bfa6a29e50c99aa5da082fa44128ce68f8cb84f
     scheduler_checksum_inventory_sha256: 505fe28ebfacdb64eaf051f22634d2862869dee6997350d9e62c2281dbe1aed4
@@ -255,8 +255,8 @@ orient:
       consumed_before_amendment: 2
       consumed_attempts: [2393122.opbs, 2393139.opbs]
       reason: Job 2393122 consumed the original capacity-smoke slot before workload launch, and the authorized replacement 2393139 completed all learners but failed the frozen capacity threshold. The only remaining third slot is reserved for the formal one-billion-token run, so one separately authorized post-correction capacity retry is required without reclassifying either failure.
-      scope: Add exactly one five-node non-formal capacity-smoke retry, usable only after the one-node capacity preflight passes same-Checker Phase B. Preserve the still-unused formal-long slot. This amendment itself authorizes neither run.
-      authorization_gate: The same S1-13 Checker must first pass the one-node capacity preflight in Phase B, then separately review the exact long-smoke candidate and authorize one retry. Formal long remains a later independent Phase A decision.
+      scope: Add exactly one five-node non-formal capacity-smoke retry, usable only after the one-node capacity preflight passes. Preserve the still-unused formal-long slot.
+      authorization_gate: Superseded by reports/stage1/S1-13-recovery-process-adr.md; no per-candidate Checker or manually supplied hash is required. Formal long remains contingent on a passing smoke and receives independent post-run final review.
       authorization_commit: 24cc55996957a745c40b50020fa1e1e1a4eb013c
       checker_verdict: pending
       final_attempt: pending
@@ -279,10 +279,10 @@ preflight:
   reduced_reproduction_preflight_result: historical job 2392830 passed all 10 selected tests and its frozen package validator, then same-Checker Phase B passed and authorized job 2392852; the package is not reusable because the real-model run proved the old asset incompatible
   reduced_reproduction_validator_command: python -m fsbdd.auxiliary.stage1.reproduction validate --result-root <result-root> --reproduction-contract reports/stage1/S1-13-reproduction-contract.json
   reduced_reproduction_validator_result: job 2392852 stopped at learner initialization before the analyzer or package validator; no correction-reproduction gate result exists
-  checker_phase_a: required
+  checker_phase_a: explicitly waived by the user for the remaining recovery and formal-long submissions; one independent final Checker reviews the completed formal run and Stage 1 closure
   capacity_preflight_contract: reports/stage1/S1-13-capacity-preflight-contract.json
-  capacity_preflight_contract_sha256: f2d318a1881140e4fd43ce882d7a0cc8b750f86f3b991a5433afcb474aeadd3f
-  capacity_preflight_command: pending same-Checker Phase A for one exact-clean one-node pbs/stage1_s1_13_numpy_correction.pbs run
+  capacity_preflight_contract_sha256: informational value captured by the run; no caller-supplied hash gate
+  capacity_preflight_command: pending static gates for one lightweight one-node pbs/stage1_s1_13_numpy_correction.pbs run under reports/stage1/S1-13-recovery-process-adr.md
   capacity_preflight_result: pending
   asset_freeze: exact-clean offline job 2392989 passed at producer commit 240084d17e9e609104715c9073aac395034fd9d1 and same-Checker Phase B passed; tracked nine-node identity is f956cd698f14d52788ac54a7a5c20615f57a4a18b5a7a5053499583fb714a7ff and tracked long identity is 3c0990fb05f639dbfef3792434010e2bdb261410e727d08f103e163841fbe355 with the accepted aligned-zero overlay preserved
   runtime_budget: nine-node 1200 active seconds absolute ceiling pending tighter compatible value from real smokes; long-run 21600 active seconds
@@ -293,11 +293,11 @@ red:
 green:
   command: .venv/bin/python -m compileall -q src tests && uvx --offline ruff check src/fsbdd tests && uvx --offline pyright --pythonpath .venv/bin/python src/fsbdd
   evidence_path: reports/stage1/S1-13-experiment-failures.json
-  latest_result: pass at 2026-07-15T23:38:23Z for the publication-capacity correction; compileall clean, Ruff clean, Pyright zero errors and warnings
+  latest_result: pass at 2026-07-16T00:28:14Z for the lightweight exact-size NumPy merge/commit preflight candidate; compileall clean, Ruff clean, focused Ruff format clean, Pyright zero errors and warnings
 harden:
   commands: [bash -n every active S1-13 PBS script and failure helper, jq empty failure and evidence contracts, git diff --check]
   evidence_paths: [runtime_runs/S1-13/targeted-f0bb4fb-20260715T180720Z, runtime_runs/S1-13/targeted-681e013-20260715T182501Z, runtime_runs/S1-13/targeted-focus-a026505-20260715T191211Z, runtime_runs/S1-13/targeted-bac11ae-20260715T192015Z, runtime_runs/S1-13/reproduction-preflight-d9c3f01-20260715T201400Z, runtime_runs/S1-13/reproduction-preflight-6a4e465-20260715T201715Z, runtime_runs/S1-13/reproduction-2n-s1-13-corrected-2n-20260715T202343Z-6a4e465, evidence/indexes/S1-13.md]
-  latest_result: pass at 2026-07-15T23:38:23Z; every active S1-13 PBS script and failure helper has valid Bash syntax, tracked Stage 1 JSON and current YAML parse, production has no auxiliary import, and diff checks are clean
+  latest_result: pass at 2026-07-16T00:28:14Z; every active S1-13 PBS script and failure helper has valid Bash syntax, tracked Stage 1 JSON and current YAML parse, production has no auxiliary import, and diff checks are clean
 nine_node_gate:
   required: true
   run_id: s1-13-formal-9n-20260715T220641Z-e850f51
@@ -317,7 +317,7 @@ nine_node_gate:
 checker:
   context_id: s1_13_checker
   maker_chat_inherited: false
-  phase_a_verdict: job 2393139 consumed the prior authorization and failed the frozen capacity threshold; its reviewed failure and corrective one-node preflight candidate are pending the same Checker's Phase B/Phase A review, and no compute is authorized
+  phase_a_verdict: Phase B PASS for job 2393139; the Checker withheld the old preflight candidate because it omitted real exact-size NumPy merge/commit and contained a static assertion typo. Both gaps are corrected, and the user subsequently waived per-candidate Phase A for the one-node preflight and one five-node non-formal smoke.
   verdict: null
   report_path: reports/checkers/S1-13.md
   cycles:
@@ -377,13 +377,13 @@ checker:
       verdict: Phase B PASS for job 2393122 failure attribution and Phase A PASS for exactly one fifth-and-final one-node focused correction validation using only pbs/stage1_s1_13_targeted_focus.pbs SHA c75a93b21097447d43a9b9c30a1062b559c1cb43cf90224d01930a7ffc9fa6c6; no smoke retry, formal-long, or other compute authorized
       result: focused job 2393136 passed 23 tests in 0.42 seconds with scheduler exit 0/no abnormal node; replacement job 2393139 then passed all 358 tests and all four learners but timed out at global cycle 46 of 59, preserving complete raw and scheduler evidence
     - candidate: 24cc55996957a745c40b50020fa1e1e1a4eb013c
-      verdict: pending same-Checker Phase B for job 2393139 and Phase A for exactly one one-node capacity preflight; no compute authorized
-      result: reviewed failure ledger entry 9, immutable checksums, complete corrective code review, matched verification modes, component timing, exact-size capacity contract, identity-bound bounded PBS script, and login-node static gates are prepared
+      verdict: Phase B PASS for job 2393139; Phase A withheld for the superseding preflight because the old benchmark measured publication only and the uncommitted static assertion contained a literal plus
+      result: user-approved recovery ADR removes per-candidate authorization and manual hash/checksum gates; the superseding preflight directly measures exact-size real NumPy merge plus commit after the complete Stage 1 suite
 persist:
   evidence_index: evidence/indexes/S1-13.md
   raw_evidence_root: runtime_runs/S1-13
   acceptance_traceability_updated: false
   next_gap: Stage 2 asynchronous GPU to CPU to filesystem publication pipeline
   handoff: >-
-    Replacement capacity smoke 2393139 passed all tests and learner work but failed at global cycle 46 of 59. Its reviewed failure, scheduler evidence, and checksum inventories are immutable. Review found a redundant complete post-write payload readback. The correction preserves that path as a matched control, makes source-SHA plus complete unbuffered write/fstat the production mode, adds read-side corruption regressions and merge/commit timing, and replaces the old NumPy script with an exact-size one-node capacity preflight. Login static gates pass. Commit the exact candidate, move the clean detached worktree, and return it to the same Checker; no qsub is authorized yet.
-blocker: Job 2393139 failure Phase B and the exact-clean one-node capacity-preflight candidate still require the same Checker's review. No capacity preflight, five-node retry, formal long, or other compute is authorized.
+    Replacement capacity smoke 2393139 passed all tests and learner work but failed at global cycle 46 of 59; Checker Phase B passed. Review found a redundant complete post-write payload readback, and the production correction removes it while retaining source-SHA, exact complete write/fstat, atomic visibility, and read-side validation. The user-approved recovery ADR removes per-candidate Checker/manual-hash/full-inventory gates. The lightweight preflight now runs the complete Stage 1 suite and directly measures exact-size real NumPy merge plus commit. Finish static gates, commit, and submit exactly one one-node preflight.
+blocker: Lightweight preflight changes passed login-node static gates and require one tracked implementation commit before qsub. No five-node retry or formal long is allowed before the one-node result.

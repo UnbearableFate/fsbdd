@@ -682,22 +682,23 @@
           "Exact-commit source review shows the unconditional post-write full-file byte comparison and SHA-256 pass in PosixStorageBackend.publish before os.replace exposes the record.",
           "PBS reported no abnormal node; all tests and learners passed and all publication queues drained, excluding topology failure, learner failure, correctness regression, or an unbounded publication backlog as the immediate failure class."
         ],
-        "scope": "This is a storage/publication capacity failure under the frozen long-smoke schedule. It does not invalidate the passing formal 9-node topology, loss, runtime, protocol, or atomic-commit evidence. One exact-size corrective benchmark remains necessary to separate merge, write, and verification time before another five-node run."
+        "scope": "This is a storage/publication capacity failure under the frozen long-smoke schedule. It does not invalidate the passing formal 9-node topology, loss, runtime, protocol, or atomic-commit evidence. One exact-size corrective NumPy merge-plus-commit measurement remains necessary before another five-node run."
       },
       "expected_solution": {
         "status": "code_review_and_smallest_exact_size_performance_validation_required",
         "changes": [
           "Refactor publication so one immutable source pass supplies the recorded SHA-256 and complete-write validation, eliminating the redundant post-write bytewise full-file pass while preserving payload-first/visibility-last, exact byte count, immutable unique payloads, atomic small-record replacement, and read-side size/SHA fail-closed validation.",
           "Add focused regressions for complete payload visibility, old-or-complete-new crash outcomes, source-derived record checksum, post-publication truncation/corruption rejection, and absence of a publish-time full payload reread.",
-          "Add component timing for large-payload write/verification and syncer merge/commit so the correction is directly attributable.",
-          "Run one smallest one-node exact-size storage and NumPy merge/commit performance preflight before requesting another five-node capacity smoke."
+          "Add syncer merge/commit component timing so the correction is directly attributable.",
+          "Run one smallest one-node exact-size real NumPy merge/commit performance preflight before one five-node capacity smoke; do not run the obsolete post-write payload-readback control."
         ],
         "validation_before_next_experiment": [
           "Complete the production-versus-auxiliary architecture and publication-path code review and correct every identified error before any qsub invocation.",
           "Pass permitted login-node compile, Ruff, Pyright, Bash, JSON/YAML, architecture, and diff checks without importing the project runtime there.",
-          "Return the immutable failure package, reviewed ledger entry, corrective diff, static evidence, exact candidate commit, benchmark contract, and attempt-budget amendment to the same S1-13 Checker.",
-          "Do not submit a performance preflight, five-node retry, or formal long run without the applicable same-Checker Phase A authorization."
-        ]
+          "Record the actual commit, worktree diff, benchmark contract, PBS script, and result without manually supplied hash gates or a complete per-file checksum inventory.",
+          "Under the explicit 2026-07-16 user override, no per-candidate Checker Phase A is required for the one-node preflight or one five-node non-formal smoke; every new failure must still be reviewed and recorded before another experiment."
+        ],
+        "governance_override": "reports/stage1/S1-13-recovery-process-adr.md"
       },
       "evidence_integrity": {
         "raw_checksum_inventory_sha256": "de2936397f0acc2c65b71e2a5bfa6a29e50c99aa5da082fa44128ce68f8cb84f",

@@ -74,19 +74,21 @@ now records monotonic merge and commit durations, and every durable
 `fragment_outer_update` event includes both fields.  This is telemetry only and
 does not change selection or update semantics.
 
-### CR-03: prior NumPy correction PBS script was not an admissible capacity test
+### CR-03: prior NumPy correction PBS script did not measure the real update
 
-The existing one-node script was not bound to an exact clean commit or frozen
-contract, used a non-exclusive default output path, had no matched large-payload
-control, and did not finalize a checksum inventory.  It therefore could not
-support another five-node allocation.
+The old one-node script did not execute the production NumPy merge plus atomic
+commit path and used a reusable default output path.  The replacement uses
+exclusive shared/result roots, preserves automatic failure capture, applies
+bounded timeouts, runs the complete Stage 1 suite, and directly measures one
+real NumPy merge and commit at each failed-run fragment size (154,533,888 and
+170,115,072 parameter bytes).  The process forbids Torch/CUDA and emits a
+machine-readable gate against the directly required 1.355-second update limit.
 
-The rewritten preflight is exact-commit and contract bound, uses exclusive
-shared/result roots, preserves automatic failure capture, applies sequential
-timeouts within PBS walltime, compares both verification modes at the exact
-309,071,808- and 340,239,052-byte failed-run sizes, validates every published
-payload outside the timed interval, forbids Torch/CUDA in the benchmark process,
-emits a machine-readable gate, and finalizes checksums.
+Per the user-approved recovery simplification, this non-formal preflight records
+the actual commit, worktree diff, contract, and PBS script without caller-bound
+hashes, per-file checksum inventories, or pre-run Checker authorization.  It
+does not execute the obsolete post-write payload-readback mode.  See
+`reports/stage1/S1-13-recovery-process-adr.md`.
 
 ## Preserved invariants
 
@@ -109,7 +111,7 @@ helper, tracked JSON and current YAML parsing, production-to-auxiliary import
 audit, and `git diff --check`.  No project test or model/runtime workload was run
 on the login node.
 
-The correction is not runtime-accepted yet.  The next admissible action is the
-single one-node exact-size preflight after same-Checker Phase A.  A pass must
-return to the same Checker before a separately authorized five-node capacity
-retry; formal long-run submission remains unauthorized.
+The correction is not runtime-accepted yet.  The next action is one lightweight
+one-node exact-size preflight.  A pass directly permits one five-node capacity
+smoke under the recovery ADR.  Formal long-run submission remains pending the
+smoke result and its own final-run review.
