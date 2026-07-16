@@ -166,3 +166,44 @@ with zero errors/warnings, every active S1-13 PBS/failure-helper Bash syntax
 check, JSON/YAML parsing, production dependency and runtime-path audits, exact
 58-versus-2,400 contract assertions, and `git diff --check`. No project test or
 runtime workload was executed on the login node.
+
+### CR-05: redundant current-to-historical contract identity binding
+
+Job `2394044.opbs` stopped in its pre-workload suite after 364 passes and one
+failure. The prospective gate contract changed SHA-256 to `7dd56fab...03ec`,
+but the current reproduction contract still bound `8fb3734e...3f84`; the
+evidence contract also retained current 59-of-60 prose. The existing regression
+failed before any learner or syncer runtime.
+
+Review found that the reproduction contract describes a completed two-node
+recovery path and is not consumed by the five-node smoke. Rebinding it whenever
+the current gate contract changes adds no runtime or reproducibility guarantee;
+Git already records both tracked versions. The active suite therefore no longer
+cross-binds those hashes. It checks the current 58-cycle smoke threshold,
+unchanged formal 2,400-cycle threshold, workload semantics, topology, schemas,
+paths, and the external asset bundle directly. The reproduction contract stays
+historical. The evidence contract prose is corrected to 58 of 60. No production
+code or runtime behavior is changed by CR-05.
+
+### CR-06: remaining formal-long submission identity flow
+
+The formal-long PBS script formerly required the caller to calculate and pass a
+Git commit plus three file hashes, then recalculated all three in the job. This
+duplicated Git/shared-filesystem identity without detecting an algorithm or
+runtime error and created the same manual synchronization risk seen in job
+`2394044`.
+
+The script now accepts repository, config, gate-contract, and external-asset
+paths. It requires the repository worktree to be clean, records the actual
+commit and worktree status, derives config/gate identities inside the job for
+runtime records, and validates only the external asset marker and root against
+the resolved config. The final post-run evidence inventory remains because the
+untracked result package can be copied after the allocation; it is not a
+submission gate or a tracked cross-contract binding.
+
+At `2026-07-16T02:04:28Z`, CR-05/CR-06 passed compileall, Ruff, Pyright with
+zero errors/warnings, every active S1-13 PBS/failure-helper Bash syntax check,
+tracked JSON/current YAML parsing, semantic 58-versus-2,400 checks, the
+formal-long internal-identity/external-asset audit, production dependency and
+runtime-path audits, external marker validation, and `git diff --check`. No
+project test or runtime ran on the login node.

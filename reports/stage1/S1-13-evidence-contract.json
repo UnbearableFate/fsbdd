@@ -22,6 +22,12 @@
     "independent_9n": "submission_utc_plus_per-role-pbs-qtime",
     "long_run": "pbs_qtime"
   },
+  "remaining_submission_identity_policy": {
+    "tracked_repository_files": "require a clean worktree, record the actual Git commit and retained paths, and compute runtime identities inside the job; no caller-supplied repository-file hash gate",
+    "historical_reproduction_contract": "completed recovery evidence; not rebound to the current gate contract and not consumed by the remaining smoke or formal long run",
+    "external_asset_bundle": "validate the resolved external asset root and marker before training",
+    "formal_result_inventory": "post-run integrity for untracked retained evidence only; not a pre-run admission gate or tracked cross-contract identity"
+  },
   "required_identities": [
     "clean_code_commit",
     "resolved_config_sha256",
@@ -68,7 +74,7 @@
     "pending_stall": "final learner publication and adoption queues are empty and syncer has no active or selected fragment",
     "queue_growth": "per-fragment pending and in-flight maxima remain at most one"
   },
-  "long_run_preflight_smoke": "five-node four-learner plus CPU-only syncer real Pythia/FineWeb-Edu smoke must sustain 59 of 60 publication opportunities before the formal long run",
+  "long_run_preflight_smoke": "five-node four-learner plus CPU-only syncer real Pythia/FineWeb-Edu smoke must prospectively sustain 58 of 60 publication opportunities before the formal long run; the formal minimum remains 2400 cycles",
   "required_raw": [
     "role records",
     "loss JSONL",

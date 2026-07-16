@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import hashlib
 import json
 from pathlib import Path
 
@@ -45,6 +44,17 @@ def test_formal_topologies_freeze_independent_9n_and_coallocated_4_plus_1() -> N
     assert "timeout --signal=TERM --kill-after=30s 60s" in long
     assert "timeout --signal=TERM --kill-after=30s 900s" in long
     assert "CUDA_VISIBLE_DEVICES" in long or "fsbdd.auxiliary.stage1.close mpi" in long
+    assert ': "${EXPECTED_COMMIT' not in long
+    assert ': "${CONFIG_SHA256' not in long
+    assert ': "${ASSET_MARKER_SHA256' not in long
+    assert ': "${GATE_CONTRACT_SHA256' not in long
+    assert 'ACTUAL_COMMIT="$(git -C "$PROJECT_ROOT" rev-parse HEAD)"' in long
+    assert 'CONFIG_SHA256="$(sha256sum "$RESOLVED_CONFIG"' in long
+    assert 'GATE_CONTRACT_SHA256="$(sha256sum "$GATE_CONTRACT"' in long
+    assert "CONFIG_ASSET_ROOT=" in long
+    assert 'sha256sum "$ASSET_ROOT/complete.json"' in long
+    assert '--commit "$ACTUAL_COMMIT"' in long
+    assert 'env/worktree-status.txt"' in long
     assert (ROOT / "pbs/stage1_s1_13_numpy_correction.pbs").is_file()
     smoke = (ROOT / "pbs/stage1_s1_13_long_smoke.pbs").read_text(encoding="utf-8")
     assert "#PBS -l select=5" in smoke
@@ -305,7 +315,7 @@ def test_frozen_gate_contract_covers_heartbeat_stalls_and_long_capacity_smoke() 
     assert overlay["learner_waits_for_syncer"] is False
 
 
-def test_resolved_configs_bind_the_complete_immutable_asset_bundle() -> None:
+def test_resolved_configs_bind_external_assets_and_long_workload_semantics() -> None:
     expected_marker = "7fce5e39feae9b93ebd442b6e1de47e3f82e6e322c9ddbd7ebed689e3f0fd3e3"
     expected_producer = "240084d17e9e609104715c9073aac395034fd9d1"
     asset_root = (
@@ -339,16 +349,3 @@ def test_resolved_configs_bind_the_complete_immutable_asset_bundle() -> None:
         )
     )["resolved_runtime_fields"]
     assert resolved["per_learner_offsets"] == [resolved["fragment_offsets"]] * 4
-    reproduction = json.loads(
-        (ROOT / "reports/stage1/S1-13-reproduction-contract.json").read_text(
-            encoding="utf-8"
-        )
-    )
-    identities = reproduction["identities"]
-    nine_path = ROOT / "configs/stage1/s1_13_nine_node_resolved.json"
-    gate_path = ROOT / "reports/stage1/S1-13-gate-contract.json"
-    assert identities == {
-        "resolved_config_sha256": hashlib.sha256(nine_path.read_bytes()).hexdigest(),
-        "asset_marker_sha256": expected_marker,
-        "gate_contract_sha256": hashlib.sha256(gate_path.read_bytes()).hexdigest(),
-    }

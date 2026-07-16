@@ -841,6 +841,54 @@
         "stderr": "stderr/mpirun.log",
         "pytest": "stdout/pytest.log"
       }
+    },
+    {
+      "experiment_id": "s1-13-long-smoke-terminal-corrected-20260716T014228Z-3577d56",
+      "analysis_status": "reviewed_redundant_cross_contract_identity_gate",
+      "workload": "five-node capacity smoke pre-workload Stage 1 test gate",
+      "pbs_job_id": "2394044.opbs",
+      "code_commit": "3577d5640bfa92ab28c1842cb4a32f4c41b24959",
+      "queued_at_utc": "2026-07-16T01:42:28Z",
+      "failed_at_utc": "2026-07-16T01:43:15Z",
+      "raw_evidence_root": "runtime_runs/S1-13/s1-13-long-smoke-terminal-corrected-20260716T014228Z-3577d56",
+      "shared_evidence_root": "runtime_runs/S1-13/shared-s1-13-long-smoke-terminal-corrected-20260716T014228Z-3577d56",
+      "attempt_consumed": true,
+      "failure": {
+        "summary": "The pre-workload suite passed 364 tests and failed one current identity-consistency regression because the reproduction contract retained the old gate-contract hash.",
+        "exit_code": 1,
+        "failed_test": "test_resolved_configs_bind_the_complete_immutable_asset_bundle",
+        "expected_gate_contract_sha256": "7dd56fab07f8a4c24e119f21bc5c87478b6fa7c3053efd4faa9c311ea79403ec",
+        "recorded_gate_contract_sha256": "8fb3734eaaad876b8ceaa3dc8124b32f752ac9ba1611944e16c31c2e4f1a3f84",
+        "learner_or_syncer_runtime_started": false,
+        "scheduler_exit_status": 1,
+        "scheduler_walltime": "00:00:38",
+        "abnormal_nodes": "none",
+        "allocated_hosts": ["mg0020", "mg0029", "mg0030", "mg0031", "mg0032"]
+      },
+      "cause": {
+        "status": "diagnosed_maintenance_only_cross_contract_binding",
+        "summary": "Changing the prospective non-formal threshold changed the current gate-contract SHA-256. A static test unnecessarily required a completed historical reproduction contract to track that current hash, so it failed even though the smoke never consumes the reproduction contract. The evidence contract separately retained stale 59-of-60 prose. This was metadata coupling, not a code, asset, protocol, or runtime defect.",
+        "scope": "Auxiliary tracked contracts and a redundant static assertion only; no learner/syncer/model/protocol runtime began."
+      },
+      "expected_solution": {
+        "status": "replace_redundant_file_identity_gate_with_semantic_checks",
+        "changes": [
+          "Keep the completed reproduction contract historical instead of rebinding it to every current gate edit; remove the cross-contract hash assertion from the active Stage 1 suite.",
+          "Check the active smoke threshold, formal threshold, resolved workload, external asset marker, topology, and schemas semantically; update current evidence-contract prose to 58 of 60 while retaining historical evidence unchanged.",
+          "Remove caller-supplied repository-file hashes from the remaining formal-long submission, record its actual clean Git commit, and compute runtime identities internally.",
+          "Pass all login-node static gates and commit before another five-node smoke."
+        ],
+        "validation_before_next_experiment": [
+          "No project runtime on the login node; run compileall, Ruff, Pyright, Bash, JSON/YAML, semantic-contract, architecture, and diff checks.",
+          "Run the final five-node smoke before the formal long run; review any new failure before another submission."
+        ]
+      },
+      "evidence": {
+        "automatic_failure": "failures/raw-2394044.opbs-3252445.json",
+        "reviewed_failure": "reviewed-failure.json",
+        "scheduler": "scheduler-summary.json",
+        "pytest": "stdout/pytest.log"
+      }
     }
   ]
 }

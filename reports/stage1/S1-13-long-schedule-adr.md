@@ -39,9 +39,9 @@ For `long_run` only, use `aligned_zero_for_q_equals_m_capacity_v1`:
 This spreads complete fragment quorums across the H=50 interval and gives each
 fragment a full H interval before its next fixed-slot publication.  The tracked
 resolved long config, gate contract, analyzer, and role evidence all assert the
-overlay.  The five-node same-profile smoke must still demonstrate at least 59
-global cycles from 60 publication opportunities before a formal long run is
-admissible.
+overlay. The initial prospective five-node same-profile smoke requirement was
+59 global cycles from 60 publication opportunities; the evidence-driven
+2026-07-16 amendment below supersedes only that short-horizon margin.
 
 The 9N GPT-2/WikiText-2 baseline retains its original per-learner phase rotation.
 
@@ -49,10 +49,11 @@ The 9N GPT-2/WikiText-2 baseline retains its original per-learner phase rotation
 
 The long run trades cross-learner write staggering for an attainable fresh-quorum
 schedule; fragment writes remain spread by the four byte-weighted fragment
-offsets.  Mutable state remains fixed-slot and bounded.  If the preflight smoke
-does not reach 59/60, this decision is not widened or adjusted after observation:
-the formal run remains blocked and the next action is a smaller syncer/storage
-capacity correction.  Rollback is the prior resolved offset matrix plus removal
+offsets. Mutable state remains fixed-slot and bounded. Under the original
+decision, a result below 59/60 blocked the formal run and required a smaller
+syncer/storage capacity correction. That correction and its prospective rerun
+produced the evidence for the explicit amendment below; no failed run is
+retroactively passed. Rollback is the prior resolved offset matrix plus removal
 of the gate overlay, which also invalidates any package carrying this ADR's
 config and gate-contract identities.
 

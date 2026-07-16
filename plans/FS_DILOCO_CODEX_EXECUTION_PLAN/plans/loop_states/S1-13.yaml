@@ -6,7 +6,7 @@ status: implementation
 source_hashes:
   research_plan: 2c0db3148110da10ea62f445c189d2d53b405527d8da264b9af9817f5ca9d835
   stage0_4_spec: 1ea71fb6e34fef0d7b5558d8e7999dfdedeb82957f4331afcf6f80279d1f5a7d
-  loop_card: 83f9657599a05902933587fd81495a2217ef516d9ac4c3ffb5027be930843856
+  loop_card: 36cf1b451c8c93f5d282f045ba37e407f478ac5e324e6f0ff6656e43a05624b3
 git:
   integration_branch: master
   branch: codex/S1-13-stage1-close-9n
@@ -18,7 +18,7 @@ dependencies: [S1-12]
 requirements: [INV-01, INV-08, PROG-02, TEL-01, TEL-02, TEL-03, TEL-04]
 acceptance_ids: [A-LEARN-01, A-PERF-01]
 orient:
-  unique_failing_gap: The formal nine-node gate and corrected publication capacity pass. Five-node job 2393536 completed every learner and 58 cycles at mean/max update latency 1.059704267/1.165041277 seconds, then exposed an over-tight 59-of-60 non-formal terminal margin and missing fail-fast. The reviewed support-only correction requires static gates, one prospective 58-of-60 smoke, then the formal one-billion-token run.
+  unique_failing_gap: The formal nine-node gate and corrected publication capacity pass. Job 2394044 stopped before workload on a redundant hash binding from the current gate to a completed historical reproduction contract. The reviewed semantic-check correction requires static gates, one final smoke, then the formal one-billion-token run.
   non_goals: [stale proposals, S_max one, matched-token quality comparison, Stage 2 goodput threshold, DDP NCCL RPC parameter server, mutable Hub revisions]
   planned_files: [src/fsbdd/diloco/, src/fsbdd/auxiliary/stage1/, src/fsbdd/auxiliary/stress/, configs/stage1/s1_13_stage1_close.json, tests/stage1/test_s1_13_close.py, tests/stage1/test_s1_13_reproduction.py, tests/stage1/test_s1_13_static.py, tests/stage1/test_source_architecture.py, tests/red_cases/s1_13_naive_gate_analyzer.py, pbs/stage1_s1_13_assets.pbs, pbs/stage1_s1_13_targeted.pbs, pbs/stage1_s1_13_targeted_focus.pbs, pbs/stage1_s1_13_reproduction_preflight.pbs, pbs/stage1_s1_13_smoke_1n.pbs, pbs/stage1_s1_13_smoke_2n.pbs, pbs/stage1_s1_13_numpy_correction.pbs, pbs/stage1_s1_13_formal_9n.pbs, pbs/stage1_s1_13_long_smoke.pbs, pbs/stage1_s1_13_formal_long.pbs, reports/stage1/S1-13-requirement-matrix.csv, reports/stage1/S1-13-evidence-contract.json, reports/stage1/S1-13-gate-contract.json, reports/stage1/S1-13-reproduction-contract.json, reports/stage1/S1-13-capacity-preflight-contract.json, reports/stage1/S1-13-publication-capacity-code-review.md, reports/stage1/S1-13-experiment-failures.json]
   model_data_profile: Immutable pretrained GPT-2 small plus WikiText-2 raw packed-512 for the 8+1 gate and immutable pretrained Pythia-160m plus FineWeb-Edu canonical packed-512 prefix for the M=4 aggregate-at-least-one-billion-input-token long run.
@@ -139,6 +139,16 @@ orient:
     reviewed_ledger: reports/stage1/S1-13-experiment-failures.json entry 11
     cause: a fixed two-quorum warm-up/terminal loss is disproportionate in a 60-opportunity smoke but remains within the unchanged formal 2400-of-approximately-2441 margin; after all learners finalized no fresh Q=M quorum remained, and auxiliary supervision lacked terminal fail-fast
     expected_solution: prospectively refreeze only the non-formal minimum at 58, preserve formal minimum 2400, fail immediately on terminal insufficient progress, add regressions, and pass all static gates before one final smoke
+  latest_contract_refreeze_failure:
+    experiment_id: s1-13-long-smoke-terminal-corrected-20260716T014228Z-3577d56
+    pbs_job_id: 2394044.opbs
+    code_commit: 3577d5640bfa92ab28c1842cb4a32f4c41b24959
+    result: 364 tests passed and one identity-consistency regression failed before learner or syncer runtime because the reproduction contract retained gate hash 8fb3734e instead of current 7dd56fab; scheduler exit 1, walltime 38 seconds, no abnormal node
+    raw_evidence_root: runtime_runs/S1-13/s1-13-long-smoke-terminal-corrected-20260716T014228Z-3577d56
+    shared_evidence_root: runtime_runs/S1-13/shared-s1-13-long-smoke-terminal-corrected-20260716T014228Z-3577d56
+    reviewed_ledger: reports/stage1/S1-13-experiment-failures.json entry 12
+    cause: a static test unnecessarily required a completed historical reproduction contract that this smoke does not consume to track the current gate hash; current evidence-contract prose separately retained 59 of 60
+    expected_solution: keep the reproduction contract historical, remove the cross-contract hash assertion, check current thresholds/workload/topology/schema/paths and external assets semantically, remove caller-supplied formal-long repository-file hashes, update current evidence prose, and pass static gates before another qsub
   attempt_budget: {asset_stage: 3, red: 1, targeted: 5, reproduction_preflight: 3, capacity_preflight: 1, l1_real: 2, l2_real: 4, formal_l3_9n: 2, formal_l4_long: 4}
   attempt_budget_amendments:
     - recorded_at_utc: 2026-07-15T20:42:48Z
@@ -304,6 +314,18 @@ orient:
       authorization_gate: User-approved recovery ADR; no per-candidate Checker, manually supplied hash, or full checksum inventory. Failure ledger entry 11 and static gates must be complete before qsub.
       authorization_commit: actual qsub commit captured by the run; no predeclared authorization commit under the recovery ADR
       checker_verdict: not required by the user-approved recovery ADR
+      final_attempt: 2394044.opbs
+      final_attempt_result: failed in the pre-workload suite after 364 pass and one current contract-identity failure; no learner or syncer runtime, scheduler exit 1/no abnormal node
+    - amended_at_utc: 2026-07-16T01:48:00Z
+      prior_formal_l4_long_budget: 6
+      amended_formal_l4_long_budget: 7
+      consumed_before_amendment: 5
+      consumed_attempts: [2393122.opbs, 2393139.opbs, 2393421.opbs, 2393536.opbs, 2394044.opbs]
+      reason: Job 2394044 was stopped before learner/syncer runtime because a static test unnecessarily cross-bound the current gate hash to a completed historical reproduction contract. The failed job provides no capacity result. One final prospective smoke is required after replacing that maintenance-only gate with current semantic checks while preserving the formal-long slot.
+      scope: Add one final five-node non-formal smoke after current threshold/workload/topology/schema/path and external-asset checks are consistent, the historical reproduction contract remains historical, all static gates pass, and the correction is committed. Formal threshold, token budget, algorithm, production protocol, and formal-long slot remain unchanged.
+      authorization_gate: User-approved recovery ADR; no per-candidate Checker, manually supplied hash, or full checksum inventory. Failure ledger entry 12 and static gates must be complete before qsub.
+      authorization_commit: actual qsub commit captured by the run; no predeclared authorization commit under the recovery ADR
+      checker_verdict: not required by the user-approved recovery ADR
       final_attempt: pending
   failure_ladder: preserve the first expensive failure then reproduce its failing role or analyzer at the smallest one-node or two-node topology before an authorized retry
   nine_node_gate_required: true
@@ -318,7 +340,7 @@ preflight:
   package_validator_command: fsbdd evidence validate runtime_runs/S1-13/formal-9n and runtime_runs/S1-13/formal-long
   package_validator_result: pending
   reduced_reproduction_contract: reports/stage1/S1-13-reproduction-contract.json
-  reduced_reproduction_contract_sha256: 6145e231aae2db438b4397df293feb8d6992ec58d707ddbee7ef512a0c121c0e
+  reduced_reproduction_contract_sha256: historical completed-recovery identity; not rebound to the current gate and not an active submission gate
   historical_l2_reproduction_contract_sha256: bc6b8479bdc9a61e813f571fdefe839d7856dc41ef14a5475499a31231948fb7
   reduced_reproduction_preflight_command: pending refreeze against the rebuilt asset marker and resolved config; both prior preflight attempts are consumed and any new preflight requires a reasoned budget amendment plus same-Checker exact-commit authorization
   reduced_reproduction_preflight_result: historical job 2392830 passed all 10 selected tests and its frozen package validator, then same-Checker Phase B passed and authorized job 2392852; the package is not reusable because the real-model run proved the old asset incompatible
@@ -338,11 +360,11 @@ red:
 green:
   command: .venv/bin/python -m compileall -q src tests && uvx --offline ruff check src/fsbdd tests && uvx --offline pyright --pythonpath .venv/bin/python src/fsbdd
   evidence_path: reports/stage1/S1-13-experiment-failures.json
-  latest_result: pass at 2026-07-16T01:41:04Z for the reviewed 2393536 non-formal margin and terminal fail-fast correction; compileall and Ruff clean, Pyright zero errors and warnings, no project test or runtime executed on the login node
+  latest_result: pass at 2026-07-16T02:04:28Z for the reviewed semantic-check and formal-long identity-flow correction; compileall, Ruff, and Pyright zero errors/warnings; no project test or runtime ran on the login node
 harden:
   commands: [bash -n every active S1-13 PBS script and failure helper, jq empty failure and evidence contracts, git diff --check]
   evidence_paths: [runtime_runs/S1-13/targeted-f0bb4fb-20260715T180720Z, runtime_runs/S1-13/targeted-681e013-20260715T182501Z, runtime_runs/S1-13/targeted-focus-a026505-20260715T191211Z, runtime_runs/S1-13/targeted-bac11ae-20260715T192015Z, runtime_runs/S1-13/reproduction-preflight-d9c3f01-20260715T201400Z, runtime_runs/S1-13/reproduction-preflight-6a4e465-20260715T201715Z, runtime_runs/S1-13/reproduction-2n-s1-13-corrected-2n-20260715T202343Z-6a4e465, evidence/indexes/S1-13.md]
-  latest_result: pass at 2026-07-16T01:41:04Z; all active S1-13 Bash, tracked/current JSON/YAML, production dependency, runtime path, exact 58-versus-2400 contract, and diff checks pass; job 2393536 remains reviewed failed evidence
+  latest_result: pass at 2026-07-16T02:04:28Z; Bash, JSON/YAML, current semantic thresholds, formal-long internal identity/external asset, architecture, runtime-path, external marker, and diff gates all pass
 nine_node_gate:
   required: true
   run_id: s1-13-formal-9n-20260715T220641Z-e850f51
@@ -430,5 +452,5 @@ persist:
   acceptance_traceability_updated: false
   next_gap: Stage 2 asynchronous GPU to CPU to filesystem publication pipeline
   handoff: >-
-    Job 2393536 passed 364 tests and all learners, completed 58 cycles at mean/max update latency 1.059704267/1.165041277 seconds, and proved corrected production capacity. It failed the over-tight 59-of-60 non-formal target in a terminal state and then idled to timeout. Automatic/reviewed failure, scheduler summary, ledger entry 11, and the prospective ADR amendment are complete. The support-only 58-of-60 contract, terminal fail-fast, focused regressions, and all login-node gates passed at 2026-07-16T01:41:04Z. Commit before one final smoke. Formal long remains blocked until that smoke passes.
-blocker: Job 2393536 failure review and static correction gates are complete. Commit the non-formal 58-of-60 contract amendment, terminal fail-fast, and focused regressions before one final five-node smoke; no formal long may run first.
+    Job 2394044 was stopped before learner/syncer runtime after 364 tests passed because a current static regression unnecessarily bound the gate hash to a completed historical reproduction contract. Automatic/reviewed failure, scheduler summary, and ledger entry 12 are complete. The cross-contract gate is removed, active 58-of-60 semantics and the simplified formal-long identity flow are reviewed, and all login static/semantic gates pass at 2026-07-16T02:04:28Z. Commit before one final smoke. Formal long remains blocked until that smoke passes.
+blocker: Job 2394044 failure review and the semantic-check/formal-long identity-flow correction are complete; all login static gates pass. Commit the correction before one final five-node smoke; no formal long may run first.
