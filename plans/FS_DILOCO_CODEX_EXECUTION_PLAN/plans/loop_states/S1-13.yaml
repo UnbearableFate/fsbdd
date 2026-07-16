@@ -537,7 +537,7 @@ checker:
 persist:
   evidence_index: evidence/indexes/S1-13.md
   raw_evidence_root: runtime_runs/S1-13
-  acceptance_traceability_updated: false
+  acceptance_traceability_updated: true
   next_gap: Stage 2 asynchronous GPU to CPU to filesystem publication pipeline
   handoff: >-
     Corrected five-node job 2394619 passed every gate. Formal job 2394870 supplied 9217 common steps and 75509760 aggregate input tokens before the user directed immediate Stage 1 closure. The job was deleted and retains original formal-gate FAIL status; the early-close ADR, partial observation, and failure-ledger entry 14 prohibit a 1B-token claim while accepting the narrower training/trend/runtime evidence. Independent final Checker and closure audit are the only remaining steps.
