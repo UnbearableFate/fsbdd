@@ -1,6 +1,7 @@
 # S1-13 Long-Run Learner Phase Schedule ADR
 
-- Status: accepted before the first formal 9N or long-run submission
+- Status: accepted before the first formal 9N or long-run submission; amended
+  from prospective job `2393536.opbs` evidence on 2026-07-16
 - Scope: S1-13 non-formal long-profile smoke and formal M=4 long run only
 - Requirements: INV-01, INV-08, PROG-02, TEL-02, TEL-03
 
@@ -54,3 +55,29 @@ the formal run remains blocked and the next action is a smaller syncer/storage
 capacity correction.  Rollback is the prior resolved offset matrix plus removal
 of the gate overlay, which also invalidates any package carrying this ADR's
 config and gate-contract identities.
+
+## 2026-07-16 short-horizon margin amendment
+
+The original 59-of-60 smoke was retained through the production publication
+correction and run prospectively at commit
+`29d853d946554e2dce4f2830d4b582dc315103df` as job `2393536.opbs`. The run
+passed all 364 Stage 1 tests and all four 3,000-step learners, completed 232
+fragment updates at mean/max latency 1.059704267/1.165041277 seconds, and
+reached `[58,58,58,58]` before every learner finalized with no pending
+publication or error. No further fresh `Q=M=4` quorum was possible: final
+proposal bases were all 57 for fragments 0--2, and only two learners had base
+58 for fragment 3.
+
+This distinguishes a fixed short-run warm-up/terminal margin from the earlier
+throughput failure. Applying the formal 2,400-of-approximately-2,441 ratio
+directly to only 60 opportunities permitted one unavailable quorum; the valid
+run had two. Two fixed unavailable quorums over the formal horizon would yield
+approximately 2,439 cycles, still above the unchanged 2,400 formal minimum.
+
+Therefore the non-formal smoke is prospectively refrozen at 58 of 60 and must
+be rerun; job `2393536` is not retroactively passed. The formal token budget,
+2,400-cycle minimum, H=50 schedule, Profile A algorithm, topology, and runtime
+budget are unchanged. A result below 58 still blocks the formal run. The
+auxiliary syncer also fails immediately when all learners are final and no
+eligible update remains below target, instead of idling until the generic
+active timeout.

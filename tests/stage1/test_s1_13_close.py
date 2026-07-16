@@ -16,6 +16,7 @@ from fsbdd.auxiliary.stage1.assets import (
 )
 from fsbdd.auxiliary.stage1.close import (
     Stage1CloseError,
+    _require_long_run_terminal_target,
     _require_bootstrap_model_identities,
 )
 from fsbdd.diloco.protocol.global_state import (
@@ -101,6 +102,59 @@ def test_asset_identity_validators_reject_malformed_values() -> None:
         _producer_commit("A" * 40)
     with pytest.raises(Stage1AssetError, match="SHA-256"):
         _sha256_identity("f" * 63, "test")
+
+
+def test_completed_long_run_fails_fast_when_terminal_cycle_is_below_target() -> None:
+    final_records = [
+        {
+            "learner_id": f"learner-{learner_index:02d}",
+            "publication": {
+                "progress": {
+                    "fragments": [
+                        {"global_version": 58, "proposal_sequence": 60}
+                        for _ in range(4)
+                    ]
+                },
+                "publication": {
+                    "latest_terminal_per_fragment": [
+                        {
+                            "fragment_index": fragment_index,
+                            "base_version": (
+                                58
+                                if fragment_index == 3 and learner_index in (0, 2)
+                                else 57
+                            ),
+                        }
+                        for fragment_index in range(4)
+                    ]
+                },
+            },
+        }
+        for learner_index in range(4)
+    ]
+    _require_long_run_terminal_target(
+        cycle=58,
+        target=58,
+        version_vector=(58, 58, 58, 58),
+        final_records=final_records,
+    )
+    with pytest.raises(Stage1CloseError) as captured:
+        _require_long_run_terminal_target(
+            cycle=58,
+            target=59,
+            version_vector=(58, 58, 58, 58),
+            final_records=final_records,
+        )
+    detail = json.loads(str(captured.value).split(": ", 1)[1])
+    assert detail["global_cycle"] == 58
+    assert detail["target_global_cycle"] == 59
+    assert detail["version_vector"] == [58, 58, 58, 58]
+    assert detail["all_learners_final"] is True
+    assert detail["eligible_update_after_final_poll"] is False
+    assert [
+        item["fragments"][3]["latest_proposal_base_version"]
+        for item in detail["learners"]
+    ] == [58, 57, 58, 57]
 
 
 def _spec(sequence: int) -> PublicationSpec:

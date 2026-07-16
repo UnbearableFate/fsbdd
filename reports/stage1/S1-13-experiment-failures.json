@@ -778,6 +778,69 @@
         "stderr": "stderr/mpirun.log",
         "pytest": "stdout/pytest.log"
       }
+    },
+    {
+      "experiment_id": "s1-13-long-smoke-capacity-replacement-20260716T010819Z-29d853d",
+      "analysis_status": "reviewed_nonformal_terminal_margin_and_fail_fast_failure",
+      "workload": "five-node four-Pythia-learner plus CPU-only NumPy syncer FineWeb-Edu capacity smoke",
+      "pbs_job_id": "2393536.opbs",
+      "code_commit": "29d853d946554e2dce4f2830d4b582dc315103df",
+      "queued_at_utc": "2026-07-16T01:08:19Z",
+      "failed_at_utc": "2026-07-16T01:29:36Z",
+      "raw_evidence_root": "runtime_runs/S1-13/s1-13-long-smoke-capacity-replacement-20260716T010819Z-29d853d",
+      "shared_evidence_root": "runtime_runs/S1-13/shared-s1-13-long-smoke-capacity-replacement-20260716T010819Z-29d853d",
+      "attempt_consumed": true,
+      "failure": {
+        "summary": "All 364 tests and all four 3000-step learners passed, but the non-formal harness timed out at terminal global vector [58,58,58,58] against its 59-of-60 short-horizon target.",
+        "exit_code": 1,
+        "exception": "TimeoutError: frozen active runtime budget expired",
+        "observed_progress": {
+          "aggregate_processed_input_tokens": 24576000,
+          "publication_opportunities_per_fragment_per_learner": 60,
+          "completed_fragment_outer_updates": 232,
+          "required_global_cycle": 59,
+          "completed_global_cycle": 58,
+          "scheduler_exit_status": 1,
+          "scheduler_walltime": "00:21:08",
+          "abnormal_nodes": "none",
+          "allocated_hosts": ["mg0016", "mg0019", "mg0020", "mg0021", "mg0022"]
+        }
+      },
+      "cause": {
+        "status": "diagnosed_short_horizon_terminal_margin_and_missing_fail_fast",
+        "summary": "The corrected syncer kept pace: 232 updates averaged 1.059704267 seconds and all learners finished with no publication error or pending work. The 60-opportunity non-formal threshold allowed only one unavailable fresh quorum, while valid S_max=0/Q=M latest-wins timing left two terminal quorums unavailable. Once all learner final records existed, no future fresh quorum could form, but auxiliary supervision waited roughly eleven idle minutes before the generic timeout.",
+        "terminal_freshness": {
+          "current_versions": [58, 58, 58, 58],
+          "fragment_0_latest_base_versions": [57, 57, 57, 57],
+          "fragment_1_latest_base_versions": [57, 57, 57, 57],
+          "fragment_2_latest_base_versions": [57, 57, 57, 57],
+          "fragment_3_latest_base_versions": [58, 57, 58, 57],
+          "required_fresh_distinct_learners": 4
+        },
+        "scope": "Non-formal smoke contract and auxiliary terminal supervision only. The formal minimum remains 2400 cycles, and production protocol, formal nine-node evidence, and exact-size capacity evidence are unaffected."
+      },
+      "expected_solution": {
+        "status": "correct_short_smoke_margin_and_fail_fast_before_retry",
+        "changes": [
+          "Change only the 3000-step non-formal smoke minimum from 59 to 58 cycles, allowing two fixed warm-up/terminal fresh-quorum losses.",
+          "Fail immediately with a structured terminal-progress diagnostic when all long-run learners are final, the latest poll made no progress, and the target is unmet.",
+          "Add focused contract and fail-fast regressions; preserve the formal 2400-cycle threshold unchanged."
+        ],
+        "validation_before_next_experiment": [
+          "Complete code review, pass login-node compile/Ruff/Pyright/Bash/JSON/YAML/architecture/diff checks, and commit the correction.",
+          "Run one final five-node capacity smoke under the recovery ADR; no formal long run may run first.",
+          "If the next experiment fails, review and append it before any further submission."
+        ]
+      },
+      "evidence": {
+        "automatic_failure": "failures/raw-2393536.opbs-1618544.json",
+        "reviewed_failure": "reviewed-failure.json",
+        "scheduler": "scheduler-summary.json",
+        "syncer": "logs/syncer.jsonl",
+        "learner_roles": "roles/learner-00.json through roles/learner-03.json",
+        "stderr": "stderr/mpirun.log",
+        "pytest": "stdout/pytest.log"
+      }
     }
   ]
 }

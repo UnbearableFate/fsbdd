@@ -140,6 +140,61 @@ def _wait_roles(
         time.sleep(0.1)
 
 
+def _require_long_run_terminal_target(
+    *,
+    cycle: int,
+    target: int,
+    version_vector: Sequence[int],
+    final_records: Sequence[Mapping[str, Any]],
+) -> None:
+    if cycle >= target:
+        return
+    learners: list[dict[str, Any]] = []
+    for item in final_records:
+        publication = item["publication"]
+        progress_fragments = publication["progress"]["fragments"]
+        terminal_publications = publication["publication"][
+            "latest_terminal_per_fragment"
+        ]
+        latest_by_fragment = {
+            int(entry["fragment_index"]): entry
+            for entry in terminal_publications
+            if entry is not None
+        }
+        learners.append(
+            {
+                "learner_id": str(item["learner_id"]),
+                "fragments": [
+                    {
+                        "fragment_index": fragment_index,
+                        "global_version": int(progress["global_version"]),
+                        "proposal_sequence": int(progress["proposal_sequence"]),
+                        "latest_proposal_base_version": (
+                            None
+                            if fragment_index not in latest_by_fragment
+                            else int(
+                                latest_by_fragment[fragment_index]["base_version"]
+                            )
+                        ),
+                    }
+                    for fragment_index, progress in enumerate(progress_fragments)
+                ],
+            }
+        )
+    detail = {
+        "global_cycle": cycle,
+        "target_global_cycle": target,
+        "version_vector": [int(version) for version in version_vector],
+        "all_learners_final": True,
+        "eligible_update_after_final_poll": False,
+        "learners": learners,
+    }
+    raise Stage1CloseError(
+        "long-run terminal progress below target: "
+        + json.dumps(detail, sort_keys=True, separators=(",", ":"))
+    )
+
+
 def _descriptor(value: Mapping[str, Any]) -> FragmentStateDescriptor:
     return FragmentStateDescriptor(
         index=int(value["index"]),
@@ -1044,18 +1099,21 @@ def run_syncer(
                 shared_root / "coordination" / f"final-{index:02d}.json"
                 for index in range(learner_count)
             ]
-            if (
-                all(path.exists() for path in paths)
-                and cycle >= target
-                and not made_progress
-            ):
+            if all(path.exists() for path in paths) and not made_progress:
                 final_records = [_read_json(path) for path in paths]
+                version_vector = list(atomic.load_snapshot().version_vector)
+                _require_long_run_terminal_target(
+                    cycle=cycle,
+                    target=target,
+                    version_vector=version_vector,
+                    final_records=final_records,
+                )
                 completion = {
                     "complete": True,
                     "run_id": run_id,
                     "reason": "learners_complete_and_minimum_global_cycles",
                     "global_cycle": cycle,
-                    "version_vector": list(atomic.load_snapshot().version_vector),
+                    "version_vector": version_vector,
                     "active_end_unix_ns": time.time_ns(),
                 }
                 _replace_json(

@@ -131,3 +131,38 @@ dependency audit, the explicit no-reassignment audit, and `git diff --check`.
 No project test or model/runtime workload was run on the login node.  One
 replacement five-node smoke is now the next runtime gate; the formal long run
 remains contingent on that smoke.
+
+### CR-04: short-horizon terminal margin and missing fail-fast
+
+Replacement job `2393536.opbs` exercised the corrected runtime path. It passed
+364 tests, all learners completed 3,000 steps/6,144,000 input tokens, and the
+syncer completed 58 updates for every fragment. Mean/max update latency was
+1.059704267/1.165041277 seconds, with mean merge/commit components
+0.553642429/0.503949820 seconds. This proves that the former publication
+capacity bottleneck is corrected.
+
+The job nevertheless failed its 59-of-60 non-formal target. Once all learner
+final records existed, fragments 0--2 had only base-57 terminal proposals
+against current version 58; fragment 3 had only two of four base-58 proposals.
+No fresh `Q=M` update could form, but auxiliary supervision waited about eleven
+minutes for the active timeout. The review found two support-layer errors:
+
+1. the 60-opportunity smoke admitted only one unavailable warm-up/terminal
+   quorum, making a fixed two-quorum transient disproportionately fail the
+   short horizon even though it remains inside the unchanged formal
+   2,400-of-approximately-2,441 margin;
+2. completion supervision did not fail fast after every learner finalized and
+   the latest poll made no progress.
+
+The non-formal threshold is prospectively refrozen at 58 of 60 and documented
+in `S1-13-long-schedule-adr.md`; job `2393536` remains failed evidence. Formal
+minimum cycle 2,400 is unchanged. The syncer now emits a structured terminal
+progress error immediately when the completed run cannot reach its target, and
+focused regressions cover both changes. No production protocol, algorithm,
+payload, or model/data behavior changes.
+
+At 2026-07-16T01:41:04Z the CR-04 correction passed compileall, Ruff, Pyright
+with zero errors/warnings, every active S1-13 PBS/failure-helper Bash syntax
+check, JSON/YAML parsing, production dependency and runtime-path audits, exact
+58-versus-2,400 contract assertions, and `git diff --check`. No project test or
+runtime workload was executed on the login node.

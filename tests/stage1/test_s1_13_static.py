@@ -293,8 +293,11 @@ def test_frozen_gate_contract_covers_heartbeat_stalls_and_long_capacity_smoke() 
     )
     assert smoke["optimizer_steps_per_learner"] == 3000
     assert smoke["publication_opportunities_per_fragment_per_learner"] == 60
-    assert smoke["minimum_global_cycles"] == 59
-    assert smoke["minimum_cycle_to_publication_opportunity_ratio"] >= 59 / 60
+    assert smoke["minimum_global_cycles"] == 58
+    assert smoke["minimum_cycle_to_publication_opportunity_ratio"] == 58 / 60
+    assert smoke["allowed_fixed_unavailable_fresh_quorums"] == 2
+    assert "formal long-run minimum remains 2400" in smoke["margin_semantics"]
+    assert contract["long_run"]["minimum_global_cycles"] == 2400
     assert contract["long_run"]["minimum_step_seconds"] == 0.16
     overlay = contract["protocol"]["long_run_learner_phase_overlay"]
     assert overlay["algorithm"] == "aligned_zero_for_q_equals_m_capacity_v1"

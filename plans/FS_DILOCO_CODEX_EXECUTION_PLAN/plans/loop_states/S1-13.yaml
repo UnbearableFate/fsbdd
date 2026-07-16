@@ -18,7 +18,7 @@ dependencies: [S1-12]
 requirements: [INV-01, INV-08, PROG-02, TEL-01, TEL-02, TEL-03, TEL-04]
 acceptance_ids: [A-LEARN-01, A-PERF-01]
 orient:
-  unique_failing_gap: The formal nine-node gate, all correctness paths, and the corrected exact-size capacity preflight pass. Five-node job 2393421 then failed before learner model loading because the auxiliary PBS harness used a relocated evidence copy of a config whose learner_profile path is repository-relative. The reviewed two-line harness correction requires static gates, then one replacement capacity smoke and the formal one-billion-token run.
+  unique_failing_gap: The formal nine-node gate and corrected publication capacity pass. Five-node job 2393536 completed every learner and 58 cycles at mean/max update latency 1.059704267/1.165041277 seconds, then exposed an over-tight 59-of-60 non-formal terminal margin and missing fail-fast. The reviewed support-only correction requires static gates, one prospective 58-of-60 smoke, then the formal one-billion-token run.
   non_goals: [stale proposals, S_max one, matched-token quality comparison, Stage 2 goodput threshold, DDP NCCL RPC parameter server, mutable Hub revisions]
   planned_files: [src/fsbdd/diloco/, src/fsbdd/auxiliary/stage1/, src/fsbdd/auxiliary/stress/, configs/stage1/s1_13_stage1_close.json, tests/stage1/test_s1_13_close.py, tests/stage1/test_s1_13_reproduction.py, tests/stage1/test_s1_13_static.py, tests/stage1/test_source_architecture.py, tests/red_cases/s1_13_naive_gate_analyzer.py, pbs/stage1_s1_13_assets.pbs, pbs/stage1_s1_13_targeted.pbs, pbs/stage1_s1_13_targeted_focus.pbs, pbs/stage1_s1_13_reproduction_preflight.pbs, pbs/stage1_s1_13_smoke_1n.pbs, pbs/stage1_s1_13_smoke_2n.pbs, pbs/stage1_s1_13_numpy_correction.pbs, pbs/stage1_s1_13_formal_9n.pbs, pbs/stage1_s1_13_long_smoke.pbs, pbs/stage1_s1_13_formal_long.pbs, reports/stage1/S1-13-requirement-matrix.csv, reports/stage1/S1-13-evidence-contract.json, reports/stage1/S1-13-gate-contract.json, reports/stage1/S1-13-reproduction-contract.json, reports/stage1/S1-13-capacity-preflight-contract.json, reports/stage1/S1-13-publication-capacity-code-review.md, reports/stage1/S1-13-experiment-failures.json]
   model_data_profile: Immutable pretrained GPT-2 small plus WikiText-2 raw packed-512 for the 8+1 gate and immutable pretrained Pythia-160m plus FineWeb-Edu canonical packed-512 prefix for the M=4 aggregate-at-least-one-billion-input-token long run.
@@ -129,6 +129,16 @@ orient:
     reviewed_ledger: reports/stage1/S1-13-experiment-failures.json entry 10
     cause: the PBS harness reassigned RESOLVED_CONFIG to its result-directory evidence copy, so close.py resolved the repo-relative learner_profile from runtime_runs/S1-13 instead of the repository root
     expected_solution: keep runtime config/contract paths unchanged, copy them only for provenance, add a static no-reassignment regression, and pass all login-node static gates before one replacement smoke
+  latest_capacity_smoke_terminal_failure:
+    experiment_id: s1-13-long-smoke-capacity-replacement-20260716T010819Z-29d853d
+    pbs_job_id: 2393536.opbs
+    code_commit: 29d853d946554e2dce4f2830d4b582dc315103df
+    result: all 364 tests and four 3000-step learners passed; 232 updates produced [58,58,58,58] at mean/max 1.059704267/1.165041277 seconds, but the 59-of-60 non-formal target was terminally unreachable and the syncer idled to timeout; scheduler exit 1, walltime 21 minutes 8 seconds, no abnormal node
+    raw_evidence_root: runtime_runs/S1-13/s1-13-long-smoke-capacity-replacement-20260716T010819Z-29d853d
+    shared_evidence_root: runtime_runs/S1-13/shared-s1-13-long-smoke-capacity-replacement-20260716T010819Z-29d853d
+    reviewed_ledger: reports/stage1/S1-13-experiment-failures.json entry 11
+    cause: a fixed two-quorum warm-up/terminal loss is disproportionate in a 60-opportunity smoke but remains within the unchanged formal 2400-of-approximately-2441 margin; after all learners finalized no fresh Q=M quorum remained, and auxiliary supervision lacked terminal fail-fast
+    expected_solution: prospectively refreeze only the non-formal minimum at 58, preserve formal minimum 2400, fail immediately on terminal insufficient progress, add regressions, and pass all static gates before one final smoke
   attempt_budget: {asset_stage: 3, red: 1, targeted: 5, reproduction_preflight: 3, capacity_preflight: 1, l1_real: 2, l2_real: 4, formal_l3_9n: 2, formal_l4_long: 4}
   attempt_budget_amendments:
     - recorded_at_utc: 2026-07-15T20:42:48Z
@@ -282,6 +292,18 @@ orient:
       authorization_gate: User-approved recovery ADR; no per-candidate Checker or manually supplied hash. The reviewed failure and ledger entry 10 must exist and static gates must pass before qsub.
       authorization_commit: actual qsub commit captured by the run; no predeclared authorization commit under the recovery ADR
       checker_verdict: not required by the user-approved recovery ADR
+      final_attempt: 2393536.opbs
+      final_attempt_result: failed after every learner and corrected capacity passed; final vector [58,58,58,58] against the over-tight 59 target, then terminal idle until timeout; scheduler exit 1/no abnormal node
+    - amended_at_utc: 2026-07-16T01:38:00Z
+      prior_formal_l4_long_budget: 5
+      amended_formal_l4_long_budget: 6
+      consumed_before_amendment: 4
+      consumed_attempts: [2393122.opbs, 2393139.opbs, 2393421.opbs, 2393536.opbs]
+      reason: Job 2393536 proved corrected production capacity but exposed that the 60-opportunity non-formal contract allowed one unavailable quorum while valid fresh-only terminal timing produced two; it also exposed eleven minutes of avoidable terminal idle. The run remains failed and cannot be retroactively accepted. One prospective smoke is required under the corrected support-only contract while preserving the formal-long slot.
+      scope: Add one final five-node non-formal smoke after the 58-of-60 contract amendment, terminal fail-fast, focused regressions, full static review, and commit. Formal minimum 2400, token budget, algorithm, production protocol, and formal-long slot are unchanged.
+      authorization_gate: User-approved recovery ADR; no per-candidate Checker, manually supplied hash, or full checksum inventory. Failure ledger entry 11 and static gates must be complete before qsub.
+      authorization_commit: actual qsub commit captured by the run; no predeclared authorization commit under the recovery ADR
+      checker_verdict: not required by the user-approved recovery ADR
       final_attempt: pending
   failure_ladder: preserve the first expensive failure then reproduce its failing role or analyzer at the smallest one-node or two-node topology before an authorized retry
   nine_node_gate_required: true
@@ -316,11 +338,11 @@ red:
 green:
   command: .venv/bin/python -m compileall -q src tests && uvx --offline ruff check src/fsbdd tests && uvx --offline pyright --pythonpath .venv/bin/python src/fsbdd
   evidence_path: reports/stage1/S1-13-experiment-failures.json
-  latest_result: pass at 2026-07-16T01:06:03Z for the reviewed 2393421 harness correction; compileall clean, Ruff checks clean, Pyright zero errors and warnings, no project test or runtime executed on the login node
+  latest_result: pass at 2026-07-16T01:41:04Z for the reviewed 2393536 non-formal margin and terminal fail-fast correction; compileall and Ruff clean, Pyright zero errors and warnings, no project test or runtime executed on the login node
 harden:
   commands: [bash -n every active S1-13 PBS script and failure helper, jq empty failure and evidence contracts, git diff --check]
   evidence_paths: [runtime_runs/S1-13/targeted-f0bb4fb-20260715T180720Z, runtime_runs/S1-13/targeted-681e013-20260715T182501Z, runtime_runs/S1-13/targeted-focus-a026505-20260715T191211Z, runtime_runs/S1-13/targeted-bac11ae-20260715T192015Z, runtime_runs/S1-13/reproduction-preflight-d9c3f01-20260715T201400Z, runtime_runs/S1-13/reproduction-preflight-6a4e465-20260715T201715Z, runtime_runs/S1-13/reproduction-2n-s1-13-corrected-2n-20260715T202343Z-6a4e465, evidence/indexes/S1-13.md]
-  latest_result: pass at 2026-07-16T01:06:03Z; every active S1-13 PBS script and failure helper parses, tracked JSON/current YAML parse, production has no auxiliary import, runtime paths are not rebound to evidence copies, and diff check is clean; job 2393404 remains the passing dynamic preflight
+  latest_result: pass at 2026-07-16T01:41:04Z; all active S1-13 Bash, tracked/current JSON/YAML, production dependency, runtime path, exact 58-versus-2400 contract, and diff checks pass; job 2393536 remains reviewed failed evidence
 nine_node_gate:
   required: true
   run_id: s1-13-formal-9n-20260715T220641Z-e850f51
@@ -408,5 +430,5 @@ persist:
   acceptance_traceability_updated: false
   next_gap: Stage 2 asynchronous GPU to CPU to filesystem publication pipeline
   handoff: >-
-    Lightweight preflight 2393404 passed all 364 tests and exact-size capacity gates. Five-node smoke 2393421 then failed before learner model loading because the simplified PBS harness reassigned the repo-relative resolved config to a relocated evidence copy. Automatic and reviewed failures, scheduler summary, and ledger entry 10 are complete. The two-line correction keeps runtime paths unchanged and copies only for provenance; its static regression and all login-node gates passed at 2026-07-16T01:06:03Z. Commit the reviewed correction, then submit one replacement smoke. Formal long remains blocked until that smoke passes.
-blocker: Job 2393421 failure review and ledger are complete, and the minimal auxiliary harness correction plus all login-node static gates pass. Commit the reviewed correction before one replacement five-node smoke; no formal long may run first.
+    Job 2393536 passed 364 tests and all learners, completed 58 cycles at mean/max update latency 1.059704267/1.165041277 seconds, and proved corrected production capacity. It failed the over-tight 59-of-60 non-formal target in a terminal state and then idled to timeout. Automatic/reviewed failure, scheduler summary, ledger entry 11, and the prospective ADR amendment are complete. The support-only 58-of-60 contract, terminal fail-fast, focused regressions, and all login-node gates passed at 2026-07-16T01:41:04Z. Commit before one final smoke. Formal long remains blocked until that smoke passes.
+blocker: Job 2393536 failure review and static correction gates are complete. Commit the non-formal 58-of-60 contract amendment, terminal fail-fast, and focused regressions before one final five-node smoke; no formal long may run first.

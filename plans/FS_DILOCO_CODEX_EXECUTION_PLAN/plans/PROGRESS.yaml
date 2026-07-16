@@ -365,7 +365,7 @@ loops:
   result_commit: null
   evidence_index: evidence/indexes/S1-13.md
   checker_verdict: null
-  blocker: Publication correction preflight 2393404.opbs passed all 364 Stage 1 tests and both exact-size real NumPy merge-plus-commit gates. Five-node smoke 2393421.opbs then failed before learner model loading because the simplified auxiliary PBS harness reassigned a repository-relative resolved config to its relocated evidence copy. All 364 tests passed, syncer bootstrap/readiness completed, no learner training started, and no abnormal node was reported. Automatic and reviewed failures plus aggregate ledger entry 10 are complete. The two-line correction keeps runtime config/contract paths unchanged and copies them only for provenance; its static regression and all login-node gates passed at 2026-07-16T01:06:03Z. Commit the reviewed correction before one replacement smoke. Formal long remains blocked until that smoke passes.
+  blocker: Five-node smoke 2393536.opbs passed all 364 tests and all four 3000-step learners, completed 232 updates at mean/max 1.059704267/1.165041277 seconds, and reached [58,58,58,58], proving corrected publication capacity. It then exposed an over-tight 59-of-60 non-formal terminal margin and missing fail-fast, idling until timeout with scheduler exit 1 and no abnormal node. Automatic and reviewed failures, scheduler summary, ledger entry 11, and a prospective ADR amendment are complete. The support-only 58-of-60 contract, terminal fail-fast, focused regressions, and all login-node static gates passed at 2026-07-16T01:41:04Z. Commit them before one final smoke. Formal minimum 2400 is unchanged and formal long remains blocked until the smoke passes.
 - id: S2-01
   stage: stage2
   title: 异步 GPU→CPU→FS Publication Pipeline
