@@ -18,7 +18,7 @@ dependencies: [S1-12]
 requirements: [INV-01, INV-08, PROG-02, TEL-01, TEL-02, TEL-03, TEL-04]
 acceptance_ids: [A-LEARN-01, A-PERF-01]
 orient:
-  unique_failing_gap: The formal nine-node gate and all correctness paths pass, but the required M=4 long-profile capacity smoke reaches only global cycle 46 of 59 because the large-payload publisher performs a redundant complete post-write readback; the corrected path still requires one exact-size preflight, one capacity retry, and the formal one-billion-token run.
+  unique_failing_gap: The formal nine-node gate, all correctness paths, and the corrected exact-size capacity preflight pass. Five-node job 2393421 then failed before learner model loading because the auxiliary PBS harness used a relocated evidence copy of a config whose learner_profile path is repository-relative. The reviewed two-line harness correction requires static gates, then one replacement capacity smoke and the formal one-billion-token run.
   non_goals: [stale proposals, S_max one, matched-token quality comparison, Stage 2 goodput threshold, DDP NCCL RPC parameter server, mutable Hub revisions]
   planned_files: [src/fsbdd/diloco/, src/fsbdd/auxiliary/stage1/, src/fsbdd/auxiliary/stress/, configs/stage1/s1_13_stage1_close.json, tests/stage1/test_s1_13_close.py, tests/stage1/test_s1_13_reproduction.py, tests/stage1/test_s1_13_static.py, tests/stage1/test_source_architecture.py, tests/red_cases/s1_13_naive_gate_analyzer.py, pbs/stage1_s1_13_assets.pbs, pbs/stage1_s1_13_targeted.pbs, pbs/stage1_s1_13_targeted_focus.pbs, pbs/stage1_s1_13_reproduction_preflight.pbs, pbs/stage1_s1_13_smoke_1n.pbs, pbs/stage1_s1_13_smoke_2n.pbs, pbs/stage1_s1_13_numpy_correction.pbs, pbs/stage1_s1_13_formal_9n.pbs, pbs/stage1_s1_13_long_smoke.pbs, pbs/stage1_s1_13_formal_long.pbs, reports/stage1/S1-13-requirement-matrix.csv, reports/stage1/S1-13-evidence-contract.json, reports/stage1/S1-13-gate-contract.json, reports/stage1/S1-13-reproduction-contract.json, reports/stage1/S1-13-capacity-preflight-contract.json, reports/stage1/S1-13-publication-capacity-code-review.md, reports/stage1/S1-13-experiment-failures.json]
   model_data_profile: Immutable pretrained GPT-2 small plus WikiText-2 raw packed-512 for the 8+1 gate and immutable pretrained Pythia-160m plus FineWeb-Edu canonical packed-512 prefix for the M=4 aggregate-at-least-one-billion-input-token long run.
@@ -119,6 +119,16 @@ orient:
     raw_checksum_inventory_sha256: de2936397f0acc2c65b71e2a5bfa6a29e50c99aa5da082fa44128ce68f8cb84f
     scheduler_checksum_inventory_sha256: 505fe28ebfacdb64eaf051f22634d2862869dee6997350d9e62c2281dbe1aed4
     correction_commit: 24cc55996957a745c40b50020fa1e1e1a4eb013c
+  latest_capacity_smoke_harness_failure:
+    experiment_id: s1-13-long-smoke-capacity-corrected-20260716T003630Z-71e8cdb
+    pbs_job_id: 2393421.opbs
+    code_commit: 71e8cdb1be4e7b92b7671a51ad86c9cc7185d9c1
+    result: all 364 Stage 1 tests passed and syncer bootstrap/readiness completed, but all four learners failed before model loading on one deterministic nonexistent learner-profile path; scheduler exit 1, walltime 48 seconds, no abnormal node
+    raw_evidence_root: runtime_runs/S1-13/s1-13-long-smoke-capacity-corrected-20260716T003630Z-71e8cdb
+    shared_evidence_root: runtime_runs/S1-13/shared-s1-13-long-smoke-capacity-corrected-20260716T003630Z-71e8cdb
+    reviewed_ledger: reports/stage1/S1-13-experiment-failures.json entry 10
+    cause: the PBS harness reassigned RESOLVED_CONFIG to its result-directory evidence copy, so close.py resolved the repo-relative learner_profile from runtime_runs/S1-13 instead of the repository root
+    expected_solution: keep runtime config/contract paths unchanged, copy them only for provenance, add a static no-reassignment regression, and pass all login-node static gates before one replacement smoke
   attempt_budget: {asset_stage: 3, red: 1, targeted: 5, reproduction_preflight: 3, capacity_preflight: 1, l1_real: 2, l2_real: 4, formal_l3_9n: 2, formal_l4_long: 4}
   attempt_budget_amendments:
     - recorded_at_utc: 2026-07-15T20:42:48Z
@@ -260,6 +270,18 @@ orient:
       authorization_gate: Superseded by reports/stage1/S1-13-recovery-process-adr.md; no per-candidate Checker or manually supplied hash is required. Formal long remains contingent on a passing smoke and receives independent post-run final review.
       authorization_commit: 24cc55996957a745c40b50020fa1e1e1a4eb013c
       checker_verdict: pending
+      final_attempt: 2393421.opbs
+      final_attempt_result: failed before learner model loading because the auxiliary script used a relocated evidence config as the runtime path; 364 tests passed, syncer bootstrap/readiness complete, no learner training, scheduler exit 1/no abnormal node
+    - amended_at_utc: 2026-07-16T00:59:19Z
+      prior_formal_l4_long_budget: 4
+      amended_formal_l4_long_budget: 5
+      consumed_before_amendment: 3
+      consumed_attempts: [2393122.opbs, 2393139.opbs, 2393421.opbs]
+      reason: Job 2393421 consumed a five-node PBS allocation but failed solely because the simplified auxiliary harness relocated a repository-relative config before any learner model or training loop started. It produced no evidence about corrected storage capacity. One replacement smoke is necessary while preserving the formal-long slot.
+      scope: Add one replacement five-node non-formal capacity smoke only after the reviewed two-line path correction and static regression pass all login-node gates. The formal long remains a separate later run.
+      authorization_gate: User-approved recovery ADR; no per-candidate Checker or manually supplied hash. The reviewed failure and ledger entry 10 must exist and static gates must pass before qsub.
+      authorization_commit: actual qsub commit captured by the run; no predeclared authorization commit under the recovery ADR
+      checker_verdict: not required by the user-approved recovery ADR
       final_attempt: pending
   failure_ladder: preserve the first expensive failure then reproduce its failing role or analyzer at the smallest one-node or two-node topology before an authorized retry
   nine_node_gate_required: true
@@ -294,11 +316,11 @@ red:
 green:
   command: .venv/bin/python -m compileall -q src tests && uvx --offline ruff check src/fsbdd tests && uvx --offline pyright --pythonpath .venv/bin/python src/fsbdd
   evidence_path: reports/stage1/S1-13-experiment-failures.json
-  latest_result: pass at 2026-07-16T00:28:14Z for the lightweight exact-size NumPy merge/commit preflight candidate; compileall clean, Ruff clean, focused Ruff format clean, Pyright zero errors and warnings
+  latest_result: pass at 2026-07-16T01:06:03Z for the reviewed 2393421 harness correction; compileall clean, Ruff checks clean, Pyright zero errors and warnings, no project test or runtime executed on the login node
 harden:
   commands: [bash -n every active S1-13 PBS script and failure helper, jq empty failure and evidence contracts, git diff --check]
   evidence_paths: [runtime_runs/S1-13/targeted-f0bb4fb-20260715T180720Z, runtime_runs/S1-13/targeted-681e013-20260715T182501Z, runtime_runs/S1-13/targeted-focus-a026505-20260715T191211Z, runtime_runs/S1-13/targeted-bac11ae-20260715T192015Z, runtime_runs/S1-13/reproduction-preflight-d9c3f01-20260715T201400Z, runtime_runs/S1-13/reproduction-preflight-6a4e465-20260715T201715Z, runtime_runs/S1-13/reproduction-2n-s1-13-corrected-2n-20260715T202343Z-6a4e465, evidence/indexes/S1-13.md]
-  latest_result: pass at 2026-07-16T00:31:11Z; job 2393404 passed all 364 Stage 1 tests and both exact-size real NumPy merge-plus-commit gates, with scheduler exit 0 and no abnormal node
+  latest_result: pass at 2026-07-16T01:06:03Z; every active S1-13 PBS script and failure helper parses, tracked JSON/current YAML parse, production has no auxiliary import, runtime paths are not rebound to evidence copies, and diff check is clean; job 2393404 remains the passing dynamic preflight
 nine_node_gate:
   required: true
   run_id: s1-13-formal-9n-20260715T220641Z-e850f51
@@ -386,5 +408,5 @@ persist:
   acceptance_traceability_updated: false
   next_gap: Stage 2 asynchronous GPU to CPU to filesystem publication pipeline
   handoff: >-
-    Replacement capacity smoke 2393139 failed only the capacity threshold and Checker Phase B passed. The production correction removes redundant post-write payload readback. Lightweight preflight 2393404 passed 364 tests and direct exact-size NumPy merge-plus-commit totals 0.946533369/0.973654636 seconds versus the 1.355-second limit, with no Torch/CUDA, scheduler exit 0, and no abnormal node. Under the recovery ADR, prepare and submit exactly one five-node non-formal capacity smoke; any failure must be reviewed and recorded before another experiment.
-blocker: One five-node capacity smoke is next under the recovery ADR after the simplified smoke script passes login-node static gates. Formal long remains blocked until that smoke passes.
+    Lightweight preflight 2393404 passed all 364 tests and exact-size capacity gates. Five-node smoke 2393421 then failed before learner model loading because the simplified PBS harness reassigned the repo-relative resolved config to a relocated evidence copy. Automatic and reviewed failures, scheduler summary, and ledger entry 10 are complete. The two-line correction keeps runtime paths unchanged and copies only for provenance; its static regression and all login-node gates passed at 2026-07-16T01:06:03Z. Commit the reviewed correction, then submit one replacement smoke. Formal long remains blocked until that smoke passes.
+blocker: Job 2393421 failure review and ledger are complete, and the minimal auxiliary harness correction plus all login-node static gates pass. Commit the reviewed correction before one replacement five-node smoke; no formal long may run first.

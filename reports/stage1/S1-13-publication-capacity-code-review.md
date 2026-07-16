@@ -103,7 +103,7 @@ does not execute the obsolete post-write payload-readback mode.  See
 - no application network data plane and no Torch import in the CPU syncer
   benchmark process.
 
-## Static validation and remaining runtime gate
+## Static validation and post-review runtime evidence
 
 Login-node static validation passes: Python bytecode compilation, Ruff, Pyright
 with zero errors/warnings, Bash syntax for every S1-13 PBS script and the failure
@@ -111,7 +111,23 @@ helper, tracked JSON and current YAML parsing, production-to-auxiliary import
 audit, and `git diff --check`.  No project test or model/runtime workload was run
 on the login node.
 
-The correction is not runtime-accepted yet.  The next action is one lightweight
-one-node exact-size preflight.  A pass directly permits one five-node capacity
-smoke under the recovery ADR.  Formal long-run submission remains pending the
-smoke result and its own final-run review.
+The correction passed lightweight job `2393404.opbs`: all 364 Stage 1 tests
+passed, and the real exact-size NumPy merge-plus-commit totals were
+0.946533369 and 0.973654636 seconds against the frozen 1.355-second limit.
+
+The following five-node smoke `2393421.opbs` did not exercise learner capacity:
+the auxiliary PBS script relocated a resolved config containing a
+repository-relative learner-profile path and then used the evidence copy as the
+runtime config.  All learners therefore stopped before model loading.  The
+production path, capacity result, immutable assets, and prior formal nine-node
+result were not implicated.  The reviewed correction keeps the original
+runtime config/contract paths and copies them only as provenance.  A static
+regression forbids either path from being rebound to the evidence copy.
+
+At 2026-07-16T01:06:03Z the corrected harness passed compileall, Ruff checks,
+Pyright with zero errors or warnings, Bash syntax for every active S1-13 PBS
+script and the failure helper, JSON/YAML parsing, the production-to-auxiliary
+dependency audit, the explicit no-reassignment audit, and `git diff --check`.
+No project test or model/runtime workload was run on the login node.  One
+replacement five-node smoke is now the next runtime gate; the formal long run
+remains contingent on that smoke.

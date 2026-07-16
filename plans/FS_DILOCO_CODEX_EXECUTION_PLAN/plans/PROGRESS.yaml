@@ -365,7 +365,7 @@ loops:
   result_commit: null
   evidence_index: evidence/indexes/S1-13.md
   checker_verdict: null
-  blocker: Replacement capacity smoke 2393139.opbs failed only the capacity threshold and Checker Phase B passed. Publication correction commit 377516858fea2437fc7c3f92aee638632bf315ca removes redundant post-write payload readback. Lightweight preflight 2393404.opbs then passed all 364 Stage 1 tests and both exact-size real NumPy merge-plus-commit gates at 0.946533369/0.973654636 seconds against the 1.355-second ceiling, with scheduler exit 0 and no abnormal node. Under the user-approved recovery ADR, one five-node capacity smoke is next after its simplified script passes static gates; formal long remains pending that result.
+  blocker: Publication correction preflight 2393404.opbs passed all 364 Stage 1 tests and both exact-size real NumPy merge-plus-commit gates. Five-node smoke 2393421.opbs then failed before learner model loading because the simplified auxiliary PBS harness reassigned a repository-relative resolved config to its relocated evidence copy. All 364 tests passed, syncer bootstrap/readiness completed, no learner training started, and no abnormal node was reported. Automatic and reviewed failures plus aggregate ledger entry 10 are complete. The two-line correction keeps runtime config/contract paths unchanged and copies them only for provenance; its static regression and all login-node gates passed at 2026-07-16T01:06:03Z. Commit the reviewed correction before one replacement smoke. Formal long remains blocked until that smoke passes.
 - id: S2-01
   stage: stage2
   title: 异步 GPU→CPU→FS Publication Pipeline

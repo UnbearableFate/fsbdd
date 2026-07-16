@@ -720,6 +720,64 @@
         "pbs_stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
         "shared_file_inventory_sha256": "794121b76cf7b285f5b86d04743a2588682ac4b2daa17d24934cb7869480afbc"
       }
+    },
+    {
+      "experiment_id": "s1-13-long-smoke-capacity-corrected-20260716T003630Z-71e8cdb",
+      "analysis_status": "reviewed_harness_path_resolution_failure",
+      "workload": "five-node four-Pythia-learner plus CPU-only NumPy syncer FineWeb-Edu capacity smoke",
+      "pbs_job_id": "2393421.opbs",
+      "code_commit": "71e8cdb1be4e7b92b7671a51ad86c9cc7185d9c1",
+      "queued_at_utc": "2026-07-16T00:36:30Z",
+      "failed_at_utc": "2026-07-16T00:37:27Z",
+      "raw_evidence_root": "runtime_runs/S1-13/s1-13-long-smoke-capacity-corrected-20260716T003630Z-71e8cdb",
+      "shared_evidence_root": "runtime_runs/S1-13/shared-s1-13-long-smoke-capacity-corrected-20260716T003630Z-71e8cdb",
+      "attempt_consumed": true,
+      "failure": {
+        "summary": "All 364 Stage 1 tests passed and the syncer published bootstrap/readiness, but all four learners failed before model loading because the copied evidence config was incorrectly used as the runtime config path.",
+        "exit_code": 1,
+        "exception": "LearnerAssetError caused by FileNotFoundError for runtime_runs/S1-13/configs/stage1/s1_06_pythia160m_fineweb_smoke.json",
+        "observed_progress": {
+          "pytest": "364 passed in 33.29 seconds",
+          "syncer_bootstrap_complete": true,
+          "learner_roles_started_training": 0,
+          "scheduler_exit_status": 1,
+          "scheduler_walltime": "00:00:48",
+          "abnormal_nodes": "none",
+          "allocated_hosts": ["mg0006", "mg0010", "mg0012", "mg0013", "mg0014"]
+        },
+        "automatic_capture": "The shared ERR trap retained failures/raw-2393421.opbs-4082037.json before PBS exit."
+      },
+      "cause": {
+        "status": "diagnosed_auxiliary_pbs_config_copy_path_bug",
+        "summary": "The simplified PBS script copied the resolved config into RESULT_ROOT/env and reassigned RESOLVED_CONFIG to the copy. close.py resolves the repo-relative learner_profile value from config_path.parents[2], so relocating the config changed the base directory from the repository root to runtime_runs/S1-13 and deterministically produced a nonexistent profile path.",
+        "direct_evidence": [
+          "All four learner tracebacks name the same nonexistent runtime_runs/S1-13/configs/stage1/s1_06_pythia160m_fineweb_smoke.json path.",
+          "The original config is below the repository configs/stage1 directory and the referenced learner profile exists below the same repository root.",
+          "The shared root contains four global bootstrap payloads and syncer-ready.json but no learner role or training log.",
+          "PBS reported no abnormal node and all 364 tests passed, excluding the storage correction and test suite as the immediate cause."
+        ],
+        "scope": "Auxiliary PBS evidence capture only. No learner model or training loop started, and the passing exact-size capacity preflight and formal 9-node evidence are unaffected."
+      },
+      "expected_solution": {
+        "status": "minimal_harness_correction_and_static_regression_required",
+        "changes": [
+          "Keep RESOLVED_CONFIG and GATE_CONTRACT at their repository paths during runtime; copy them only for provenance.",
+          "Calculate the small config/contract runtime identities without reassigning either path.",
+          "Add a static regression that forbids using the evidence copies as runtime path bases."
+        ],
+        "validation_before_next_experiment": [
+          "Pass login-node compile, Ruff, Pyright, Bash, JSON/YAML, architecture, and diff checks.",
+          "Update the reviewed per-run failure and this aggregate ledger before any replacement smoke.",
+          "Submit only one replacement five-node smoke under the user-approved recovery ADR; no formal long run is allowed first."
+        ]
+      },
+      "evidence": {
+        "automatic_failure": "failures/raw-2393421.opbs-4082037.json",
+        "reviewed_failure": "reviewed-failure.json",
+        "scheduler": "scheduler-summary.json",
+        "stderr": "stderr/mpirun.log",
+        "pytest": "stdout/pytest.log"
+      }
     }
   ]
 }

@@ -62,6 +62,10 @@ def test_formal_topologies_freeze_independent_9n_and_coallocated_4_plus_1() -> N
     assert "checksums.sha256" not in smoke
     assert "worktree-status.txt" in smoke
     assert "worktree.patch" in smoke
+    assert 'cp "$RESOLVED_CONFIG" "$RESULT_ROOT/env/resolved-config.json"' in smoke
+    assert 'cp "$GATE_CONTRACT" "$RESULT_ROOT/env/gate-contract.json"' in smoke
+    assert 'RESOLVED_CONFIG="$RESULT_ROOT/env/resolved-config.json"' not in smoke
+    assert 'GATE_CONTRACT="$RESULT_ROOT/env/gate-contract.json"' not in smoke
     targeted = (ROOT / "pbs/stage1_s1_13_targeted.pbs").read_text(encoding="utf-8")
     assert "EXPECTED_COMMIT" in targeted
     assert 'if [[ -e "$OUTPUT_ROOT" ]]' in targeted

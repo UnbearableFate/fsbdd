@@ -44,8 +44,6 @@ findmnt -T "$SHARED_ROOT" > "$RESULT_ROOT/env/findmnt.txt"
 cp "$PROJECT_ROOT/pbs/stage1_s1_13_long_smoke.pbs" "$RESULT_ROOT/env/pbs-script.pbs"
 cp "$RESOLVED_CONFIG" "$RESULT_ROOT/env/resolved-config.json"
 cp "$GATE_CONTRACT" "$RESULT_ROOT/env/gate-contract.json"
-RESOLVED_CONFIG="$RESULT_ROOT/env/resolved-config.json"
-GATE_CONTRACT="$RESULT_ROOT/env/gate-contract.json"
 CONFIG_SHA256="$(sha256sum "$RESOLVED_CONFIG" | awk '{print $1}')"
 GATE_CONTRACT_SHA256="$(sha256sum "$GATE_CONTRACT" | awk '{print $1}')"
 ASSET_MARKER_SHA256="$(jq -er '.resolved_runtime_fields.asset_marker_sha256' \
