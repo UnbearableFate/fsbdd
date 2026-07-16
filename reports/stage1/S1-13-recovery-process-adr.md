@@ -32,6 +32,9 @@ For the remaining S1-13 recovery ladder and formal long submission:
   preflight;
 - every failed experiment still receives a raw failure record followed by a
   reviewed cause and expected solution before any next experiment;
+- semantic topology, finite-loss, protocol, bounded-state, runtime, and formal
+  quality gates remain mandatory; process simplification does not turn a failed
+  analyzer into a passing experiment;
 - the formal long job accepts paths rather than caller-supplied repository-file
   hashes or a caller-supplied commit. It requires a clean Git worktree, records
   the actual commit, computes runtime identities internally, and validates only

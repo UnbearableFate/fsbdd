@@ -82,3 +82,28 @@ budget are unchanged. A result below 58 still blocks the formal run. The
 auxiliary syncer also fails immediately when all learners are final and no
 eligible update remains below target, instead of idling until the generic
 active timeout.
+
+## 2026-07-16 non-formal analyzer amendment
+
+Replacement job `2394333.opbs` passed all 365 tests and all five runtime roles,
+completed every learner at 3,000 steps, reached `[58,58,58,58]`, and passed the
+runtime gate in 536.81522485 active seconds. It nevertheless remains a failed
+experiment because three post-run support checks were specified incorrectly:
+
+- the MPI command did not explicitly propagate `PBS_QTIME_UTC`, leaving four
+  remote role records without scheduler qtime;
+- the 24.576-million-token capacity smoke inherited the formal one-billion-token
+  loss trend threshold even though its frozen claim is protocol/runtime capacity
+  only; all loss streams were finite, positive, contiguous, and reconciled;
+- concurrent proposal inventory required exact orphan/retirement-marker equality
+  at every sample, although one publisher can replace visibility between the two
+  observations. The only mismatch was one object at cycle 30 and later samples
+  reconciled.
+
+The non-formal contract now requires strict loss-stream validity but reports the
+ratio/slope only diagnostically. The formal long run still requires ratio at most
+0.99 and negative robust slope. Inventory permits only a concurrent unclassified
+gap bounded by active writers and additionally enforces the history-independent
+orphan bound `retained_recent + visibility_records * inventory_interval`.
+Scheduler qtime is explicitly passed to every MPI rank. Job `2394333` is not
+retroactively passed; one replacement smoke must pass before formal submission.

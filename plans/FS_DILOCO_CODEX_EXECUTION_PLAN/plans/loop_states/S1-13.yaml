@@ -18,7 +18,7 @@ dependencies: [S1-12]
 requirements: [INV-01, INV-08, PROG-02, TEL-01, TEL-02, TEL-03, TEL-04]
 acceptance_ids: [A-LEARN-01, A-PERF-01]
 orient:
-  unique_failing_gap: The formal nine-node gate and corrected publication capacity pass. Job 2394044 stopped before workload on a redundant hash binding from the current gate to a completed historical reproduction contract. The reviewed semantic-check correction requires static gates, one final smoke, then the formal one-billion-token run.
+  unique_failing_gap: The formal nine-node gate and corrected publication capacity pass. Job 2394333 passed all runtime capacity facts at [58,58,58,58] but failed three auxiliary post-run checks covering remote MPI qtime propagation, a formal loss trend incorrectly applied to the non-formal capacity window, and pointwise marker equality during concurrent inventory. The reviewed correction requires static gates, one replacement smoke, then the formal one-billion-token run.
   non_goals: [stale proposals, S_max one, matched-token quality comparison, Stage 2 goodput threshold, DDP NCCL RPC parameter server, mutable Hub revisions]
   planned_files: [src/fsbdd/diloco/, src/fsbdd/auxiliary/stage1/, src/fsbdd/auxiliary/stress/, configs/stage1/s1_13_stage1_close.json, tests/stage1/test_s1_13_close.py, tests/stage1/test_s1_13_reproduction.py, tests/stage1/test_s1_13_static.py, tests/stage1/test_source_architecture.py, tests/red_cases/s1_13_naive_gate_analyzer.py, pbs/stage1_s1_13_assets.pbs, pbs/stage1_s1_13_targeted.pbs, pbs/stage1_s1_13_targeted_focus.pbs, pbs/stage1_s1_13_reproduction_preflight.pbs, pbs/stage1_s1_13_smoke_1n.pbs, pbs/stage1_s1_13_smoke_2n.pbs, pbs/stage1_s1_13_numpy_correction.pbs, pbs/stage1_s1_13_formal_9n.pbs, pbs/stage1_s1_13_long_smoke.pbs, pbs/stage1_s1_13_formal_long.pbs, reports/stage1/S1-13-requirement-matrix.csv, reports/stage1/S1-13-evidence-contract.json, reports/stage1/S1-13-gate-contract.json, reports/stage1/S1-13-reproduction-contract.json, reports/stage1/S1-13-capacity-preflight-contract.json, reports/stage1/S1-13-publication-capacity-code-review.md, reports/stage1/S1-13-experiment-failures.json]
   model_data_profile: Immutable pretrained GPT-2 small plus WikiText-2 raw packed-512 for the 8+1 gate and immutable pretrained Pythia-160m plus FineWeb-Edu canonical packed-512 prefix for the M=4 aggregate-at-least-one-billion-input-token long run.
@@ -149,6 +149,16 @@ orient:
     reviewed_ledger: reports/stage1/S1-13-experiment-failures.json entry 12
     cause: a static test unnecessarily required a completed historical reproduction contract that this smoke does not consume to track the current gate hash; current evidence-contract prose separately retained 59 of 60
     expected_solution: keep the reproduction contract historical, remove the cross-contract hash assertion, check current thresholds/workload/topology/schema/paths and external assets semantically, remove caller-supplied formal-long repository-file hashes, update current evidence prose, and pass static gates before another qsub
+  latest_postrun_analyzer_failure:
+    experiment_id: s1-13-long-smoke-semantic-corrected-20260716T020709Z-c2b3642
+    pbs_job_id: 2394333.opbs
+    code_commit: c2b36420b1d246068871f4c3c8952eef3f3c2e6d
+    result: 365 tests and all five roles passed; four learners completed 3000 steps/6144000 tokens each; syncer completed 232 updates at [58,58,58,58]; runtime gate passed in 536.81522485 active seconds; topology/loss/protocol support gates failed; scheduler exit 1, walltime 10 minutes, no abnormal node
+    raw_evidence_root: runtime_runs/S1-13/s1-13-long-smoke-semantic-corrected-20260716T020709Z-c2b3642
+    shared_evidence_root: runtime_runs/S1-13/shared-s1-13-long-smoke-semantic-corrected-20260716T020709Z-c2b3642
+    reviewed_ledger: reports/stage1/S1-13-experiment-failures.json entry 13
+    cause: PBS_QTIME_UTC was not explicitly propagated to remote MPI ranks; the non-formal 24.576M-token capacity smoke inherited the formal loss-trend threshold; and concurrent proposal inventory required exact marker/orphan equality despite one bounded in-progress classification at cycle 30
+    expected_solution: explicitly propagate qtime, retain strict basic non-formal loss validation but reserve trend enforcement for formal evidence, enforce active-writer-bounded classification plus a history-independent orphan bound, add regressions, and pass static gates before one replacement smoke
   attempt_budget: {asset_stage: 3, red: 1, targeted: 5, reproduction_preflight: 3, capacity_preflight: 1, l1_real: 2, l2_real: 4, formal_l3_9n: 2, formal_l4_long: 4}
   attempt_budget_amendments:
     - recorded_at_utc: 2026-07-15T20:42:48Z
@@ -326,6 +336,18 @@ orient:
       authorization_gate: User-approved recovery ADR; no per-candidate Checker, manually supplied hash, or full checksum inventory. Failure ledger entry 12 and static gates must be complete before qsub.
       authorization_commit: actual qsub commit captured by the run; no predeclared authorization commit under the recovery ADR
       checker_verdict: not required by the user-approved recovery ADR
+      final_attempt: 2394333.opbs
+      final_attempt_result: runtime capacity target passed at [58,58,58,58] and runtime gate pass, but post-run topology/loss/protocol auxiliary checks failed; scheduler exit 1/no abnormal node
+    - amended_at_utc: 2026-07-16T02:28:00Z
+      prior_formal_l4_long_budget: 7
+      amended_formal_l4_long_budget: 8
+      consumed_before_amendment: 6
+      consumed_attempts: [2393122.opbs, 2393139.opbs, 2393421.opbs, 2393536.opbs, 2394044.opbs, 2394333.opbs]
+      reason: Job 2394333 proved every intended runtime-capacity fact but failed three post-run support checks whose contracts were invalid for coallocated MPI evidence, a non-formal capacity window, or a concurrent inventory observation. The run remains failed. One replacement smoke is required to validate the corrected analyzer and MPI evidence path while preserving the sole formal-long slot.
+      scope: Add one replacement five-node smoke after explicit qtime propagation, non-formal finite/contiguous/reconciled loss semantics, writer-bounded inventory classification, history-independent orphan bounds, regressions, full static review, and commit. The formal one-billion-token quality threshold, token/cycle budgets, algorithm, production protocol, and final formal-long slot are unchanged.
+      authorization_gate: User-approved recovery ADR; no per-candidate Checker, caller-supplied repository-file hash, or routine full checksum inventory. Failure ledger entry 13 and static gates must be complete before qsub.
+      authorization_commit: actual qsub commit captured by the run; no predeclared authorization commit under the recovery ADR
+      checker_verdict: not required by the user-approved recovery ADR
       final_attempt: pending
   failure_ladder: preserve the first expensive failure then reproduce its failing role or analyzer at the smallest one-node or two-node topology before an authorized retry
   nine_node_gate_required: true
@@ -360,11 +382,11 @@ red:
 green:
   command: .venv/bin/python -m compileall -q src tests && uvx --offline ruff check src/fsbdd tests && uvx --offline pyright --pythonpath .venv/bin/python src/fsbdd
   evidence_path: reports/stage1/S1-13-experiment-failures.json
-  latest_result: pass at 2026-07-16T02:04:28Z for the reviewed semantic-check and formal-long identity-flow correction; compileall, Ruff, and Pyright zero errors/warnings; no project test or runtime ran on the login node
+  latest_result: pass at 2026-07-16T02:31:26Z for the reviewed job-2394333 qtime/non-formal-loss/concurrent-inventory correction; compileall, Ruff, and Pyright zero errors/warnings; no project test or runtime ran on the login node
 harden:
   commands: [bash -n every active S1-13 PBS script and failure helper, jq empty failure and evidence contracts, git diff --check]
   evidence_paths: [runtime_runs/S1-13/targeted-f0bb4fb-20260715T180720Z, runtime_runs/S1-13/targeted-681e013-20260715T182501Z, runtime_runs/S1-13/targeted-focus-a026505-20260715T191211Z, runtime_runs/S1-13/targeted-bac11ae-20260715T192015Z, runtime_runs/S1-13/reproduction-preflight-d9c3f01-20260715T201400Z, runtime_runs/S1-13/reproduction-preflight-6a4e465-20260715T201715Z, runtime_runs/S1-13/reproduction-2n-s1-13-corrected-2n-20260715T202343Z-6a4e465, evidence/indexes/S1-13.md]
-  latest_result: pass at 2026-07-16T02:04:28Z; Bash, JSON/YAML, current semantic thresholds, formal-long internal identity/external asset, architecture, runtime-path, external marker, and diff gates all pass
+  latest_result: pass at 2026-07-16T02:31:26Z; Bash, JSON/YAML, explicit qtime propagation, non-formal/formal loss, writer/orphan bounds, current/formal thresholds, architecture, runtime-path, external marker, and diff gates all pass
 nine_node_gate:
   required: true
   run_id: s1-13-formal-9n-20260715T220641Z-e850f51
@@ -452,5 +474,5 @@ persist:
   acceptance_traceability_updated: false
   next_gap: Stage 2 asynchronous GPU to CPU to filesystem publication pipeline
   handoff: >-
-    Job 2394044 was stopped before learner/syncer runtime after 364 tests passed because a current static regression unnecessarily bound the gate hash to a completed historical reproduction contract. Automatic/reviewed failure, scheduler summary, and ledger entry 12 are complete. The cross-contract gate is removed, active 58-of-60 semantics and the simplified formal-long identity flow are reviewed, and all login static/semantic gates pass at 2026-07-16T02:04:28Z. Commit before one final smoke. Formal long remains blocked until that smoke passes.
-blocker: Job 2394044 failure review and the semantic-check/formal-long identity-flow correction are complete; all login static gates pass. Commit the correction before one final five-node smoke; no formal long may run first.
+    Job 2394333 passed all 365 tests, all runtime roles, 24,576,000 tokens, [58,58,58,58], and the runtime gate, then failed auxiliary topology/loss/protocol analysis. Automatic/reviewed failure, scheduler summary, and ledger entry 13 are complete. The qtime propagation, non-formal loss semantics, and concurrent inventory bounds are corrected with regressions; all login static gates pass at 2026-07-16T02:31:26Z. Commit before one replacement smoke. Formal long remains blocked until that smoke passes.
+blocker: Job 2394333 failure review, ledger entry 13, and all static correction gates are complete. Commit the MPI qtime, non-formal loss, concurrent inventory, and formal-script correction before one replacement five-node smoke; no formal long may run first.

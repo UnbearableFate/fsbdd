@@ -115,6 +115,7 @@ def _loss_gate(
     workload_gate_contract: Mapping[str, Any],
     execution_contract: Mapping[str, Any],
 ) -> dict[str, Any]:
+    trend_required = bool(execution_contract.get("loss_trend_required", True))
     if workload == "nine_node":
         contract = workload_gate_contract["loss"]
         warmup = int(contract["warmup_points"])
@@ -223,8 +224,7 @@ def _loss_gate(
         )
     passed = (
         all(item["pass"] for item in learner_rows)
-        and ratio <= maximum_ratio
-        and slope < 0
+        and (not trend_required or (ratio <= maximum_ratio and slope < 0))
         and validation_pass
     )
     return {
@@ -232,13 +232,14 @@ def _loss_gate(
         "gate": "loss",
         "workload": workload,
         "status": "pass" if passed else "fail",
+        "trend_required": trend_required,
         "aggregation": "target-token-weighted loss at common local-step index",
         "smoothing": {"warmup_points": warmup, "rolling_median_window": window},
         "robust_slope": {
             "method": "median of fixed-lag finite differences",
             "lag": max(window, len(aggregate_smoothed) // 10),
             "value": slope,
-            "must_be_negative": True,
+            "must_be_negative": trend_required,
         },
         "aggregate": {
             "common_points": common,
@@ -246,9 +247,50 @@ def _loss_gate(
             "final_median": final,
             "final_to_initial": ratio,
             "maximum_final_to_initial": maximum_ratio,
+            "threshold_enforced": trend_required,
         },
         "learners": learner_rows,
         "validation": validation,
+    }
+
+
+def _inventory_classification(
+    value: Mapping[str, Any],
+    *,
+    expected_visibility_records: int,
+    retained_recent_unreferenced_payloads: int,
+    inventory_interval: int,
+    maximum_active_writers: int,
+) -> dict[str, Any]:
+    visibility_records = int(value["visibility_records"])
+    referenced_payloads = int(value["referenced_payloads"])
+    physical_payloads = int(value["physical_payloads"])
+    orphan_payloads = int(value["orphan_payloads"])
+    retirement_markers = int(value["retirement_markers"])
+    unclassified_orphans = orphan_payloads - retirement_markers
+    maximum_orphans = (
+        retained_recent_unreferenced_payloads
+        + expected_visibility_records * inventory_interval
+    )
+    passed = (
+        visibility_records == expected_visibility_records
+        and referenced_payloads == expected_visibility_records
+        and physical_payloads == referenced_payloads + orphan_payloads
+        and 0 <= unclassified_orphans <= maximum_active_writers
+        and orphan_payloads <= maximum_orphans
+        and int(value["record_temp_files"]) == 0
+        and int(value["record_temp_bytes"]) == 0
+    )
+    return {
+        "pass": passed,
+        "visibility_records": visibility_records,
+        "referenced_payloads": referenced_payloads,
+        "physical_payloads": physical_payloads,
+        "orphan_payloads": orphan_payloads,
+        "retirement_markers": retirement_markers,
+        "unclassified_orphans": unclassified_orphans,
+        "maximum_unclassified_orphans": maximum_active_writers,
+        "maximum_orphans": maximum_orphans,
     }
 
 
@@ -686,23 +728,32 @@ def _protocol_gate(
         "history_scan_allowed": False,
     }
     expected_visibility = {"global": 4, "proposals": learner_count * 4}
-    classified_inventory_pass = bool(inventories) and all(
-        item.get("policy") == expected_policy
-        and all(
-            int(item[name]["visibility_records"]) == expected_visibility[name]
-            and int(item[name]["referenced_payloads"]) == expected_visibility[name]
-            and int(item[name]["physical_payloads"])
-            == int(item[name]["referenced_payloads"])
-            + int(item[name]["orphan_payloads"])
-            and int(item[name]["retirement_markers"])
-            == int(item[name]["orphan_payloads"])
-            and int(item[name]["record_temp_files"]) == 0
-            and int(item[name]["record_temp_bytes"]) == 0
-            for name in expected_visibility
-        )
-        for item in inventories
-    )
     interval = expected_policy["inventory_every_global_cycles"]
+    maximum_active_writers = {"global": 1, "proposals": learner_count}
+    inventory_classifications = [
+        {
+            "global_cycle": int(item["global_cycle"]),
+            "policy_pass": item.get("policy") == expected_policy,
+            **{
+                name: _inventory_classification(
+                    item[name],
+                    expected_visibility_records=expected_visibility[name],
+                    retained_recent_unreferenced_payloads=expected_policy[
+                        "retained_recent_unreferenced_payloads"
+                    ],
+                    inventory_interval=interval,
+                    maximum_active_writers=maximum_active_writers[name],
+                )
+                for name in expected_visibility
+            },
+        }
+        for item in inventories
+    ]
+    classified_inventory_pass = bool(inventory_classifications) and all(
+        item["policy_pass"]
+        and all(item[name]["pass"] for name in expected_visibility)
+        for item in inventory_classifications
+    )
     periodic_cycles = {
         int(item["global_cycle"])
         for item in inventories[:-1]
@@ -857,6 +908,7 @@ def _protocol_gate(
         "bounded_storage_inventory": inventory,
         "bounded_inventory_pass": inventory_pass,
         "classified_inventory_pass": classified_inventory_pass,
+        "inventory_classifications": inventory_classifications,
         "inventory_schedule_pass": inventory_schedule_pass,
         "reclamation_observed_pass": reclamation_pass,
         "inventory_points": len(inventories),

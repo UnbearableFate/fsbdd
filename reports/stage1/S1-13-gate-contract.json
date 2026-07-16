@@ -48,6 +48,8 @@
       "runtime_budget_seconds": 1200,
       "pbs_walltime_seconds": 1800,
       "minimum_step_seconds": 0.16,
+      "loss_trend_required": false,
+      "loss_stream_requirement": "finite positive contiguous optimizer-step losses with exact processed-token and loss-bearing-token counter reconciliation; formal trend is reported diagnostically only",
       "required_topology": "four real Pythia learners plus one CPU-only NumPy syncer on five distinct compute hosts",
       "required_dataset": "the immutable long-run FineWeb-Edu packed shards",
       "formal_evidence": false
@@ -100,6 +102,6 @@
     },
     "application_data_plane": "shared_filesystem_only"
   },
-  "bounded_state": {"proposal_current_slots": "M_times_F", "global_current_slots": 4, "retained_base_versions_per_fragment": 1, "maximum_pending_publications_per_learner_fragment": 1, "minimum_unreferenced_payload_age_seconds": 30, "retained_recent_unreferenced_payloads_per_backend": 64, "history_scan_allowed": false},
+  "bounded_state": {"proposal_current_slots": "M_times_F", "global_current_slots": 4, "retained_base_versions_per_fragment": 1, "maximum_pending_publications_per_learner_fragment": 1, "minimum_unreferenced_payload_age_seconds": 30, "retained_recent_unreferenced_payloads_per_backend": 64, "history_scan_allowed": false, "concurrent_inventory_unclassified_orphans_bound": "at most active writers: one global syncer or M learner publishers", "history_independent_orphan_bound": "retained_recent_unreferenced_payloads plus visibility_records times inventory_every_global_cycles"},
   "failure_policy": "preserve first L3 or L4 failure and reproduce at the smallest real topology before retry"
 }

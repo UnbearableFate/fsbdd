@@ -38,7 +38,9 @@ from fsbdd.diloco.syncer.readiness import (
 )
 from fsbdd.auxiliary.stage1.gate import (
     Stage1GateError,
+    _inventory_classification,
     _load_syncer_streams,
+    _loss_gate,
     _runtime_gate,
     _topology_gate,
 )
@@ -335,6 +337,136 @@ def test_nine_node_topology_gate_rejects_duplicate_host_and_gpu() -> None:
         ]
         == "fail"
     )
+
+
+def test_nonformal_capacity_loss_keeps_stream_checks_without_formal_trend_gate(
+    tmp_path: Path,
+) -> None:
+    learner_id = "learner-00"
+    points = 160
+    path = tmp_path / "logs" / f"{learner_id}.jsonl"
+    path.parent.mkdir(parents=True)
+    with path.open("w", encoding="utf-8") as stream:
+        for step in range(1, points + 1):
+            stream.write(
+                json.dumps(
+                    {
+                        "event": "safe_boundary",
+                        "local_optimizer_step": step,
+                        "token_weighted_loss": 1.0 + step / 1000,
+                        "loss_bearing_target_tokens_step": 10,
+                        "processed_input_tokens_total": step * 10,
+                        "loss_bearing_target_tokens_total": step * 10,
+                    }
+                )
+                + "\n"
+            )
+    roles = [
+        {
+            "learner_id": learner_id,
+            "learner_index": 0,
+            "progress": {
+                "processed_input_tokens": points * 10,
+                "loss_bearing_target_tokens": points * 10,
+                "local_optimizer_steps": points,
+            },
+        }
+    ]
+    workload_contract = {
+        "loss": {
+            "warmup_points": 20,
+            "rolling_median_window": 20,
+            "initial_fraction": 0.2,
+            "final_fraction": 0.2,
+            "maximum_final_to_initial_median": 0.99,
+        }
+    }
+    nonformal = _loss_gate(
+        tmp_path,
+        roles,
+        workload="long_run",
+        config={},
+        workload_gate_contract=workload_contract,
+        execution_contract={
+            "optimizer_steps_per_learner": points,
+            "loss_trend_required": False,
+        },
+    )
+    assert nonformal["status"] == "pass"
+    assert nonformal["trend_required"] is False
+    assert nonformal["aggregate"]["final_to_initial"] > 1
+    assert nonformal["robust_slope"]["value"] > 0
+
+    formal = _loss_gate(
+        tmp_path,
+        roles,
+        workload="long_run",
+        config={},
+        workload_gate_contract=workload_contract,
+        execution_contract={"optimizer_steps_per_learner": points},
+    )
+    assert formal["status"] == "fail"
+    assert formal["trend_required"] is True
+
+    events = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
+    events[0]["token_weighted_loss"] = 0
+    path.write_text(
+        "".join(json.dumps(item) + "\n" for item in events), encoding="utf-8"
+    )
+    with pytest.raises(Stage1GateError, match="loss stream failed basic checks"):
+        _loss_gate(
+            tmp_path,
+            roles,
+            workload="long_run",
+            config={},
+            workload_gate_contract=workload_contract,
+            execution_contract={
+                "optimizer_steps_per_learner": points,
+                "loss_trend_required": False,
+            },
+        )
+
+
+def test_concurrent_inventory_is_writer_bounded_and_history_independent() -> None:
+    def inventory(orphan_payloads: int, retirement_markers: int) -> dict[str, int]:
+        return {
+            "visibility_records": 16,
+            "referenced_payloads": 16,
+            "physical_payloads": 16 + orphan_payloads,
+            "orphan_payloads": orphan_payloads,
+            "retirement_markers": retirement_markers,
+            "record_temp_files": 0,
+            "record_temp_bytes": 0,
+        }
+
+    concurrent = _inventory_classification(
+        inventory(66, 65),
+        expected_visibility_records=16,
+        retained_recent_unreferenced_payloads=64,
+        inventory_interval=10,
+        maximum_active_writers=4,
+    )
+    assert concurrent["pass"] is True
+    assert concurrent["unclassified_orphans"] == 1
+    assert concurrent["maximum_orphans"] == 224
+
+    excessive_writer_gap = _inventory_classification(
+        inventory(70, 65),
+        expected_visibility_records=16,
+        retained_recent_unreferenced_payloads=64,
+        inventory_interval=10,
+        maximum_active_writers=4,
+    )
+    assert excessive_writer_gap["pass"] is False
+
+    history_dependent_growth = _inventory_classification(
+        inventory(225, 225),
+        expected_visibility_records=16,
+        retained_recent_unreferenced_payloads=64,
+        inventory_interval=10,
+        maximum_active_writers=4,
+    )
+    assert history_dependent_growth["pass"] is False
 
 
 def test_protocol_sample_capture_binds_current_metadata_and_edges(

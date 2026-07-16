@@ -889,6 +889,54 @@
         "scheduler": "scheduler-summary.json",
         "pytest": "stdout/pytest.log"
       }
+    },
+    {
+      "experiment_id": "s1-13-long-smoke-semantic-corrected-20260716T020709Z-c2b3642",
+      "analysis_status": "reviewed_nonformal_analyzer_and_mpi_evidence_contract_errors",
+      "workload": "five-node four-learner Pythia/FineWeb-Edu capacity smoke",
+      "pbs_job_id": "2394333.opbs",
+      "code_commit": "c2b36420b1d246068871f4c3c8952eef3f3c2e6d",
+      "queued_at_utc": "2026-07-16T02:07:09Z",
+      "failed_at_utc": "2026-07-16T02:17:19Z",
+      "raw_evidence_root": "runtime_runs/S1-13/s1-13-long-smoke-semantic-corrected-20260716T020709Z-c2b3642",
+      "shared_evidence_root": "runtime_runs/S1-13/shared-s1-13-long-smoke-semantic-corrected-20260716T020709Z-c2b3642",
+      "attempt_consumed": true,
+      "failure": {
+        "summary": "All 365 tests and all five runtime roles passed, completing 58 cycles and 24,576,000 tokens, but the post-run analyzer failed topology, loss, and protocol support checks.",
+        "exit_code": 1,
+        "learner_steps": [3000, 3000, 3000, 3000],
+        "fragment_updates": 232,
+        "final_version_vector": [58, 58, 58, 58],
+        "active_runtime_seconds": 536.81522485,
+        "runtime_gate": "pass",
+        "failed_gates": ["topology", "loss", "protocol"],
+        "scheduler_exit_status": 1,
+        "scheduler_walltime": "00:10:00",
+        "abnormal_nodes": "none",
+        "allocated_hosts": ["mg0002", "mg0010", "mg0012", "mg0013", "mg0014"]
+      },
+      "cause": {
+        "status": "diagnosed_auxiliary_analyzer_and_mpi_evidence_contract_errors",
+        "summary": "PBS_QTIME_UTC was omitted from the explicit MPI environment and therefore null on remote ranks; the non-formal capacity smoke incorrectly inherited the formal one-billion-token loss-trend threshold; and exact retirement-marker equality was incorrectly required during concurrent proposal publication, where one bounded in-progress classification gap was observed and later reconciled.",
+        "scope": "Auxiliary PBS/analyzer evidence semantics only. The complete suite, learner/syncer runtime, capacity target, bounded reclamation, and runtime gate passed."
+      },
+      "expected_solution": {
+        "status": "correct_nonformal_evidence_semantics_before_replacement_smoke",
+        "changes": [
+          "Explicitly propagate PBS_QTIME_UTC through the smoke and formal-long MPI commands.",
+          "Keep strict basic loss-stream validation for the non-formal capacity smoke but reserve the ratio/slope trend threshold for formal evidence.",
+          "Allow only an active-writer-bounded concurrent retirement-marker gap and enforce a history-independent orphan bound based on retention, visibility slots, and inventory interval.",
+          "Add regressions, pass login static review, commit, and run one replacement smoke before formal long."
+        ]
+      },
+      "evidence": {
+        "automatic_failure": "failures/raw-2394333.opbs-360622.json",
+        "reviewed_failure": "reviewed-failure.json",
+        "scheduler": "scheduler-summary.json",
+        "gate_summary": "analysis/gate_summary.json",
+        "pytest": "stdout/pytest.log",
+        "syncer": "roles/syncer.json"
+      }
     }
   ]
 }

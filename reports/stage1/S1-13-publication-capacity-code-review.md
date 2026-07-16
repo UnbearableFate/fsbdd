@@ -207,3 +207,30 @@ tracked JSON/current YAML parsing, semantic 58-versus-2,400 checks, the
 formal-long internal-identity/external-asset audit, production dependency and
 runtime-path audits, external marker validation, and `git diff --check`. No
 project test or runtime ran on the login node.
+
+### CR-07: post-run capacity-smoke analyzer semantics
+
+Job `2394333.opbs` proved the intended capacity facts: 365 tests passed, four
+learners completed 3,000 steps/6,144,000 tokens each, the syncer completed 232
+updates with final vector `[58,58,58,58]`, and the runtime gate passed at
+536.81522485 active seconds. The job remains failed because topology, loss, and
+protocol analyzer gates exposed three support-layer errors.
+
+The MPI launcher relied on implicit environment forwarding, which preserved
+`PBS_QTIME_UTC` only on the local rank. Both remaining five-node scripts now
+pass it explicitly through `/usr/bin/env`. The capacity-smoke loss analyzer now
+keeps strict finite/positive/contiguous/counter-reconciliation checks but does
+not enforce a formal quality trend on only 24.576 million tokens; formal long
+semantics remain unchanged. Finally, inventory classification now models the
+actual concurrent observation: an unclassified orphan gap may be no larger
+than the active writer count, and total orphans must remain below a
+history-independent bound derived from retention, fixed visibility slots, and
+the inventory interval. This replaces an impossible pointwise equality with a
+stronger actual bounded-growth assertion.
+
+At `2026-07-16T02:31:26Z`, CR-07 passed compileall, Ruff, Pyright with zero
+errors/warnings, all S1-13 PBS/failure-helper Bash syntax, tracked JSON/current
+YAML parsing, explicit qtime propagation, non-formal/formal loss separation,
+writer/orphan bound checks, current 58-versus-formal-2,400 checks, production
+dependency/runtime-path audits, external marker validation, and
+`git diff --check`. No project test or runtime ran on the login node.

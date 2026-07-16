@@ -55,6 +55,7 @@ def test_formal_topologies_freeze_independent_9n_and_coallocated_4_plus_1() -> N
     assert 'sha256sum "$ASSET_ROOT/complete.json"' in long
     assert '--commit "$ACTUAL_COMMIT"' in long
     assert 'env/worktree-status.txt"' in long
+    assert 'PBS_QTIME_UTC="$PBS_QTIME_UTC"' in long
     assert (ROOT / "pbs/stage1_s1_13_numpy_correction.pbs").is_file()
     smoke = (ROOT / "pbs/stage1_s1_13_long_smoke.pbs").read_text(encoding="utf-8")
     assert "#PBS -l select=5" in smoke
@@ -76,6 +77,7 @@ def test_formal_topologies_freeze_independent_9n_and_coallocated_4_plus_1() -> N
     assert 'cp "$GATE_CONTRACT" "$RESULT_ROOT/env/gate-contract.json"' in smoke
     assert 'RESOLVED_CONFIG="$RESULT_ROOT/env/resolved-config.json"' not in smoke
     assert 'GATE_CONTRACT="$RESULT_ROOT/env/gate-contract.json"' not in smoke
+    assert 'PBS_QTIME_UTC="$PBS_QTIME_UTC"' in smoke
     targeted = (ROOT / "pbs/stage1_s1_13_targeted.pbs").read_text(encoding="utf-8")
     assert "EXPECTED_COMMIT" in targeted
     assert 'if [[ -e "$OUTPUT_ROOT" ]]' in targeted
@@ -306,6 +308,8 @@ def test_frozen_gate_contract_covers_heartbeat_stalls_and_long_capacity_smoke() 
     assert smoke["minimum_global_cycles"] == 58
     assert smoke["minimum_cycle_to_publication_opportunity_ratio"] == 58 / 60
     assert smoke["allowed_fixed_unavailable_fresh_quorums"] == 2
+    assert smoke["loss_trend_required"] is False
+    assert "finite positive contiguous" in smoke["loss_stream_requirement"]
     assert "formal long-run minimum remains 2400" in smoke["margin_semantics"]
     assert contract["long_run"]["minimum_global_cycles"] == 2400
     assert contract["long_run"]["minimum_step_seconds"] == 0.16
@@ -313,6 +317,13 @@ def test_frozen_gate_contract_covers_heartbeat_stalls_and_long_capacity_smoke() 
     assert overlay["algorithm"] == "aligned_zero_for_q_equals_m_capacity_v1"
     assert overlay["learner_phase_offsets"] == [0, 0, 0, 0]
     assert overlay["learner_waits_for_syncer"] is False
+    bounded = contract["bounded_state"]
+    assert "active writers" in bounded[
+        "concurrent_inventory_unclassified_orphans_bound"
+    ]
+    assert "visibility_records times inventory_every_global_cycles" in bounded[
+        "history_independent_orphan_bound"
+    ]
 
 
 def test_resolved_configs_bind_external_assets_and_long_workload_semantics() -> None:
